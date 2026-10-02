@@ -159,6 +159,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -338,17 +339,91 @@
     $("note").value = ""; renderNotes(); toast("Catatan tersimpan");
   };
 
-  /* ---------- Unduh data (CSV) ---------- */
+  /* ---------- Unduh hasil olahan sebagai OpenDocument Spreadsheet ---------- */
   $("dl").onclick = () => {
-    const c = cur && cur.chart;
-    if (!c || !c.labels || !c.series) { toast("Belum ada data untuk diunduh."); return; }
-    const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
-    const rows = [["Kategori"].concat(c.series.map((s) => s.name)).map(q).join(",")];
-    c.labels.forEach((lb, i) => rows.push([q(lb)].concat(c.series.map((s) => s.values[i])).join(",")));
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob(["\ufeff" + rows.join("\n")], { type: "text/csv" }));
-    a.download = (st.report + " - " + st.tab + " - " + st.period + ".csv").replace(/[\\/:*?"<>|]/g, "");
-    a.click(); URL.revokeObjectURL(a.href);
+    let processed;
+    try { processed = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "null"); }
+    catch (e) { processed = null; }
+    if (!processed || !Array.isArray(processed.rows) || !processed.rows.length) {
+      toast("Belum ada hasil olahan. Unggah file Sell Out terlebih dahulu."); return;
+    }
+    if (!window.XLSX) { toast("Komponen pembuat file ODS gagal dimuat."); return; }
+    const data = [
+      ["No", "Parameter", "Ach Last Year (2025)", "", "Target 2026", "", "Achievement", "% Achievement", "", "Growth", "Contribution", ""],
+      ["", "", "Full Year", "YTD JUNI", "Full Year", "YTD JUNI", "YTD JUNI", "YTD JUNI", "2026", "YTD JUNI", "vs Divisi", "vs Corporate"]
+    ];
+    const formulaSpecs = [];
+    const values = new Map();
+    processed.rows.forEach((record) => {
+      if (!record.code) return;
+      const n = Number(record.revTotal);
+      if (Number.isFinite(n)) values.set(record.code, (values.get(record.code) || 0) + n);
+    });
+    const parameterRows = [];
+    let serialNo = 0;
+    const addRow = (parameter, code, section) => {
+      data.push([++serialNo, parameter, "", "", "", "", code && values.has(code) ? values.get(code) : "", "", "", "", "", ""]);
+      const excelRow = data.length;
+      if (code || section) parameterRows.push({ row: excelRow, code, section });
+      return excelRow;
+    };
+    const addDivision = (name, gbNumbers) => {
+      data.push(["", name, "", "", "", "", "", "", "", "", "", ""]);
+      const existingSubtotal = addRow("Total Existing (ABC) + Non target", null, "existing");
+      const newSubtotal = addRow("Total New Product (D)", null, "new");
+      const existingRows = [], newRows = [];
+      gbNumbers.forEach((number) => {
+        addRow("GB " + number, "gb" + number);
+        existingRows.push(addRow("Total Existing (ABC) + Non target", "existing" + number));
+        newRows.push(addRow("Total New Product (D)", "new" + number));
+      });
+      const sumFormula = (rows) => rows.length ? "SUM(" + rows.map((row) => "G" + row).join(",") + ")" : "0";
+      formulaSpecs.push({ row: existingSubtotal, col: 6, formula: sumFormula(existingRows) });
+      formulaSpecs.push({ row: newSubtotal, col: 6, formula: sumFormula(newRows) });
+    };
+    addDivision("PHARMA", [1, 4]);
+    addDivision("HCE", [2, 3]);
+    addDivision("FOOD", [5, 6]);
+    data.push(["", "INTERNATIONAL BUSINESS", "", "", "", "", "", "", "", "", "", ""]);
+    addRow("Total Existing (ABC)", null);
+    addRow("Total New Product (D)", null);
+    data.push(["", "ETHICAL", "", "", "", "", "", "", "", "", "", ""]);
+    addRow("Total Existing (ABC) + Non target", "ethicalExisting");
+    addRow("Total New Product (D)", "ethicalNew");
+
+    // Formula kolom dihitung oleh aplikasi spreadsheet saat file dibuka.
+    parameterRows.forEach(({ row }) => {
+      formulaSpecs.push({ row, col: 7, formula: `IF(OR(F${row}="",G${row}="",G${row}=0),"",F${row}/G${row})` });
+      formulaSpecs.push({ row, col: 8, formula: `IF(OR(E${row}="",G${row}=""),"",G${row}/E${row})` });
+      formulaSpecs.push({ row, col: 9, formula: `IF(OR(D${row}="",G${row}="",D${row}=0),"",G${row}/D${row}-1)` });
+    });
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    formulaSpecs.forEach(({ row, col, formula }) => {
+      const address = XLSX.utils.encode_cell({ r: row - 1, c: col });
+      worksheet[address] = { t: "n", f: formula };
+    });
+    worksheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
+      { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } }, { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
+      { s: { r: 0, c: 6 }, e: { r: 1, c: 6 } }, { s: { r: 0, c: 7 }, e: { r: 0, c: 8 } },
+      { s: { r: 0, c: 9 }, e: { r: 1, c: 9 } }, { s: { r: 0, c: 10 }, e: { r: 0, c: 11 } }
+    ];
+    worksheet["!cols"] = [{ wch: 5 }, { wch: 36 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 16 }, { wch: 16 }, { wch: 13 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+    const headerStyle = { fill: { fgColor: { rgb: "8FC9F4" } }, font: { bold: true, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: { top: { style: "thin", color: { rgb: "000000" } }, bottom: { style: "thin", color: { rgb: "000000" } }, left: { style: "thin", color: { rgb: "000000" } }, right: { style: "thin", color: { rgb: "000000" } } } };
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 12; c++) {
+      const address = XLSX.utils.encode_cell({ r, c });
+      if (worksheet[address]) worksheet[address].s = headerStyle;
+    }
+    [7, 8, 9].forEach((col) => {
+      for (let r = 2; r < data.length; r++) {
+        const address = XLSX.utils.encode_cell({ r, c: col });
+        if (worksheet[address]) worksheet[address].z = "0.00%";
+      }
+    });
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Revenue Sell Out");
+    const filename = (st.report + " - " + st.period + ".ods").replace(/[\\/:*?"<>|]/g, "");
+    XLSX.writeFile(workbook, filename, { bookType: "ods", cellStyles: true });
   };
 
   /* ---------- Render utama ---------- */

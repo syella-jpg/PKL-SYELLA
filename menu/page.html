@@ -147,12 +147,13 @@
 
   <section class="grid" id="grid" aria-label="Daftar laporan"></section>
 </main>
-
+//ubah menu
 <script>
   // Tambah / ubah laporan cukup lewat daftar ini
   const reports = [
-    ["Revenue & Sales", "Revenue Konimex Selling In (RP)"],
+    ["Revenue & Sales", "Revenue Konimex Selling Out (RP)"],
     ["Revenue & Sales", "MCM Konimex Sell In (RP)"],
+    ["Revenue & Sales", "Revenue Konimex Selling In (RP)"],
     ["Revenue & Sales", "Ratio Biaya (Biaya vs Selling in)"],
     ["Revenue & Sales", "Ratio Sell Out vs Sell In (RP & Unit)"],
     ["Revenue & Sales", "MTM Contribution"],
@@ -173,9 +174,10 @@
     ["Produk, Mutu & SDM", "Complain Level"],
     ["Produk, Mutu & SDM", "Ratio UPB"]
   ];
-
+//mana yang bisa diakses disini
   const grid = document.getElementById('grid');
   const reportPages = {
+    'Revenue Konimex Selling Out (RP)': '../dashboard/Revenue%20SO(RP).html',
     'MCM Konimex Sell In (RP)': '../dashboard/MCM%20KX%20SI.html',
     'Revenue Konimex Selling In (RP)': '../dashboard/Revenue%20KX%20SI.html',
     'Revenue Konimex Sell In (Unit)': '../dashboard/Revenue%20SI(Unit).html'

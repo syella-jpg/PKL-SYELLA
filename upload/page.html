@@ -155,13 +155,14 @@
   </form>
 </main>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Daftar divisi: isi / ubah sendiri di sini
   const DIVISI = [
-    "Keuangan",
-    "Logistik",
-    // "Produksi",
+    "Revenue Konimex Selling Out",
+    "MCM Konimex Sell In ",
+    "Revenue Konimex Selling In",
     // "Sales & Marketing",
   ];
 
@@ -171,6 +172,7 @@
 
   const ALLOWED = ["xlsx", "ods"];
   const MAX_MB = 50;
+  const PROCESSED_KEY = "konimex_revenue_so_processed";
 
   // Nama pengguna di header (opsional)
   const USER_NAME = "Administrator";
@@ -202,11 +204,52 @@
     return (b / 1048576).toFixed(2) + " MB";
   }
 
+  // Ambil baris TOTAL di semua sheet, tanpa mengandalkan posisi baris tetap.
+  // Hanya nilai pada kolom REV TOTAL yang dipertahankan.
+  async function processRevenueSO(file) {
+    if (!window.XLSX) throw new Error("Komponen pembaca spreadsheet gagal dimuat.");
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
+    const records = [];
+    const labelRules = [
+      [/^TOTAL\s+GB\s*(\d+)$/i, (m) => ({ code: "gb" + m[1], label: "TOTAL GB " + m[1] })],
+      [/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/i, (m, gb) => ({ code: "existing" + (m[1] || gb || ""), label: "TOTAL EXISTING GB" + (m[1] || gb ? " " + (m[1] || gb) : "") })],
+      [/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/i, (m, gb) => ({ code: "new" + (m[1] || gb || ""), label: "TOTAL NEW PRODUCT GB" + (m[1] || gb ? " " + (m[1] || gb) : "") })],
+      [/^EXIST\s+ETH$/i, () => ({ code: "ethicalExisting", label: "EXIST ETH" })],
+      [/^NP\s+ETH$/i, () => ({ code: "ethicalNew", label: "NP ETH" })],
+      [/^TOTAL\s+ETH$/i, () => ({ code: "ethicalTotal", label: "TOTAL ETH" })]
+    ];
+    workbook.SheetNames.forEach((sheetName) => {
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: true });
+      let headerRow = -1, revColumn = -1;
+      for (let r = 0; r < rows.length && headerRow < 0; r++) {
+        const c = rows[r].findIndex((value) => String(value).trim().replace(/\s+/g, " ").toUpperCase() === "REV TOTAL");
+        if (c >= 0) { headerRow = r; revColumn = c; }
+      }
+      if (headerRow < 0) return;
+      rows.forEach((row, index) => {
+        if (index <= headerRow) return;
+        const cells = row.map((value) => String(value == null ? "" : value).trim());
+        const gbCell = cells.map((value) => value.match(/^GB\s*(\d+)$/i)).find(Boolean);
+        const rowGb = gbCell && gbCell[1];
+        const match = cells.map((value) => {
+          for (const [pattern, makeRecord] of labelRules) {
+            const found = value.match(pattern);
+            if (found) return makeRecord(found, rowGb);
+          }
+          return null;
+        }).find(Boolean);
+        if (match) records.push({ sheet: sheetName, ...match, revTotal: row[revColumn] ?? "" });
+      });
+    });
+    if (!records.length) throw new Error("Tidak ditemukan baris TOTAL (GB, Existing GB, atau New Product GB) dengan kolom REV TOTAL.");
+    return records;
+  }
+
   // Validasi file: ekstensi + ukuran
   function validate(f) {
     const ext = (f.name.split(".").pop() || "").toLowerCase();
     if (f.name.indexOf(".") < 0 || !ALLOWED.includes(ext))
-      return "Format file tidak didukung. Gunakan file .xlsx atau .odt.";
+      return "Format file tidak didukung. Gunakan file .xlsx atau .ods.";
     if (f.size === 0) return "File kosong. Pilih file lain.";
     if (f.size > MAX_MB * 1024 * 1024) return "Ukuran file melebihi " + MAX_MB + "MB (" + fmtSize(f.size) + ").";
     return "";
@@ -295,7 +338,12 @@
 
     setBusy(true);
     try {
+      const isRevenueSO = select.value.trim() === "Revenue Konimex Selling Out";
+      const processedRows = isRevenueSO ? await processRevenueSO(chosen) : null;
       await send(select.value, chosen);
+      if (processedRows) {
+        localStorage.setItem(PROCESSED_KEY, JSON.stringify({ source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows }));
+      }
       barFill.style.width = "100%";
       setMsg("Berhasil: \"" + chosen.name + "\" terkirim dari divisi " + select.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
       clearFile();
