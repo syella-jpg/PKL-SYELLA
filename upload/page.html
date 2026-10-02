@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upload File Laporan</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --red: #e31e24; --red-dark: #c8141a; --ink: #1f2430; --muted: #6b7280; --line: #d9dce1; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: #f4f4f4; color: var(--ink); min-height: 100vh; }
+
+  /* ===== Header ===== */
+  header {
+    background: #fff; height: 56px; padding: 0 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid #e6e6e6;
+  }
+  .brand { display: flex; align-items: center; gap: 22px; }
+  .logo { display: inline-flex; align-items: flex-start; gap: 1px; font-weight: 700; font-style: italic; font-size: 21px; letter-spacing: -.5px; color: var(--red); text-decoration: none; }
+  .logo svg { width: 16px; height: 16px; margin-top: -4px; }
+  .divider { width: 1px; height: 20px; background: var(--line); }
+  .user { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: #e5e7eb; display: grid; place-items: center; font-size: 10px; font-weight: 700; }
+
+  /* ===== Kartu ===== */
+  main { padding: 38px 16px 48px; }
+  .card { max-width: 568px; margin: 0 auto; background: #fff; border-radius: 24px; padding: 36px 32px 32px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  h1 { font-size: 20px; font-weight: 700; }
+  .sub { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .label { display: block; font-size: 12px; font-weight: 700; margin: 28px 0 8px; }
+  .label + .select-wrap { margin-top: 0; }
+
+  /* ===== Select divisi ===== */
+  .select-wrap { position: relative; }
+  .select-wrap select {
+    width: 100%; height: 38px; appearance: none; -webkit-appearance: none;
+    border: 1px solid var(--line); border-radius: 10px; background: #fff;
+    padding: 0 40px 0 40px; font-family: inherit; font-size: 13px; color: var(--ink); cursor: pointer;
+  }
+  .select-wrap select:invalid { color: var(--ink); }
+  .select-wrap select:focus-visible { outline: 3px solid rgba(227,30,36,.25); border-color: var(--red); }
+  .select-wrap .ic, .select-wrap .chev { position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none; }
+  .select-wrap .ic { left: 14px; width: 16px; height: 16px; stroke: var(--red); }
+  .select-wrap .chev { right: 14px; width: 14px; height: 14px; stroke: #4b5563; }
+  .select-wrap.err select { border-color: var(--red); }
+
+  /* ===== Dropzone ===== */
+  .drop {
+    border: 2px dashed var(--red); border-radius: 12px; background: #fff7f6;
+    min-height: 204px; padding: 24px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .drop:hover, .drop.over { background: #ffeceb; }
+  .drop:focus-visible { outline: 3px solid rgba(227,30,36,.3); outline-offset: 2px; }
+  .drop.err { background: #fff0ef; }
+  .cloud { width: 50px; height: 50px; border-radius: 50%; background: #ffe4e2; display: grid; place-items: center; margin-bottom: 18px; }
+  .cloud svg { width: 24px; height: 24px; stroke: var(--red); }
+  .drop strong { font-size: 13px; font-weight: 700; }
+  .drop p { margin-top: 6px; font-size: 11px; color: var(--muted); }
+  .chip { margin-top: 14px; background: #eef0f3; border-radius: 6px; padding: 5px 12px; font-size: 10px; font-weight: 600; color: #4b5563; }
+
+  /* File terpilih */
+  .picked { display: none; align-items: center; gap: 12px; width: 100%; max-width: 380px; background: #fff; border: 1px solid #f3c9c7; border-radius: 10px; padding: 12px 14px; text-align: left; }
+  .drop.has-file .empty { display: none; }
+  .drop.has-file .picked { display: flex; }
+  .picked .fic { width: 36px; height: 36px; border-radius: 8px; background: #ffe4e2; display: grid; place-items: center; flex-shrink: 0; }
+  .picked .fic svg { width: 18px; height: 18px; stroke: var(--red); }
+  .picked .meta { flex: 1; min-width: 0; }
+  .picked .name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .picked .size { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .picked .rm { border: 0; background: #f3f4f6; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; line-height: 1; color: #4b5563; }
+  .picked .rm:hover { background: #e5e7eb; }
+
+  /* ===== Status & progress ===== */
+  .msg { margin-top: 12px; font-size: 12px; min-height: 18px; }
+  .msg.error { color: var(--red-dark); }
+  .msg.ok { color: #15803d; font-weight: 600; }
+  .bar { display: none; height: 6px; border-radius: 3px; background: #eceef1; overflow: hidden; margin-top: 6px; }
+  .bar.on { display: block; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--red); transition: width .15s; }
+
+  .actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 22px;
+    border: 0; border-radius: 10px; background: var(--red); color: #fff;
+    font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: background .15s;
+  }
+  .btn svg { width: 15px; height: 15px; stroke: #fff; }
+  .btn:hover:not(:disabled) { background: var(--red-dark); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn:focus-visible { outline: 3px solid rgba(227,30,36,.35); outline-offset: 2px; }
+
+  @media (max-width: 520px) {
+    header { padding: 0 14px; }
+    .user span.t { display: none; }
+    .card { padding: 26px 18px 24px; border-radius: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <a class="logo" href="#" aria-label="Konimex">KONIMEX
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="4" fill="#e31e24"/><circle cx="17" cy="9" r="4" fill="#e31e24"/><circle cx="10" cy="16" r="4" fill="#e31e24"/></svg>
+    </a>
+    <span class="divider"></span>
+  </div>
+  <div class="user"><div class="avatar" id="avatar">AD</div><span class="t" id="userName">Welcome, Administrator</span></div>
+</header>
+
+<main>
+  <form class="card" id="form" novalidate>
+    <h1>Upload File Laporan</h1>
+    <p class="sub">Kirim dokumen keuangan dan logistik divisi secara aman ke sistem pusat Konimex.</p>
+
+    <label class="label" for="divisi">Pilih Divisi Pengirim</label>
+    <div class="select-wrap" id="selWrap">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <select id="divisi" required>
+        <option value="" selected>Pilih Divisi</option>
+      </select>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+
+    <span class="label" id="fileLabel">File Dokumen</span>
+    <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
+      <input type="file" id="file" accept=".xlsx,.ods" hidden>
+      <div class="empty" style="display:flex;flex-direction:column;align-items:center">
+        <div class="cloud">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16.58A5 5 0 0018 7h-1.26A8 8 0 104 15.25"/><path d="M12 12v9M8 16l4-4 4 4"/></svg>
+        </div>
+        <strong>Drag &amp; drop file di sini</strong>
+        <p>atau klik untuk memilih file dari komputer Anda</p>
+        <span class="chip">.Ods, .xlsx (Maks. 50MB)</span>
+      </div>
+      <div class="picked">
+        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="meta"><div class="name" id="fname"></div><div class="size" id="fsize"></div></div>
+        <button type="button" class="rm" id="rm" aria-label="Hapus file">&times;</button>
+      </div>
+    </div>
+
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+    <div class="msg" id="msg" role="status" aria-live="polite"></div>
+
+    <div class="actions">
+      <button type="submit" class="btn" id="submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <span id="btnText">Upload File</span>
+      </button>
+    </div>
+  </form>
+</main>
+
+<script>
+  /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
+  // Daftar divisi: isi / ubah sendiri di sini
+  const DIVISI = [
+    "Keuangan",
+    "Logistik",
+    // "Produksi",
+    // "Sales & Marketing",
+  ];
+
+  // Alamat endpoint server untuk menerima file (method POST, multipart/form-data
+  // dengan field "divisi" dan "file"). Kosongkan = mode demo (simulasi upload).
+  const UPLOAD_URL = "";
+
+  const ALLOWED = ["xlsx", "ods"];
+  const MAX_MB = 50;
+
+  // Nama pengguna di header (opsional)
+  const USER_NAME = "Administrator";
+  /* ===================================================================== */
+
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), drop = $("drop"), fileInput = $("file"), select = $("divisi");
+  const msg = $("msg"), bar = $("bar"), barFill = $("barFill"), btn = $("submit"), btnText = $("btnText");
+  let chosen = null, busy = false;
+
+  // Header
+  $("userName").textContent = "Welcome, " + USER_NAME;
+  $("avatar").textContent = USER_NAME.slice(0, 2).toUpperCase();
+
+  // Isi dropdown divisi
+  DIVISI.forEach((d) => {
+    const o = document.createElement("option");
+    o.value = d; o.textContent = d;
+    select.appendChild(o);
+  });
+
+  function setMsg(text, type) {
+    msg.textContent = text || "";
+    msg.className = "msg" + (type ? " " + type : "");
+  }
+  function fmtSize(b) {
+    if (b < 1024) return b + " B";
+    if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+    return (b / 1048576).toFixed(2) + " MB";
+  }
+
+  // Validasi file: ekstensi + ukuran
+  function validate(f) {
+    const ext = (f.name.split(".").pop() || "").toLowerCase();
+    if (f.name.indexOf(".") < 0 || !ALLOWED.includes(ext))
+      return "Format file tidak didukung. Gunakan file .xlsx atau .odt.";
+    if (f.size === 0) return "File kosong. Pilih file lain.";
+    if (f.size > MAX_MB * 1024 * 1024) return "Ukuran file melebihi " + MAX_MB + "MB (" + fmtSize(f.size) + ").";
+    return "";
+  }
+
+  function pick(f) {
+    if (!f || busy) return;
+    const err = validate(f);
+    if (err) { clearFile(); drop.classList.add("err"); setMsg(err, "error"); return; }
+    chosen = f;
+    $("fname").textContent = f.name;
+    $("fsize").textContent = fmtSize(f.size);
+    drop.classList.remove("err");
+    drop.classList.add("has-file");
+    setMsg("");
+  }
+  function clearFile() {
+    chosen = null;
+    fileInput.value = "";
+    drop.classList.remove("has-file");
+  }
+
+  // Klik / keyboard pada dropzone
+  drop.addEventListener("click", (e) => {
+    if (busy || e.target.closest("#rm")) return;
+    fileInput.click();
+  });
+  drop.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target === drop) { e.preventDefault(); if (!busy) fileInput.click(); }
+  });
+  fileInput.addEventListener("change", () => pick(fileInput.files[0]));
+  $("rm").addEventListener("click", (e) => { e.stopPropagation(); if (!busy) { clearFile(); setMsg(""); } });
+
+  // Drag & drop
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); if (!busy) drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => {
+    const files = e.dataTransfer.files;
+    if (files.length > 1) { setMsg("Hanya satu file yang bisa diunggah sekaligus.", "error"); return; }
+    pick(files[0]);
+  });
+  // Cegah browser membuka file bila dijatuhkan di luar dropzone
+  ["dragover", "drop"].forEach((ev) => window.addEventListener(ev, (e) => e.preventDefault()));
+
+  function setBusy(on) {
+    busy = on;
+    btn.disabled = on;
+    btnText.textContent = on ? "Mengunggah..." : "Upload File";
+    bar.classList.toggle("on", on);
+    if (!on) barFill.style.width = "0";
+  }
+
+  // Kirim file ke server (dengan progress)
+  function send(divisi, file) {
+    return new Promise((resolve, reject) => {
+      if (!UPLOAD_URL) { // mode demo
+        let p = 0;
+        const t = setInterval(() => {
+          p += 12 + Math.random() * 10;
+          barFill.style.width = Math.min(p, 100) + "%";
+          if (p >= 100) { clearInterval(t); resolve(); }
+        }, 120);
+        return;
+      }
+      const fd = new FormData();
+      fd.append("divisi", divisi);
+      fd.append("file", file);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", UPLOAD_URL);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) barFill.style.width = (e.loaded / e.total * 100) + "%"; };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error("Server menolak upload (kode " + xhr.status + ")."));
+      xhr.onerror = () => reject(new Error("Gagal terhubung ke server."));
+      xhr.send(fd);
+    });
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setMsg("");
+    $("selWrap").classList.remove("err");
+    drop.classList.remove("err");
+
+    if (!select.value) { $("selWrap").classList.add("err"); setMsg("Pilih divisi pengirim terlebih dahulu.", "error"); select.focus(); return; }
+    if (!chosen) { drop.classList.add("err"); setMsg("Pilih file dokumen terlebih dahulu.", "error"); return; }
+
+    setBusy(true);
+    try {
+      await send(select.value, chosen);
+      barFill.style.width = "100%";
+      setMsg("Berhasil: \"" + chosen.name + "\" terkirim dari divisi " + select.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
+      clearFile();
+      select.value = "";
+    } catch (err) {
+      setMsg(err.message || "Upload gagal. Coba lagi.", "error");
+    } finally {
+      setBusy(false);
+    }
+  });
+  select.addEventListener("change", () => $("selWrap").classList.remove("err"));
+</script>
+</body>
+</html>
