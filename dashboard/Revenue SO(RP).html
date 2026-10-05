@@ -354,16 +354,29 @@
     ];
     const formulaSpecs = [];
     const values = new Map();
+    const sourceLabels = new Map();
     processed.rows.forEach((record) => {
       if (!record.code) return;
       const n = Number(record.revTotal);
-      if (Number.isFinite(n)) values.set(record.code, (values.get(record.code) || 0) + n);
+      if (Number.isFinite(n)) {
+        values.set(record.code, (values.get(record.code) || 0) + n);
+        if (!sourceLabels.has(record.code)) sourceLabels.set(record.code, record.label);
+      }
+    });
+    const sourceData = [["Kode sumber", "Baris asal", "REV TOTAL"]];
+    const sourceRowByCode = new Map();
+    values.forEach((value, code) => {
+      sourceData.push([code, sourceLabels.get(code) || code, value]);
+      sourceRowByCode.set(code, sourceData.length);
     });
     const parameterRows = [];
     let serialNo = 0;
     const addRow = (parameter, code, section) => {
-      data.push([++serialNo, parameter, "", "", "", "", code && values.has(code) ? values.get(code) : "", "", "", "", "", ""]);
+      data.push([++serialNo, parameter, "", "", "", "", "", "", "", "", "", ""]);
       const excelRow = data.length;
+      if (code && sourceRowByCode.has(code)) {
+        formulaSpecs.push({ row: excelRow, col: 6, formula: `'Sumber REV TOTAL'!C${sourceRowByCode.get(code)}` });
+      }
       if (code || section) parameterRows.push({ row: excelRow, code, section });
       return excelRow;
     };
@@ -422,6 +435,7 @@
       }
     });
     XLSX.utils.book_append_sheet(workbook, worksheet, "Revenue Sell Out");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sourceData), "Sumber REV TOTAL");
     const filename = (st.report + " - " + st.period + ".ods").replace(/[\\/:*?"<>|]/g, "");
     XLSX.writeFile(workbook, filename, { bookType: "ods", cellStyles: true });
   };
