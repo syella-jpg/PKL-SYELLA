@@ -4,7 +4,31 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-header('Content-Type: application/json');
+// Izinkan halaman lokal file:// mengirim upload ke server PHP di komputer ini.
+// Browser mengirim Origin: null untuk file://. Origin web lain tetap ditolak.
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($origin === 'null') {
+    header('Access-Control-Allow-Origin: null');
+    header('Vary: Origin');
+    header('Access-Control-Allow-Methods: POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Max-Age: 600');
+    if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
+        header('Access-Control-Allow-Private-Network: true');
+    }
+} elseif ($origin !== '' && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'message' => 'Origin tidak diizinkan.']);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
+header('Content-Type: application/json; charset=utf-8');
 
 $host = '127.0.0.1';
 $user = 'root';

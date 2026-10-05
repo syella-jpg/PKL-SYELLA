@@ -204,7 +204,7 @@
   //   chart: { labels: ["CORPORATE", ...], series: [{ name: "% Achievement YTD JUNI", values: [95, 43, 9] }, ...] } }
   const DATA = {};
   // Atau ambil dari server: GET DATA_URL?report=..&tab=..&period=YYYY-MM  -> mengembalikan objek { cards, chart }
-  const DATA_URL = "";
+  const DATA_URL = "revenue_so_api.php";
   /* ============================================== */
 
   const BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -350,7 +350,7 @@
     if (!window.XLSX) { toast("Komponen pembuat file ODS gagal dimuat."); return; }
     const data = [
       ["No", "Parameter", "Ach Last Year (2025)", "", "Target 2026", "", "Achievement", "% Achievement", "", "Growth", "Contribution", ""],
-      ["", "", "Full Year", "YTD JUNI", "Full Year", "YTD JUNI", "YTD JUNI", "YTD JUNI", "2026", "YTD JUNI", "vs Divisi", "vs Corporate"]
+      ["", "", "Full Year", "YTD JULI", "Full Year", "YTD JULI", "YTD JULI", "YTD JULI", "2026", "YTD JULI", "vs Divisi", "vs Corporate"]
     ];
     const formulaSpecs = [];
     const values = new Map();
@@ -363,66 +363,95 @@
         if (!sourceLabels.has(record.code)) sourceLabels.set(record.code, record.label);
       }
     });
+    const valueByCode = values;
     const sourceData = [["Kode sumber", "Baris asal", "REV TOTAL"]];
-    const sourceRowByCode = new Map();
     values.forEach((value, code) => {
       sourceData.push([code, sourceLabels.get(code) || code, value]);
-      sourceRowByCode.set(code, sourceData.length);
     });
-    const parameterRows = [];
     let serialNo = 0;
-    const addRow = (parameter, code, section) => {
-      data.push([++serialNo, parameter, "", "", "", "", "", "", "", "", "", ""]);
-      const excelRow = data.length;
-      if (code && sourceRowByCode.has(code)) {
-        formulaSpecs.push({ row: excelRow, col: 6, formula: `'Sumber REV TOTAL'!C${sourceRowByCode.get(code)}` });
-      }
-      if (code || section) parameterRows.push({ row: excelRow, code, section });
-      return excelRow;
+    const addDetail = (label, code) => {
+      const row = data.length + 1;
+      data.push([++serialNo, label, "", "", "", "", valueByCode.get(code) ?? "", "", "", "", "", ""]);
+      formulaSpecs.push({ row, col: 7, formula: `IF(OR(F${row}="",G${row}="",G${row}=0),"",F${row}/G${row})` });
+      formulaSpecs.push({ row, col: 8, formula: `IF(OR(E${row}="",G${row}="",E${row}=0),"",G${row}/E${row})` });
+      formulaSpecs.push({ row, col: 9, formula: `IF(OR(C${row}="",G${row}="",C${row}=0),"",G${row}/C${row}-1)` });
+      return row;
     };
     const addDivision = (name, gbNumbers) => {
+      const divRow = data.length + 1;
       data.push(["", name, "", "", "", "", "", "", "", "", "", ""]);
-      const existingSubtotal = addRow("Total Existing (ABC) + Non target", null, "existing");
-      const newSubtotal = addRow("Total New Product (D)", null, "new");
-      const existingRows = [], newRows = [];
+      const existingSubtotal = addDetail("Total Existing (ABC) + Non target", null);
+      const newSubtotal = addDetail("Total New Product (D)", null);
+      const gbRows = [], existingRows = [], newRows = [];
       gbNumbers.forEach((number) => {
-        addRow("GB " + number, "gb" + number);
-        existingRows.push(addRow("Total Existing (ABC) + Non target", "existing" + number));
-        newRows.push(addRow("Total New Product (D)", "new" + number));
+        const gbRow = addDetail("GB " + number, null);
+        gbRows.push(gbRow);
+        const existingRow = addDetail("Total Existing (ABC) + Non target", "existing" + number);
+        const newRow = addDetail("Total New Product (D)", "new" + number);
+        existingRows.push(existingRow);
+        newRows.push(newRow);
+        const gbTotal = (Number(valueByCode.get("existing" + number)) || 0) + (Number(valueByCode.get("new" + number)) || 0);
+        formulaSpecs.push({ row: gbRow, col: 6, formula: `SUM(G${existingRow},G${newRow})`, value: gbTotal });
+        formulaSpecs.push({ row: gbRow, col: 7, formula: `IF(OR(F${gbRow}="",G${gbRow}="",G${gbRow}=0),"",F${gbRow}/G${gbRow})` });
+        formulaSpecs.push({ row: gbRow, col: 8, formula: `IF(OR(E${gbRow}="",G${gbRow}="",E${gbRow}=0),"",G${gbRow}/E${gbRow})` });
+        formulaSpecs.push({ row: gbRow, col: 9, formula: `IF(OR(C${gbRow}="",G${gbRow}="",C${gbRow}=0),"",G${gbRow}/C${gbRow}-1)` });
       });
-      const sumFormula = (rows) => rows.length ? "SUM(" + rows.map((row) => "G" + row).join(",") + ")" : "0";
-      formulaSpecs.push({ row: existingSubtotal, col: 6, formula: sumFormula(existingRows) });
-      formulaSpecs.push({ row: newSubtotal, col: 6, formula: sumFormula(newRows) });
+      const sumRefs = (rows) => rows.length ? `SUM(${rows.map((r) => `F${r}`).join(",")})` : "0";
+      const sumCodes = (codes) => codes.reduce((sum, code) => sum + (Number(valueByCode.get(code)) || 0), 0);
+      const existingTotal = sumCodes(gbNumbers.map((number) => "existing" + number));
+      const newTotal = sumCodes(gbNumbers.map((number) => "new" + number));
+      const divisionTotal = gbNumbers.reduce((sum, number) => sum + sumCodes(["existing" + number, "new" + number]), 0);
+      formulaSpecs.push({ row: existingSubtotal, col: 6, formula: sumRefs(existingRows).replace(/F/g, "G"), value: existingTotal });
+      formulaSpecs.push({ row: newSubtotal, col: 6, formula: sumRefs(newRows).replace(/F/g, "G"), value: newTotal });
+      formulaSpecs.push({ row: divRow, col: 6, formula: sumRefs(gbRows).replace(/F/g, "G"), value: divisionTotal });
+      data[divRow - 1][1] = name;
+      formulaSpecs.push({ row: divRow, col: 7, formula: `IF(OR(F${divRow}="",G${divRow}="",G${divRow}=0),"",F${divRow}/G${divRow})` });
+      formulaSpecs.push({ row: divRow, col: 8, formula: `IF(OR(E${divRow}="",G${divRow}="",E${divRow}=0),"",G${divRow}/E${divRow})` });
+      formulaSpecs.push({ row: divRow, col: 9, formula: `IF(OR(C${divRow}="",G${divRow}="",C${divRow}=0),"",G${divRow}/C${divRow}-1)` });
+      [existingSubtotal, newSubtotal].forEach((row) => {
+        formulaSpecs.push({ row, col: 7, formula: `IF(OR(F${row}="",G${row}="",G${row}=0),"",F${row}/G${row})` });
+        formulaSpecs.push({ row, col: 8, formula: `IF(OR(E${row}="",G${row}="",E${row}=0),"",G${row}/E${row})` });
+        formulaSpecs.push({ row, col: 9, formula: `IF(OR(C${row}="",G${row}="",C${row}=0),"",G${row}/C${row}-1)` });
+      });
     };
     addDivision("PHARMA", [1, 4]);
     addDivision("HCE", [2, 3]);
     addDivision("FOOD", [5, 6]);
-    data.push(["", "INTERNATIONAL BUSINESS", "", "", "", "", "", "", "", "", "", ""]);
-    addRow("Total Existing (ABC)", null);
-    addRow("Total New Product (D)", null);
-    data.push(["", "ETHICAL", "", "", "", "", "", "", "", "", "", ""]);
-    addRow("Total Existing (ABC) + Non target", "ethicalExisting");
-    addRow("Total New Product (D)", "ethicalNew");
-
-    // Formula kolom dihitung oleh aplikasi spreadsheet saat file dibuka.
-    parameterRows.forEach(({ row }) => {
-      formulaSpecs.push({ row, col: 7, formula: `IF(OR(F${row}="",G${row}="",G${row}=0),"",F${row}/G${row})` });
-      formulaSpecs.push({ row, col: 8, formula: `IF(OR(E${row}="",G${row}=""),"",G${row}/E${row})` });
-      formulaSpecs.push({ row, col: 9, formula: `IF(OR(D${row}="",G${row}="",D${row}=0),"",G${row}/D${row}-1)` });
-    });
+    // Ethical memiliki satu total pada sumber; jika tidak ada, rincikan existing/new.
+    if (valueByCode.has("ethicalExisting") || valueByCode.has("ethicalNew")) {
+      const ethicalSummaryRow = data.length + 1;
+      data.push(["", "ETHICAL", "", "", "", "", "", "", "", "", "", ""]);
+      const ethicalRows = [];
+      if (valueByCode.has("ethicalExisting")) ethicalRows.push(addDetail("Total Existing (ABC) + Non target", "ethicalExisting"));
+      if (valueByCode.has("ethicalNew")) ethicalRows.push(addDetail("Total New Product (D)", "ethicalNew"));
+      const ethicalTotal = (Number(valueByCode.get("ethicalExisting")) || 0) + (Number(valueByCode.get("ethicalNew")) || 0);
+      formulaSpecs.push({ row: ethicalSummaryRow, col: 6, formula: `SUM(${ethicalRows.map((row) => `G${row}`).join(",")})`, value: ethicalTotal });
+      formulaSpecs.push({ row: ethicalSummaryRow, col: 7, formula: `IF(OR(F${ethicalSummaryRow}="",G${ethicalSummaryRow}="",G${ethicalSummaryRow}=0),"",F${ethicalSummaryRow}/G${ethicalSummaryRow})` });
+      formulaSpecs.push({ row: ethicalSummaryRow, col: 8, formula: `IF(OR(E${ethicalSummaryRow}="",G${ethicalSummaryRow}="",E${ethicalSummaryRow}=0),"",G${ethicalSummaryRow}/E${ethicalSummaryRow})` });
+      formulaSpecs.push({ row: ethicalSummaryRow, col: 9, formula: `IF(OR(C${ethicalSummaryRow}="",G${ethicalSummaryRow}="",C${ethicalSummaryRow}=0),"",G${ethicalSummaryRow}/C${ethicalSummaryRow}-1)` });
+    } else if (valueByCode.has("ethicalTotal")) {
+      addDetail("Ethical", "ethicalTotal");
+    }
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.aoa_to_sheet(data);
+    worksheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
+      { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } },
+      { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
+      { s: { r: 0, c: 6 }, e: { r: 1, c: 6 } },
+      { s: { r: 0, c: 7 }, e: { r: 0, c: 8 } },
+      { s: { r: 0, c: 9 }, e: { r: 1, c: 9 } },
+      { s: { r: 0, c: 10 }, e: { r: 0, c: 11 } }
+    ];
+    const formulaValueByCell = new Map(formulaSpecs.filter((spec) => Number.isFinite(spec.value)).map((spec) => [`${spec.row}:${spec.col}`, spec.value]));
     formulaSpecs.forEach(({ row, col, formula }) => {
       const address = XLSX.utils.encode_cell({ r: row - 1, c: col });
       worksheet[address] = { t: "n", f: formula };
+      const cachedValue = formulaValueByCell.get(`${row}:${col}`);
+      if (cachedValue !== undefined) worksheet[address].v = cachedValue;
     });
-    worksheet["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
-      { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } }, { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
-      { s: { r: 0, c: 6 }, e: { r: 1, c: 6 } }, { s: { r: 0, c: 7 }, e: { r: 0, c: 8 } },
-      { s: { r: 0, c: 9 }, e: { r: 1, c: 9 } }, { s: { r: 0, c: 10 }, e: { r: 0, c: 11 } }
-    ];
-    worksheet["!cols"] = [{ wch: 5 }, { wch: 36 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 16 }, { wch: 16 }, { wch: 13 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+    worksheet["!cols"] = [{ wch: 5 }, { wch: 36 }, { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 16 }, { wch: 13 }, { wch: 15 }, { wch: 15 }, { wch: 17 }];
     const headerStyle = { fill: { fgColor: { rgb: "8FC9F4" } }, font: { bold: true, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: { top: { style: "thin", color: { rgb: "000000" } }, bottom: { style: "thin", color: { rgb: "000000" } }, left: { style: "thin", color: { rgb: "000000" } }, right: { style: "thin", color: { rgb: "000000" } } } };
     for (let r = 0; r < 2; r++) for (let c = 0; c < 12; c++) {
       const address = XLSX.utils.encode_cell({ r, c });
@@ -432,6 +461,20 @@
       for (let r = 2; r < data.length; r++) {
         const address = XLSX.utils.encode_cell({ r, c: col });
         if (worksheet[address]) worksheet[address].z = "0.00%";
+      }
+    });
+    [2, 3, 4, 5, 6].forEach((col) => {
+      for (let r = 2; r < data.length; r++) {
+        const address = XLSX.utils.encode_cell({ r, c: col });
+        if (worksheet[address]) worksheet[address].z = "#,##0;[Red]-#,##0";
+      }
+    });
+    data.forEach((row, index) => {
+      if (row[0] === "" && row[1]) {
+        for (let c = 0; c < 12; c++) {
+          const address = XLSX.utils.encode_cell({ r: index, c });
+          if (worksheet[address]) worksheet[address].s = { font: { bold: true }, fill: { fgColor: { rgb: "E8E6F7" } } };
+        }
       }
     });
     XLSX.utils.book_append_sheet(workbook, worksheet, "Revenue Sell Out");

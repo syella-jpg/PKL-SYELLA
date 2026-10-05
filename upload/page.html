@@ -168,7 +168,11 @@
 
   // Alamat endpoint server untuk menerima file (method POST, multipart/form-data
   // dengan field "divisi" dan "file"). Kosongkan = mode demo (simulasi upload).
-  const UPLOAD_URL = "nano upload.php";
+  // Saat halaman dibuka sebagai file://, PHP tetap harus dijalankan oleh server lokal.
+  // Jalankan dari root proyek: php -S 127.0.0.1:8000
+  const UPLOAD_URL = location.protocol === "file:"
+    ? "http://127.0.0.1:8000/upload/upload.php"
+    : "upload.php";
 
   const ALLOWED = ["xlsx", "ods"];
   const MAX_MB = 50;
@@ -214,8 +218,8 @@
       [/^TOTAL\s+GB\s*(\d+)$/i, (m) => ({ code: "gb" + m[1], label: "TOTAL GB " + m[1] })],
       [/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/i, (m, gb) => ({ code: "existing" + (m[1] || gb || ""), label: "TOTAL EXISTING GB" + (m[1] || gb ? " " + (m[1] || gb) : "") })],
       [/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/i, (m, gb) => ({ code: "new" + (m[1] || gb || ""), label: "TOTAL NEW PRODUCT GB" + (m[1] || gb ? " " + (m[1] || gb) : "") })],
-      [/^EXIST\s+ETH$/i, () => ({ code: "ethicalExisting", label: "EXIST ETH" })],
-      [/^NP\s+ETH$/i, () => ({ code: "ethicalNew", label: "NP ETH" })],
+      [/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/i, () => ({ code: "ethicalExisting", label: "EXIST ETH" })],
+      [/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH$/i, () => ({ code: "ethicalNew", label: "NP ETH" })],
       [/^TOTAL\s+ETH$/i, () => ({ code: "ethicalTotal", label: "TOTAL ETH" })]
     ];
     workbook.SheetNames.forEach((sheetName) => {
@@ -320,8 +324,23 @@
       const xhr = new XMLHttpRequest();
       xhr.open("POST", UPLOAD_URL);
       xhr.upload.onprogress = (e) => { if (e.lengthComputable) barFill.style.width = (e.loaded / e.total * 100) + "%"; };
-      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error("Server menolak upload (kode " + xhr.status + ")."));
-      xhr.onerror = () => reject(new Error("Gagal terhubung ke server."));
+      xhr.onload = () => {
+        let result = null;
+        try { result = JSON.parse(xhr.responseText); } catch (_) { /* respons non-JSON */ }
+        if (xhr.status >= 200 && xhr.status < 300 && result && result.success === true) {
+          resolve(result);
+          return;
+        }
+        const detail = result && result.message ? result.message : "Server mengembalikan respons yang tidak valid.";
+        reject(new Error(xhr.status ? detail + " (HTTP " + xhr.status + ")." : detail));
+      };
+      xhr.onerror = () => reject(new Error(
+        location.protocol === "file:"
+          ? "Tidak dapat terhubung ke PHP lokal. Jalankan `php -S 127.0.0.1:8000` dari folder proyek, lalu coba lagi."
+          : "Tidak dapat mengakses " + new URL(UPLOAD_URL, location.href).href + ". Pastikan server PHP aktif dan halaman dibuka dari server yang sama."
+      ));
+      xhr.ontimeout = () => reject(new Error("Upload melewati batas waktu. Periksa koneksi dan batas ukuran upload server."));
+      xhr.timeout = 120000;
       xhr.send(fd);
     });
   }
