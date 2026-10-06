@@ -1,5 +1,27 @@
 <?php
 
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($origin === 'null') {
+    header('Access-Control-Allow-Origin: null');
+    header('Vary: Origin');
+    header('Access-Control-Allow-Methods: GET, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Max-Age: 600');
+    if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
+        header('Access-Control-Allow-Private-Network: true');
+    }
+} elseif ($origin === 'http://127.0.0.1:8000' || $origin === 'http://localhost:8000') {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin');
+    header('Access-Control-Allow-Methods: GET, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Max-Age: 600');
+}
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
 header('Content-Type: application/json');
 
 $host = '127.0.0.1';

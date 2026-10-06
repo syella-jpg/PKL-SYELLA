@@ -48,6 +48,8 @@ try {
         throw new Exception('Divisi upload tidak valid.');
     }
     $tableName = $reportTables[$divisi];
+    $replaceExistingPeriod = $divisi === 'Revenue Konimex Selling Out'
+        && (($_POST['replace_existing'] ?? '') === '1');
 
     // Periksa periode lebih dahulu agar periode yang sudah tersimpan tetap
     // menghasilkan pesan duplikat, meskipun bagian file tidak ikut terkirim.
@@ -95,7 +97,7 @@ try {
     $periodCheck->fetch();
     $periodCheck->close();
 
-    if ($existingRows > 0) {
+    if ($existingRows > 0 && !$replaceExistingPeriod) {
         throw new Exception('Periode laporan ' . $period . ' sudah ada di database. Upload dibatalkan agar data tidak duplikat.');
     }
 
@@ -345,6 +347,18 @@ try {
 
     $conn->begin_transaction();
 
+    if ($existingRows > 0 && $replaceExistingPeriod) {
+        $deletePeriod = $conn->prepare("DELETE FROM `{$tableName}` WHERE report_period = ?");
+        if (!$deletePeriod) {
+            throw new Exception('Gagal menyiapkan penggantian data periode: ' . $conn->error);
+        }
+        $deletePeriod->bind_param('s', $period);
+        if (!$deletePeriod->execute()) {
+            throw new Exception('Gagal mengganti data periode: ' . $deletePeriod->error);
+        }
+        $deletePeriod->close();
+    }
+
     $inserted = 0;
 
     $highestRow = $sheet->getHighestRow();
@@ -356,7 +370,7 @@ try {
             'A' . $rowNumber . ':AE' . $rowNumber,
             null,
             true,
-            true,
+            false,
             false
         )[0];
 

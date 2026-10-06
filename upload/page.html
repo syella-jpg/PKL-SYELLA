@@ -30,6 +30,9 @@
   .sub { margin-top: 8px; font-size: 12px; color: var(--muted); }
   .label { display: block; font-size: 12px; font-weight: 700; margin: 28px 0 8px; }
   .label + .select-wrap { margin-top: 0; }
+  .replace-wrap { display: none; align-items: flex-start; gap: 9px; margin: 14px 0 0; padding: 12px; border: 1px solid #f1c6c4; border-radius: 10px; background: #fff7f6; font-size: 12px; line-height: 1.45; }
+  .replace-wrap.show { display: flex; }
+  .replace-wrap input { margin-top: 2px; accent-color: var(--red); }
 
   /* ===== Select divisi ===== */
   .select-wrap { position: relative; }
@@ -144,6 +147,11 @@
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </div>
 
+    <label class="replace-wrap" id="replaceWrap">
+      <input type="checkbox" id="replaceExisting">
+      <span><strong>Ganti data Revenue Sell Out untuk periode ini</strong><br>Centang hanya jika ingin menimpa data periode yang sudah tersimpan. Penggantian dibatalkan otomatis jika upload gagal.</span>
+    </label>
+
     <span class="label" id="fileLabel">File Dokumen</span>
     <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
       <input type="file" id="file" accept=".xlsx,.ods" hidden>
@@ -203,6 +211,7 @@
 
   const $ = (id) => document.getElementById(id);
   const form = $("form"), drop = $("drop"), fileInput = $("file"), select = $("divisi"), periodSelect = $("periode");
+  const replaceWrap = $("replaceWrap"), replaceExisting = $("replaceExisting");
   const msg = $("msg"), bar = $("bar"), barFill = $("barFill"), btn = $("submit"), btnText = $("btnText");
   let chosen = null, busy = false;
 
@@ -237,6 +246,8 @@
       item.textContent = option.textContent;
       item.addEventListener("click", () => {
         select.value = option.value;
+        replaceWrap.classList.toggle("show", select.value === "Revenue Konimex Selling Out");
+        if (select.value !== "Revenue Konimex Selling Out") replaceExisting.checked = false;
         divisionInput.value = option.textContent;
         closeDivisionOptions();
         divisionWrap.classList.remove("err");
@@ -258,6 +269,8 @@
   divisionInput.addEventListener("click", openDivisionOptions);
   divisionInput.addEventListener("input", () => {
     select.value = "";
+    replaceWrap.classList.remove("show");
+    replaceExisting.checked = false;
     renderDivisionOptions(divisionInput.value);
     divisionWrap.classList.add("open");
     divisionInput.setAttribute("aria-expanded", "true");
@@ -394,7 +407,7 @@
   }
 
   // Kirim file ke server (dengan progress)
-  function send(divisi, file, period) {
+  function send(divisi, file, period, replacePeriod) {
     return new Promise((resolve, reject) => {
       if (!UPLOAD_URL) { // mode demo
         let p = 0;
@@ -411,6 +424,7 @@
       // multipart sebagai $_FILES['file'], termasuk browser tertentu.
       fd.append("file", file, file.name);
       fd.append("period", period);
+      if (replacePeriod) fd.append("replace_existing", "1");
       const xhr = new XMLHttpRequest();
       const endpoint = new URL(UPLOAD_URL, location.href);
       // Kirim periode juga di URL. Jika server melakukan redirect POST menjadi
@@ -454,7 +468,7 @@
     try {
       const isRevenueSO = select.value.trim() === "Revenue Konimex Selling Out";
       const processedRows = isRevenueSO ? await processRevenueSO(chosen) : null;
-      await send(select.value, chosen, periodSelect.value);
+      await send(select.value, chosen, periodSelect.value, replaceExisting.checked);
       if (processedRows) {
         let history = {};
         try { history = JSON.parse(localStorage.getItem(PROCESSED_KEY) || "{}"); } catch (_) { history = {}; }
@@ -465,6 +479,8 @@
       setMsg("Berhasil: \"" + chosen.name + "\" terkirim dari divisi " + select.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
       clearFile();
       select.value = "";
+      replaceWrap.classList.remove("show");
+      replaceExisting.checked = false;
       divisionInput.value = "";
     } catch (err) {
       setMsg(err.message || "Upload gagal. Coba lagi.", "error");
