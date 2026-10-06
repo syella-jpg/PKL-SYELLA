@@ -53,7 +53,7 @@ try {
     // menghasilkan pesan duplikat, meskipun bagian file tidak ikut terkirim.
     $period = trim((string)($_POST['period'] ?? $_GET['period'] ?? ''));
     if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period) || (int)substr($period, 0, 4) < 2025) {
-        throw new Exception('{"success":false,"message":"Periode laporan 2026-08 sudah ada di database. Upload dibatalkan agar data tidak duplikat."}');
+        throw new Exception('Periode laporan tidak valid. Pilih periode dengan format tahun-bulan.');
     }
 
     // =========================
@@ -135,12 +135,18 @@ try {
         $sourceSheet = $spreadsheet->getActiveSheet();
         $sourcePeriodLabel = trim((string)$sourceSheet->getCell('P6')->getValue());
         $sourceAmountHeader = trim((string)$sourceSheet->getCell('Q7')->getValue());
-        if (!preg_match('/Bulan\s+Januari\s+2026\s+s\.d\s+Agustus\s+2026/i', $sourcePeriodLabel)
+        [$periodYear, $periodMonth] = array_map('intval', explode('-', $period));
+        $monthNames = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+        $expectedPeriodLabel = 'Bulan Januari ' . $periodYear . ' s.d ' . $monthNames[$periodMonth] . ' ' . $periodYear;
+        $periodLabelPattern = '/^Bulan\s+Januari\s+' . $periodYear . '\s+s\.?d\.?\s+'
+            . preg_quote($monthNames[$periodMonth], '/') . '\s+' . $periodYear . '$/iu';
+        if (!preg_match($periodLabelPattern, $sourcePeriodLabel)
             || strcasecmp($sourceAmountHeader, 'Rupiah') !== 0) {
-            throw new Exception('File harus berisi kolom Rupiah untuk periode Januari–Agustus 2026 seperti format raw data Selling In.');
-        }
-        if ($period !== '2026-08') {
-            throw new Exception('Periode file ini Januari–Agustus 2026. Pilih periode Agustus 2026 sebelum upload.');
+            throw new Exception('File harus berisi kolom Rupiah untuk periode ' . $expectedPeriodLabel . ' seperti format raw data Selling In.');
         }
         $subtotals = [];
         $excluded = ['09' => true, '13' => true, '16' => true];
@@ -154,7 +160,7 @@ try {
             $code = $match[1];
             if (isset($excluded[$code])) continue;
 
-            // Kolom Q berisi Rupiah untuk rentang Januari sampai Agustus 2026.
+            // Kolom Q berisi Rupiah kumulatif Januari sampai periode yang dipilih.
             $amount = $sourceSheet->getCell('Q' . $rowNumber)->getCalculatedValue();
             if (!is_numeric($amount)) continue;
             $subtotals[$code] = (float)$amount;
@@ -163,7 +169,7 @@ try {
         $requiredCodes = ['01', '02', '03', '04', '05', '06', '10', '14', '15'];
         foreach ($requiredCodes as $code) {
             if (!array_key_exists($code, $subtotals)) {
-                throw new Exception('Subtotal kode ' . $code . ' tidak ditemukan pada file Selling In (kolom Q: Rupiah Jan–Agustus 2026).');
+                throw new Exception('Subtotal kode ' . $code . ' tidak ditemukan pada file Selling In (kolom Q: Rupiah ' . $expectedPeriodLabel . ').');
             }
         }
 

@@ -335,7 +335,7 @@
   }
   $("downloadChart").onclick = async () => {
     const svg = $("chart").querySelector("svg");
-    if (!svg) { toast("Belum ada chart untuk diunduh."); return; }
+    if (!svg) { toast("Data belum tersedia."); return; }
     const clone = svg.cloneNode(true);
     const box = svg.viewBox.baseVal;
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -389,10 +389,10 @@
   /* ---------- Unduh hasil olahan sebagai OpenDocument Spreadsheet ---------- */
   $("dl").onclick = () => {
     let processed;
-    try { const history = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "null"); processed = history && history[st.period] ? history[st.period] : history; }
+    try { const history = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "null"); processed = history && history[st.period] ? history[st.period] : null; }
     catch (e) { processed = null; }
     if (!processed || !Array.isArray(processed.rows) || !processed.rows.length) {
-      toast("Belum ada hasil olahan. Unggah file Sell Out terlebih dahulu."); return;
+      toast("Data belum tersedia."); return;
     }
     if (!window.XLSX) { toast("Komponen pembuat file ODS gagal dimuat."); return; }
     const data = [

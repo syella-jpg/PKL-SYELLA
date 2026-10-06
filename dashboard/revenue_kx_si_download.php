@@ -7,12 +7,34 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($origin === 'null') {
+    header('Access-Control-Allow-Origin: null');
+    header('Vary: Origin');
+    header('Access-Control-Allow-Methods: GET, OPTIONS');
+    header('Access-Control-Max-Age: 600');
+    if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
+        header('Access-Control-Allow-Private-Network: true');
+    }
+} elseif ($origin === 'http://127.0.0.1:8000' || $origin === 'http://localhost:8000') {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin');
+}
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
 $period = trim((string)($_GET['period'] ?? ''));
 if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {
     http_response_code(400);
     header('Content-Type: text/plain; charset=utf-8');
     exit('Periode harus berformat YYYY-MM.');
 }
+$periodYear = (int)substr($period, 0, 4);
+$periodMonth = (int)substr($period, 5, 2);
+$monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+$periodMonthName = strtoupper($monthNames[$periodMonth - 1]);
 
 $conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
 if ($conn->connect_error) {
@@ -33,13 +55,37 @@ $stmt->execute();
 $result = $stmt->get_result();
 $amounts = [];
 while ($row = $result->fetch_assoc()) $amounts[$row['parameter']] = (float)$row['achievement'];
+
+$lastYearFullPeriod = ($periodYear - 1) . '-12';
+$lastYearYtdPeriod = ($periodYear - 1) . '-' . str_pad((string)$periodMonth, 2, '0', STR_PAD_LEFT);
+$loadAmounts = static function (mysqli_stmt $statement, string $requestedPeriod): array {
+    $statement->bind_param('s', $requestedPeriod);
+    $statement->execute();
+    $queryResult = $statement->get_result();
+    $values = [];
+    while ($row = $queryResult->fetch_assoc()) $values[$row['parameter']] = (float)$row['achievement'];
+    return $values;
+};
+$lastYearFullAmounts = $loadAmounts($stmt, $lastYearFullPeriod);
+$lastYearYtdAmounts = $loadAmounts($stmt, $lastYearYtdPeriod);
 $stmt->close();
 $conn->close();
 
 if (!$amounts) {
+    if (($_GET['check'] ?? '') === '1') {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['available' => false]);
+        exit;
+    }
     http_response_code(404);
     header('Content-Type: text/plain; charset=utf-8');
     exit('Belum ada data Revenue Konimex Selling In untuk periode ' . $period . '.');
+}
+
+if (($_GET['check'] ?? '') === '1') {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['available' => true]);
+    exit;
 }
 
 $definitions = [
@@ -70,58 +116,62 @@ $sheet->mergeCells('G1:G2');
 $sheet->mergeCells('H1:H2');
 $sheet->setCellValue('A1', 'No');
 $sheet->setCellValue('B1', 'Parameter');
-$sheet->setCellValue('C1', 'Ach Last Year (2025)');
+$sheet->setCellValue('C1', 'Ach Last Year (' . ($periodYear - 1) . ')');
 $sheet->setCellValue('C2', 'Full Year');
-$sheet->setCellValue('D2', 'YTD AGUSTUS');
-$sheet->setCellValue('E1', 'Target 2026');
-$sheet->setCellValue('F1', "Ach 2026\nYTD AGUSTUS");
-$sheet->setCellValue('G1', "% Achievement\n2026");
-$sheet->setCellValue('H1', "Growth\nYTD AGUSTUS");
+$sheet->setCellValue('D2', 'YTD ' . $periodMonthName);
+$sheet->setCellValue('E1', 'Target ' . $periodYear);
+$sheet->setCellValue('F1', "Ach " . $periodYear . "\nYTD " . $periodMonthName);
+$sheet->setCellValue('G1', "% Achievement\n" . $periodYear);
+$sheet->setCellValue('H1', "Growth\nYTD " . $periodMonthName);
 $sheet->getStyle('A1:H2')->getFont()->setBold(true);
 $sheet->getStyle('A1:H2')->getAlignment()->setHorizontal('center')->setVertical('center')->setWrapText(true);
 $sheet->getStyle('A1:H2')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('91C9F7');
 
 $rowNumber = 3;
-$sumAmounts = static function (array $parameters) use ($amounts): float {
-    $total = 0.0;
-    foreach ($parameters as $parameter) {
-        $total += $amounts[$parameter] ?? 0.0;
+$resolveAmounts = static function (array $sourceAmounts) use ($definitions): array {
+    $sumAmounts = static function (array $parameters) use ($sourceAmounts): float {
+        $total = 0.0;
+        foreach ($parameters as $parameter) $total += $sourceAmounts[$parameter] ?? 0.0;
+        return $total;
+    };
+    $farmasiTotal = $sumAmounts(['GB 1', 'GB 2', 'GB 3', 'GB 4']);
+    $domestikTotal = $farmasiTotal + $sumAmounts(['Biskuit', 'Candy', 'Ethical']);
+    $eksporTotal = $sourceAmounts['Ekspor'] ?? $sumAmounts(['IB Farma', 'IB Food']);
+    $resolved = [
+        'Farmasi' => $farmasiTotal,
+        'Domestik' => $domestikTotal,
+        'Ekspor' => $eksporTotal,
+        'KORPORAT' => $domestikTotal + $eksporTotal,
+    ];
+    foreach ($definitions as [, $parameter, $children]) {
+        $value = $sourceAmounts[$parameter] ?? null;
+        if ($parameter === 'Farmasi') {
+            $value = $farmasiTotal;
+        } elseif ($parameter === 'Domestik') {
+            $value = $domestikTotal;
+        } elseif ($parameter === 'KORPORAT') {
+            $value = $domestikTotal + $eksporTotal;
+        } elseif ($value === null && $children) {
+            $value = 0.0;
+            foreach ($children as $child) $value += $resolved[$child] ?? $sourceAmounts[$child] ?? 0.0;
+        }
+        if ($value !== null) $resolved[$parameter] = $value;
     }
-    return $total;
+    return $resolved;
 };
-$farmasiTotal = $sumAmounts(['GB 1', 'GB 2', 'GB 3', 'GB 4']);
-$domestikTotal = $farmasiTotal + $sumAmounts(['Biskuit', 'Candy', 'Ethical']);
-$eksporTotal = $amounts['Ekspor'] ?? $sumAmounts(['IB Farma', 'IB Food']);
-$calculatedAmounts = [
-    'Farmasi' => $farmasiTotal,
-    'Domestik' => $domestikTotal,
-    'Ekspor' => $eksporTotal,
-    'KORPORAT' => $domestikTotal + $eksporTotal,
-];
+$calculatedAmounts = $resolveAmounts($amounts);
+$lastYearFullCalculated = $lastYearFullAmounts ? $resolveAmounts($lastYearFullAmounts) : [];
+$lastYearYtdCalculated = $lastYearYtdAmounts ? $resolveAmounts($lastYearYtdAmounts) : [];
 foreach ($definitions as [$number, $parameter, $children]) {
-    $value = $amounts[$parameter] ?? null;
-
-    // Nilai Farmasi dan Domestik selalu dihitung dari rincian, meskipun
-    // tabel sumber juga memiliki baris ringkasan dengan nama parameter itu.
-    if ($parameter === 'Farmasi') {
-        $value = 0.0;
-        foreach (['GB 1', 'GB 2', 'GB 3', 'GB 4'] as $child) {
-            $value += $amounts[$child] ?? 0.0;
-        }
-    } elseif ($parameter === 'Domestik') {
-        $value = $domestikTotal;
-    } elseif ($parameter === 'KORPORAT') {
-        $value = $domestikTotal + $eksporTotal;
-    } elseif ($value === null && $children) {
-        $value = 0.0;
-        foreach ($children as $child) {
-            $value += $calculatedAmounts[$child] ?? $amounts[$child] ?? 0.0;
-        }
-    }
-    if ($value !== null) $calculatedAmounts[$parameter] = $value;
+    $value = $calculatedAmounts[$parameter] ?? null;
     $sheet->setCellValue('A' . $rowNumber, $number);
     $sheet->setCellValue('B' . $rowNumber, $parameter);
+    if (array_key_exists($parameter, $lastYearFullCalculated)) $sheet->setCellValue('C' . $rowNumber, $lastYearFullCalculated[$parameter]);
+    if (array_key_exists($parameter, $lastYearYtdCalculated)) $sheet->setCellValue('D' . $rowNumber, $lastYearYtdCalculated[$parameter]);
     if ($value !== null) $sheet->setCellValue('F' . $rowNumber, $value);
+    if ($value !== null && isset($lastYearYtdCalculated[$parameter]) && $lastYearYtdCalculated[$parameter] != 0.0) {
+        $sheet->setCellValue('H' . $rowNumber, '=F' . $rowNumber . '/D' . $rowNumber . '-1');
+    }
     if (in_array($parameter, ['KORPORAT', 'Domestik', 'Ekspor'], true)) {
         $sheet->getStyle('A' . $rowNumber . ':H' . $rowNumber)->getFont()->setBold(true);
     }
@@ -129,7 +179,8 @@ foreach ($definitions as [$number, $parameter, $children]) {
 }
 $lastRow = $rowNumber - 1;
 $sheet->getStyle('A1:H' . $lastRow)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-$sheet->getStyle('F3:F' . $lastRow)->getNumberFormat()->setFormatCode('#,##0.00;[Red](#,##0.00);-');
+$sheet->getStyle('C3:H' . $lastRow)->getNumberFormat()->setFormatCode('#,##0;[Red](#,##0);-');
+$sheet->getStyle('H3:H' . $lastRow)->getNumberFormat()->setFormatCode('0.00%;[Red](0.00%);-');
 $sheet->getStyle('A3:A' . $lastRow)->getAlignment()->setHorizontal('right');
 $sheet->getColumnDimension('A')->setWidth(8);
 $sheet->getColumnDimension('B')->setWidth(32);

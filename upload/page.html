@@ -33,6 +33,7 @@
 
   /* ===== Select divisi ===== */
   .select-wrap { position: relative; }
+  #selWrap { height: 38px; }
   .select-wrap select {
     width: 100%; height: 38px; appearance: none; -webkit-appearance: none;
     border: 1px solid var(--line); border-radius: 10px; background: #fff;
@@ -40,10 +41,20 @@
   }
   .select-wrap select:invalid { color: var(--ink); }
   .select-wrap select:focus-visible { outline: 3px solid rgba(227,30,36,.25); border-color: var(--red); }
-  .select-wrap .ic, .select-wrap .chev { position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none; }
+  .select-wrap .ic, .select-wrap .chev { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); pointer-events: none; }
   .select-wrap .ic { left: 14px; width: 16px; height: 16px; stroke: var(--red); }
   .select-wrap .chev { right: 14px; width: 14px; height: 14px; stroke: #4b5563; }
   .select-wrap.err select { border-color: var(--red); }
+  .division-search { position: absolute; inset: 0; width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 0 40px; font-family: inherit; font-size: 13px; color: var(--ink); }
+  .division-select-value { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .division-search::placeholder { color: var(--ink); opacity: 1; }
+  .division-search:focus-visible { outline: 3px solid rgba(227,30,36,.25); border-color: var(--red); }
+  .division-options { display: none; position: absolute; z-index: 4; top: calc(100% + 4px); left: 0; right: 0; max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 8px 18px rgba(0,0,0,.12); padding: 4px; }
+  .select-wrap.open .division-options { display: block; }
+  .division-option { display: block; width: 100%; border: 0; border-radius: 7px; background: transparent; padding: 10px 12px; text-align: left; font-family: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
+  .division-option:hover, .division-option:focus-visible { background: #fff0ef; outline: none; }
+  .division-no-results { padding: 10px 12px; font-size: 12px; color: var(--muted); }
+  .select-wrap.err .division-search { border-color: var(--red); }
 
   /* ===== Dropzone ===== */
   .drop {
@@ -116,13 +127,15 @@
     <h1>Upload File Laporan</h1>
     <p class="sub">Kirim dokumen keuangan dan logistik divisi secara aman ke sistem pusat Konimex.</p>
 
-    <label class="label" for="divisi">Pilih Divisi Pengirim</label>
+    <label class="label" for="cariDivisi">Pilih Divisi Pengirim</label>
     <div class="select-wrap" id="selWrap">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-      <select id="divisi" required>
+      <input class="division-search" id="cariDivisi" type="text" placeholder="Pilih Divisi" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="divisionOptions" autocomplete="off">
+      <select id="divisi" class="division-select-value" required tabindex="-1" aria-hidden="true">
         <option value="" selected>Pilih Divisi</option>
       </select>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="division-options" id="divisionOptions" role="listbox"></div>
     </div>
 
     <label class="label" for="periode">Periode Laporan</label>
@@ -203,6 +216,63 @@
     o.value = d; o.textContent = d;
     select.appendChild(o);
   });
+  const divisionOptions = Array.from(select.options).slice(1);
+  const divisionInput = $("cariDivisi"), divisionList = $("divisionOptions"), divisionWrap = $("selWrap");
+  function renderDivisionOptions(query = "") {
+    const normalized = query.trim().toLocaleLowerCase("id");
+    const matches = divisionOptions.filter((option) => option.textContent.toLocaleLowerCase("id").includes(normalized));
+    divisionList.replaceChildren();
+    if (!matches.length) {
+      const empty = document.createElement("div");
+      empty.className = "division-no-results";
+      empty.textContent = "Divisi tidak ditemukan.";
+      divisionList.appendChild(empty);
+      return;
+    }
+    matches.forEach((option) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "division-option";
+      item.setAttribute("role", "option");
+      item.textContent = option.textContent;
+      item.addEventListener("click", () => {
+        select.value = option.value;
+        divisionInput.value = option.textContent;
+        closeDivisionOptions();
+        divisionWrap.classList.remove("err");
+      });
+      divisionList.appendChild(item);
+    });
+  }
+  function openDivisionOptions() {
+    const selectedName = select.selectedOptions[0]?.textContent;
+    renderDivisionOptions(divisionInput.value === selectedName ? "" : divisionInput.value);
+    divisionWrap.classList.add("open");
+    divisionInput.setAttribute("aria-expanded", "true");
+  }
+  function closeDivisionOptions() {
+    divisionWrap.classList.remove("open");
+    divisionInput.setAttribute("aria-expanded", "false");
+  }
+  divisionInput.addEventListener("focus", openDivisionOptions);
+  divisionInput.addEventListener("click", openDivisionOptions);
+  divisionInput.addEventListener("input", () => {
+    select.value = "";
+    renderDivisionOptions(divisionInput.value);
+    divisionWrap.classList.add("open");
+    divisionInput.setAttribute("aria-expanded", "true");
+  });
+  divisionInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeDivisionOptions();
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      divisionList.querySelector(".division-option")?.focus();
+    }
+  });
+  document.addEventListener("click", (event) => {
+    if (!divisionWrap.contains(event.target)) closeDivisionOptions();
+  });
+  renderDivisionOptions();
   const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
   const now = new Date();
   for (let year = now.getFullYear(); year >= 2025; year--) {
@@ -376,7 +446,7 @@
     $("selWrap").classList.remove("err");
     drop.classList.remove("err");
 
-    if (!select.value) { $("selWrap").classList.add("err"); setMsg("Pilih divisi pengirim terlebih dahulu.", "error"); select.focus(); return; }
+    if (!select.value) { $("selWrap").classList.add("err"); setMsg("Pilih divisi pengirim terlebih dahulu.", "error"); divisionInput.focus(); return; }
     if (!periodSelect.value) { setMsg("Pilih periode laporan terlebih dahulu.", "error"); periodSelect.focus(); return; }
     if (!chosen) { drop.classList.add("err"); setMsg("Pilih file dokumen terlebih dahulu.", "error"); return; }
 
@@ -395,13 +465,14 @@
       setMsg("Berhasil: \"" + chosen.name + "\" terkirim dari divisi " + select.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
       clearFile();
       select.value = "";
+      divisionInput.value = "";
     } catch (err) {
       setMsg(err.message || "Upload gagal. Coba lagi.", "error");
     } finally {
       setBusy(false);
     }
   });
-  select.addEventListener("change", () => $("selWrap").classList.remove("err"));
+  divisionInput.addEventListener("input", () => $("selWrap").classList.remove("err"));
 </script>
 </body>
 </html>

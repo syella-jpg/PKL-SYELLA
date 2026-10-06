@@ -341,7 +341,7 @@
   /* ---------- Unduh data (CSV) ---------- */
   $("dl").onclick = () => {
     const c = cur && cur.chart;
-    if (!c || !c.labels || !c.series) { toast("Belum ada data untuk diunduh."); return; }
+    if (!c || !Array.isArray(c.labels) || !c.labels.length || !Array.isArray(c.series) || !c.series.length) { toast("Data belum tersedia."); return; }
     const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
     const rows = [["Kategori"].concat(c.series.map((s) => s.name)).map(q).join(",")];
     c.labels.forEach((lb, i) => rows.push([q(lb)].concat(c.series.map((s) => s.values[i])).join(",")));

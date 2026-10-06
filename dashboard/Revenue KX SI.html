@@ -200,7 +200,7 @@
     "Complain Level": "",
     "Ratio UPB": ""
   };
-  const TABS = ["Corporate(incl.Bi No Product)", "Corporate (excl. Bi. Non Product)", "Pharma", "HCE", "Food", "EBITDA IB", "Ethical"];
+  const TABS = ["Korporat", "Domestik", "Ekspor"];
 
   // Data hasil upload (kosong = angka & chart belum tampil).
   // Format: DATA[laporan][tab] = { cards: ["43.3%","9.0%","43.5%","6.7%"],
@@ -217,7 +217,10 @@
   const DOWNLOAD_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_kx_si_download.php"
     : "revenue_kx_si_download.php";
-  const st = { sec: "Dashboard", report: CURRENT, tab: TABS[0], period: "2026-08" };
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const st = { sec: "Dashboard", report: CURRENT, tab: TABS[0], period: currentYear + "-" + String(currentMonth).padStart(2, "0") };
   let token = 0, cur = null;
 
   function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2200); }
@@ -241,10 +244,15 @@
     b.onclick = () => { st.tab = t; render(); };
     $("tabs").appendChild(b);
   });
-  BULAN.forEach((m, i) => {
-    const o = document.createElement("option"); o.value = "2026-" + String(i + 1).padStart(2, "0"); o.textContent = m + " 2026";
-    $("period").appendChild(o);
-  });
+  for (let year = 2025; year <= currentYear; year++) {
+    const lastMonth = year === currentYear ? currentMonth : 12;
+    for (let month = 1; month <= lastMonth; month++) {
+      const o = document.createElement("option");
+      o.value = year + "-" + String(month).padStart(2, "0");
+      o.textContent = BULAN[month - 1] + " " + year;
+      $("period").appendChild(o);
+    }
+  }
   $("period").value = st.period;
   $("period").onchange = (e) => { st.period = e.target.value; render(); };
   document.querySelectorAll(".sec").forEach((b) => b.onclick = () => { if (b.dataset.sec !== "Dashboard") go("TM BOD"); });
@@ -277,7 +285,8 @@
   /* ---------- Kartu KPI ---------- */
   function renderCards() {
     const T = st.tab.toUpperCase(), M = monthName().toUpperCase();
-    const labels = ["% Achievement 2026 " + T, "Growth YTD " + M + " " + T, "% Achievement 2026 Total Existing", "Growth YTD Existing"];
+    const year = st.period.slice(0, 4);
+    const labels = ["% Achievement " + year + " " + T, "Growth YTD " + M + " " + T, "% Achievement " + year + " Total Existing", "Growth YTD Existing"];
     $("cards").innerHTML = labels.map((l, i) =>
       '<div class="kpi"><p>' + esc(l) + "</p><b>" + esc(cur && cur.cards && cur.cards[i] != null ? cur.cards[i] : "-") + "</b></div>").join("");
   }
@@ -317,7 +326,7 @@
 
   function downloadChartImage() {
     const svg = $("chart").querySelector("svg");
-    if (!svg) { toast("Chart belum tersedia untuk diunduh."); return; }
+    if (!svg) { toast("Data belum tersedia."); return; }
     const svgText = new XMLSerializer().serializeToString(svg);
     const svgUrl = URL.createObjectURL(new Blob([svgText], { type: "image/svg+xml;charset=utf-8" }));
     const image = new Image();
@@ -376,10 +385,19 @@
   };
 
   /* ---------- Unduh tabel Achievement Selling In (XLSX) ---------- */
-  $("dl").onclick = () => {
+  $("dl").onclick = async () => {
     const endpoint = new URL(DOWNLOAD_URL, location.href);
     endpoint.searchParams.set("period", st.period);
-    window.location.href = endpoint.href;
+    const checkEndpoint = new URL(endpoint.href);
+    checkEndpoint.searchParams.set("check", "1");
+    try {
+      const response = await fetch(checkEndpoint.href);
+      const result = await response.json();
+      if (!response.ok || !result.available) { toast("Data belum tersedia."); return; }
+      window.location.href = endpoint.href;
+    } catch (error) {
+      toast("Data belum tersedia.");
+    }
   };
 
   /* ---------- Render utama ---------- */
