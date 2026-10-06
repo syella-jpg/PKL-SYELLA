@@ -64,6 +64,8 @@
   .chartcard { background: #fff; border-radius: 28px; box-shadow: 0 4px 8px rgba(0,0,0,.22); padding: 22px; margin: 0 8px; max-width: 760px; min-height: 220px; }
   .empty { display: grid; place-items: center; min-height: 176px; text-align: center; font-size: 12.5px; color: #6b7280; border: 2px dashed #d6d3ee; border-radius: 18px; padding: 16px; }
   .chartcard svg { width: 100%; height: auto; display: block; }
+  .chart-actions { display: flex; justify-content: flex-end; margin: 0 8px 10px; max-width: 760px; }
+  .chart-download { border: 1px solid #c9c5e7; border-radius: 9px; background: #fff; padding: 8px 12px; font-size: 12px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; margin-top: 12px; }
   .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
 
@@ -139,6 +141,7 @@
     <div class="cards" id="cards"></div>
 
     <div class="subs"><span>Ach &amp; Growth</span></div>
+    <div class="chart-actions"><button class="chart-download" id="downloadChart" type="button">Unduh gambar chart (PNG)</button></div>
     <div class="chartcard" id="chart"></div>
 
     <section class="analysis">
@@ -211,7 +214,8 @@
   const COLORS = ["#004586", "#ff420e", "#ffd320"];
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const st = { sec: "Dashboard", report: CURRENT, tab: TABS[0], period: "2026-06" };
+  const currentPeriod = new Date().toISOString().slice(0, 7);
+  const st = { sec: "Dashboard", report: CURRENT, tab: TABS[0], period: currentPeriod };
   let token = 0, cur = null;
 
   function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2200); }
@@ -235,8 +239,10 @@
     b.onclick = () => { st.tab = t; render(); };
     $("tabs").appendChild(b);
   });
-  BULAN.forEach((m, i) => {
-    const o = document.createElement("option"); o.value = "2026-" + String(i + 1).padStart(2, "0"); o.textContent = m + " 2026";
+  const currentYear = new Date().getFullYear();
+  for (let year = currentYear; year >= 2025; year--) BULAN.forEach((m, i) => {
+    if (year === currentYear && i + 1 > new Date().getMonth() + 1) return;
+    const o = document.createElement("option"); o.value = year + "-" + String(i + 1).padStart(2, "0"); o.textContent = m + " " + year;
     $("period").appendChild(o);
   });
   $("period").value = st.period;
@@ -255,6 +261,25 @@
 
   /* ---------- Data ---------- */
   async function getData() {
+    try {
+      const history = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "null");
+      const uploaded = history && history[st.period];
+      if (uploaded && Array.isArray(uploaded.rows)) {
+        const totals = new Map();
+        uploaded.rows.forEach((row) => {
+          const value = Number(row.revTotal);
+          if (!row.code || !Number.isFinite(value)) return;
+          totals.set(row.code, (totals.get(row.code) || 0) + value);
+        });
+        const labels = [], values = [];
+        totals.forEach((value, code) => {
+          const source = uploaded.rows.find((row) => row.code === code);
+          labels.push(source ? source.label : code);
+          values.push(value);
+        });
+        if (labels.length) return { cards: [], chart: { labels, series: [{ name: "Revenue " + monthName() + " " + st.period.slice(0, 4), values }] } };
+      }
+    } catch (e) { /* gunakan sumber server bila data lokal tidak tersedia */ }
     if (DATA_URL) {
       try {
         const q = new URLSearchParams({ report: st.report, tab: st.tab, period: st.period });
@@ -308,6 +333,28 @@
     $("chart").innerHTML = ok ? vChart(c)
       : '<div class="empty">Belum ada data. Chart akan muncul setelah file laporan diupload.</div>';
   }
+  $("downloadChart").onclick = async () => {
+    const svg = $("chart").querySelector("svg");
+    if (!svg) { toast("Belum ada chart untuk diunduh."); return; }
+    const clone = svg.cloneNode(true);
+    const box = svg.viewBox.baseVal;
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("width", box.width || 680); clone.setAttribute("height", box.height || 330);
+    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob), image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas"); canvas.width = (box.width || 680) * 2; canvas.height = (box.height || 330) * 2;
+      const ctx = canvas.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((png) => {
+        if (!png) { toast("Gambar chart gagal dibuat."); return; }
+        const link = document.createElement("a"); link.href = URL.createObjectURL(png); link.download = "Chart-Revenue-" + st.period + ".png"; link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      }, "image/png");
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); toast("Gambar chart gagal dibuat."); };
+    image.src = url;
+  };
 
   /* ---------- Catatan analisis ---------- */
   const NK = "konimex_notes";
@@ -342,7 +389,7 @@
   /* ---------- Unduh hasil olahan sebagai OpenDocument Spreadsheet ---------- */
   $("dl").onclick = () => {
     let processed;
-    try { processed = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "null"); }
+    try { const history = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "null"); processed = history && history[st.period] ? history[st.period] : history; }
     catch (e) { processed = null; }
     if (!processed || !Array.isArray(processed.rows) || !processed.rows.length) {
       toast("Belum ada hasil olahan. Unggah file Sell Out terlebih dahulu."); return;

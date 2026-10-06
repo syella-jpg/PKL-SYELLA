@@ -125,6 +125,12 @@
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </div>
 
+    <label class="label" for="periode">Periode Laporan</label>
+    <div class="select-wrap">
+      <select id="periode" required aria-label="Periode laporan"></select>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+
     <span class="label" id="fileLabel">File Dokumen</span>
     <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
       <input type="file" id="file" accept=".xlsx,.ods" hidden>
@@ -161,15 +167,15 @@
   // Daftar divisi: isi / ubah sendiri di sini
   const DIVISI = [
     "Revenue Konimex Selling Out",
-    "MCM Konimex Sell In ",
+    "Target Revenue",
     "Revenue Konimex Selling In",
-    // "Sales & Marketing",
   ];
 
   // Alamat endpoint server untuk menerima file (method POST, multipart/form-data
   // dengan field "divisi" dan "file"). Kosongkan = mode demo (simulasi upload).
   // Saat halaman dibuka sebagai file://, PHP tetap harus dijalankan oleh server lokal.
-  // Jalankan dari root proyek: php -S 127.0.0.1:8000
+  // Jalankan dari root proyek agar batas PHP sesuai dengan batas file di form:
+  // php -d upload_max_filesize=50M -d post_max_size=52M -S 127.0.0.1:8000
   const UPLOAD_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/upload/upload.php"
     : "upload.php";
@@ -183,7 +189,7 @@
   /* ===================================================================== */
 
   const $ = (id) => document.getElementById(id);
-  const form = $("form"), drop = $("drop"), fileInput = $("file"), select = $("divisi");
+  const form = $("form"), drop = $("drop"), fileInput = $("file"), select = $("divisi"), periodSelect = $("periode");
   const msg = $("msg"), bar = $("bar"), barFill = $("barFill"), btn = $("submit"), btnText = $("btnText");
   let chosen = null, busy = false;
 
@@ -197,6 +203,17 @@
     o.value = d; o.textContent = d;
     select.appendChild(o);
   });
+  const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  const now = new Date();
+  for (let year = now.getFullYear(); year >= 2025; year--) {
+    for (let month = 12; month >= 1; month--) {
+      if (year === now.getFullYear() && month > now.getMonth() + 1) continue;
+      const option = document.createElement("option");
+      option.value = year + "-" + String(month).padStart(2, "0");
+      option.textContent = monthNames[month - 1] + " " + year;
+      periodSelect.appendChild(option);
+    }
+  }
 
   function setMsg(text, type) {
     msg.textContent = text || "";
@@ -307,7 +324,7 @@
   }
 
   // Kirim file ke server (dengan progress)
-  function send(divisi, file) {
+  function send(divisi, file, period) {
     return new Promise((resolve, reject) => {
       if (!UPLOAD_URL) { // mode demo
         let p = 0;
@@ -320,9 +337,16 @@
       }
       const fd = new FormData();
       fd.append("divisi", divisi);
-      fd.append("file", file);
+      // Sertakan nama file secara eksplisit agar server selalu menerima part
+      // multipart sebagai $_FILES['file'], termasuk browser tertentu.
+      fd.append("file", file, file.name);
+      fd.append("period", period);
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", UPLOAD_URL);
+      const endpoint = new URL(UPLOAD_URL, location.href);
+      // Kirim periode juga di URL. Jika server melakukan redirect POST menjadi
+      // GET, PHP tetap dapat mengecek duplikasi periode sebelum memeriksa file.
+      endpoint.searchParams.set("period", period);
+      xhr.open("POST", endpoint.href);
       xhr.upload.onprogress = (e) => { if (e.lengthComputable) barFill.style.width = (e.loaded / e.total * 100) + "%"; };
       xhr.onload = () => {
         let result = null;
@@ -336,7 +360,7 @@
       };
       xhr.onerror = () => reject(new Error(
         location.protocol === "file:"
-          ? "Tidak dapat terhubung ke PHP lokal. Jalankan `php -S 127.0.0.1:8000` dari folder proyek, lalu coba lagi."
+          ? "Tidak dapat terhubung ke PHP lokal. Jalankan server dari folder proyek dengan `php -d upload_max_filesize=50M -d post_max_size=52M -S 127.0.0.1:8000`, lalu coba lagi."
           : "Tidak dapat mengakses " + new URL(UPLOAD_URL, location.href).href + ". Pastikan server PHP aktif dan halaman dibuka dari server yang sama."
       ));
       xhr.ontimeout = () => reject(new Error("Upload melewati batas waktu. Periksa koneksi dan batas ukuran upload server."));
@@ -353,15 +377,19 @@
     drop.classList.remove("err");
 
     if (!select.value) { $("selWrap").classList.add("err"); setMsg("Pilih divisi pengirim terlebih dahulu.", "error"); select.focus(); return; }
+    if (!periodSelect.value) { setMsg("Pilih periode laporan terlebih dahulu.", "error"); periodSelect.focus(); return; }
     if (!chosen) { drop.classList.add("err"); setMsg("Pilih file dokumen terlebih dahulu.", "error"); return; }
 
     setBusy(true);
     try {
       const isRevenueSO = select.value.trim() === "Revenue Konimex Selling Out";
       const processedRows = isRevenueSO ? await processRevenueSO(chosen) : null;
-      await send(select.value, chosen);
+      await send(select.value, chosen, periodSelect.value);
       if (processedRows) {
-        localStorage.setItem(PROCESSED_KEY, JSON.stringify({ source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows }));
+        let history = {};
+        try { history = JSON.parse(localStorage.getItem(PROCESSED_KEY) || "{}"); } catch (_) { history = {}; }
+        history[periodSelect.value] = { period: periodSelect.value, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
+        localStorage.setItem(PROCESSED_KEY, JSON.stringify(history));
       }
       barFill.style.width = "100%";
       setMsg("Berhasil: \"" + chosen.name + "\" terkirim dari divisi " + select.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");

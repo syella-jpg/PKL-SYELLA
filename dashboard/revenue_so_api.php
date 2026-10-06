@@ -19,6 +19,14 @@ if ($conn->connect_error) {
 
 $conn->set_charset('utf8mb4');
 
+$period = trim((string)($_GET['period'] ?? ''));
+if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Periode harus berformat YYYY-MM.']);
+    $conn->close();
+    exit;
+}
+
 $sql = "
     SELECT
         id,
@@ -57,10 +65,19 @@ $sql = "
         rev_total
 
     FROM revenue_selling_out
+    WHERE report_period = ?
     ORDER BY id ASC
 ";
 
-$result = $conn->query($sql);
+$stmt = $conn->prepare($sql);
+if (!$stmt) {
+    echo json_encode(['success' => false, 'message' => 'Query gagal: ' . $conn->error]);
+    $conn->close();
+    exit;
+}
+$stmt->bind_param('s', $period);
+$stmt->execute();
+$result = $stmt->get_result();
 
 if (!$result) {
     echo json_encode([
@@ -84,4 +101,3 @@ echo json_encode([
 ]);
 
 $conn->close();
-
