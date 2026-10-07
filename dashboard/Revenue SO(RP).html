@@ -205,6 +205,7 @@
   // Format: DATA[laporan][tab] = { cards: ["43.3%","9.0%","43.5%","6.7%"],
   //   chart: { labels: ["CORPORATE", ...], series: [{ name: "% Achievement YTD JUNI", values: [95, 43, 9] }, ...] } }
   const DATA = {};
+  const TARGET_KEY = "konimex_revenue_so_targets_processed";
   // Atau ambil dari server: GET DATA_URL?report=..&tab=..&period=YYYY-MM  -> mengembalikan objek { cards, chart }
   const DATA_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_so_api.php"
@@ -434,24 +435,38 @@
   }
 
   $("dl").onclick = async () => {
+    const reportYear = Number(st.period.slice(0, 4));
+    const reportMonth = Number(st.period.slice(5, 7));
     let processed;
     try { const history = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "null"); processed = history && history[st.period] ? history[st.period] : null; }
     catch (e) { processed = null; }
-    if (!processed || !Array.isArray(processed.rows) || !processed.rows.length) {
+    let targetData = null;
+    try {
+      const targetHistory = JSON.parse(localStorage.getItem(TARGET_KEY) || "{}");
+      targetData = targetHistory && targetHistory[String(reportYear)] ? targetHistory[String(reportYear)] : null;
+    } catch (_) { targetData = null; }
+    const hasAchievement = processed && Array.isArray(processed.rows) && processed.rows.length;
+    const hasTarget = targetData && Array.isArray(targetData.rows) && targetData.rows.length;
+    if (!hasAchievement && !hasTarget) {
       toast("Data belum tersedia."); return;
     }
+    const targetCodes = new Set(hasTarget ? targetData.rows.map((record) => record.code) : []);
+    const hasCategoryBreakdown = [1, 2, 3, 4, 5, 6].every((number) =>
+      ["A", "B", "C"].every((category) => targetCodes.has("category" + number + category)));
+    if (hasTarget && !hasCategoryBreakdown) {
+      toast("Unggah ulang file Target Revenue Selling Out agar rincian kategori A, B, dan C tersimpan."); return;
+    }
     if (!window.XLSX) { toast("Komponen pembuat file ODS gagal dimuat."); return; }
-    const reportYear = Number(st.period.slice(0, 4));
-    const reportMonth = Number(st.period.slice(5, 7));
     let previousYear = { totals: new Map(), monthTotals: new Map() };
     try {
       previousYear = await loadPreviousYearRevenue((reportYear - 1) + "-12");
     } catch (error) {
       toast("Data Desember " + (reportYear - 1) + " tidak tersedia; kolom Ach Last Year akan kosong.");
     }
+    const monthLabel = "YTD " + monthName().toUpperCase();
     const data = [
-      ["No", "Parameter", "Ach Last Year (" + (reportYear - 1) + ")", "", "Target " + reportYear, "", "Achievement", "% Achievement", "", "Growth", "Contribution", ""],
-      ["", "", "Full Year", "YTD " + monthName().toUpperCase(), "Full Year", "YTD " + monthName().toUpperCase(), "YTD " + monthName().toUpperCase(), "YTD " + monthName().toUpperCase(), reportYear, "YTD " + monthName().toUpperCase(), "vs Divisi", "vs Corporate"]
+      ["No", "Parameter", "Target 2025", "", "Ach Last Year (2025)", "", "Target " + reportYear, "", "Achievement", "% Achievement", "", "Growth", "Contribution", ""],
+      ["", "", "Full Year", monthLabel, "Full Year", monthLabel, "Full Year", monthLabel, monthLabel, monthLabel, reportYear, monthLabel, "vs Divisi", "vs Corporate"]
     ];
     const formulaSpecs = [];
     const growthValue = (achievement, priorYtd) => {
@@ -462,7 +477,7 @@
     };
     const values = new Map();
     const sourceLabels = new Map();
-    processed.rows.forEach((record) => {
+    (hasAchievement ? processed.rows : []).forEach((record) => {
       if (!record.code) return;
       const n = Number(record.revTotal);
       if (Number.isFinite(n)) {
@@ -471,93 +486,96 @@
       }
     });
     const valueByCode = values;
+    const targetByCode = new Map((targetData && Array.isArray(targetData.rows) ? targetData.rows : []).map((record) => [record.code, record]));
+    const targetSourceCodes = (code) => {
+      const existing = String(code).match(/^existing(\d+)$/);
+      if (existing) {
+        // Pakai rincian kategori langsung: Existing = A+B+C, kategori D dikecualikan.
+        const categories = ["A", "B", "C"].map((category) => "category" + existing[1] + category);
+        return categories.some((categoryCode) => targetByCode.has(categoryCode)) ? categories : [code];
+      }
+      const newProduct = String(code).match(/^new(\d+)$/);
+      if (newProduct) {
+        const categoryD = "category" + newProduct[1] + "D";
+        return targetByCode.has(categoryD) ? [categoryD] : [code];
+      }
+      return [code];
+    };
+    const targetForCodes = (codes) => {
+      const records = codes.flatMap((code) => targetSourceCodes(code))
+        .map((code) => targetByCode.get(code)).filter(Boolean);
+      if (!records.length) return null;
+      return {
+        // Hitung Full Year dari Jan–Des agar mengikuti rincian kategori,
+        // bukan nilai kolom TOTAL yang bisa berbeda dari jumlah bulanan.
+        fullYear: records.reduce((sum, record) => sum + (Array.isArray(record.months)
+          ? record.months.reduce((total, value) => total + (Number(value) || 0), 0)
+          : (Number(record.fullYear) || 0)), 0),
+        ytd: records.reduce((sum, record) => sum + (Array.isArray(record.months)
+          ? record.months.slice(0, reportMonth).reduce((total, value) => total + (Number(value) || 0), 0)
+          : 0), 0)
+      };
+    };
     const sourceData = [["Kode sumber", "Baris asal", "REV TOTAL"]];
     values.forEach((value, code) => {
       sourceData.push([code, sourceLabels.get(code) || code, value]);
     });
     let serialNo = 0;
-    const addDetail = (label, code) => {
+    const corporateCodes = [1, 2, 3, 4, 5, 6];
+    const currentForCodes = (codes) => codes.reduce((sum, code) => sum + (Number(valueByCode.get(code)) || 0), 0);
+    const priorFullForCodes = (codes) => codes.reduce((sum, code) => sum + (Number(previousYear.totals.get(code)) || 0), 0);
+    const priorYtdForCodes = (codes) => codes.reduce((sum, code) => {
+      const monthly = previousYear.monthTotals.get(code) || [];
+      return sum + monthly.slice(0, reportMonth).reduce((total, value) => total + value, 0);
+    }, 0);
+    const addDetail = (label, code, aggregateCodes) => {
       const row = data.length + 1;
+      const codes = aggregateCodes || (code ? [code] : []);
       const monthly = code ? previousYear.monthTotals.get(code) : null;
-      const priorYtd = monthly ? monthly.slice(0, reportMonth).reduce((sum, value) => sum + value, 0) : "";
-      data.push([++serialNo, label, code ? previousYear.totals.get(code) ?? "" : "", code && monthly ? priorYtd : "", "", "", valueByCode.get(code) ?? "", "", "", "", "", ""]);
-      formulaSpecs.push({ row, col: 7, formula: `IF(OR(F${row}="",G${row}="",G${row}=0),"",F${row}/G${row})` });
-      formulaSpecs.push({ row, col: 8, formula: `IF(OR(E${row}="",G${row}="",E${row}=0),"",G${row}/E${row})` });
-      formulaSpecs.push({ row, col: 9, formula: `G${row}/D${row}-1`, value: growthValue(valueByCode.get(code), priorYtd) });
+      const priorFull = code ? previousYear.totals.get(code) ?? "" : aggregateCodes ? priorFullForCodes(codes) : "";
+      const priorYtd = code && monthly
+        ? monthly.slice(0, reportMonth).reduce((sum, value) => sum + value, 0)
+        : aggregateCodes ? priorYtdForCodes(codes) : "";
+      const current = code ? valueByCode.get(code) ?? "" : aggregateCodes ? currentForCodes(codes) : "";
+      const target = code ? targetForCodes([code]) : aggregateCodes ? targetForCodes(codes) : null;
+      data.push([++serialNo, label, "", "", priorFull, priorYtd, target ? target.fullYear : "", target ? target.ytd : "", current, "", "", "", "", ""]);
+      formulaSpecs.push({ row, col: 9, formula: `IF(OR(H${row}="",I${row}="",H${row}=0),"",I${row}/H${row})` });
+      formulaSpecs.push({ row, col: 10, formula: `IF(OR(G${row}="",I${row}="",G${row}=0),"",I${row}/G${row})` });
+      formulaSpecs.push({ row, col: 11, formula: `IF(OR(F${row}="",F${row}=0,I${row}=""),"",I${row}/F${row}-1)`, value: growthValue(current, priorYtd) });
+      return row;
+    };
+    const addSection = (name) => {
+      const row = data.length + 1;
+      data.push(["", name, "", "", "", "", "", "", "", "", "", "", "", ""]);
       return row;
     };
     const addDivision = (name, gbNumbers) => {
-      const divRow = data.length + 1;
-      data.push(["", name, "", "", "", "", "", "", "", "", "", ""]);
-      const existingSubtotal = addDetail("Total Existing (ABC) + Non target", null);
-      const newSubtotal = addDetail("Total New Product (D)", null);
-      const gbRows = [], existingRows = [], newRows = [];
+      addSection(name);
+      const existingCodes = gbNumbers.map((number) => "existing" + number);
+      const newCodes = gbNumbers.map((number) => "new" + number);
+      addDetail("Total Existing (ABC) + Non target", null, existingCodes);
+      addDetail("Total New Product (D)", null, newCodes);
       gbNumbers.forEach((number) => {
-        const gbRow = addDetail("GB " + number, "gb" + number);
-        gbRows.push(gbRow);
-        const existingRow = addDetail("Total Existing (ABC) + Non target", "existing" + number);
-        const newRow = addDetail("Total New Product (D)", "new" + number);
-        existingRows.push(existingRow);
-        newRows.push(newRow);
-      });
-      const sumRefs = (rows) => rows.length ? `SUM(${rows.map((r) => `F${r}`).join(",")})` : "0";
-      const sumCodes = (codes) => codes.reduce((sum, code) => sum + (Number(valueByCode.get(code)) || 0), 0);
-      const existingTotal = sumCodes(gbNumbers.map((number) => "existing" + number));
-      const newTotal = sumCodes(gbNumbers.map((number) => "new" + number));
-      const divisionTotal = sumCodes(gbNumbers.map((number) => "gb" + number));
-      const sumRows = (rows, column) => rows.reduce((sum, row) => sum + (Number(data[row - 1][column]) || 0), 0);
-      const divisionPriorFull = gbNumbers.reduce((sum, number) => sum + (Number(previousYear.totals.get("gb" + number)) || 0), 0);
-      const divisionPriorYtd = gbNumbers.reduce((sum, number) => {
-        const monthly = previousYear.monthTotals.get("gb" + number) || [];
-        return sum + monthly.slice(0, reportMonth).reduce((total, value) => total + value, 0);
-      }, 0);
-      formulaSpecs.push({ row: existingSubtotal, col: 6, formula: sumRefs(existingRows).replace(/F/g, "G"), value: existingTotal });
-      formulaSpecs.push({ row: newSubtotal, col: 6, formula: sumRefs(newRows).replace(/F/g, "G"), value: newTotal });
-      formulaSpecs.push({ row: divRow, col: 6, formula: sumRefs(gbRows).replace(/F/g, "G"), value: divisionTotal });
-      [[existingSubtotal, existingRows], [newSubtotal, newRows], [divRow, gbRows]].forEach(([row, childRows]) => {
-        const isDivisionRow = row === divRow;
-        formulaSpecs.push({ row, col: 2, formula: `SUM(${childRows.map((child) => `C${child}`).join(",") || "0"})`, value: isDivisionRow ? divisionPriorFull : sumRows(childRows, 2) });
-        formulaSpecs.push({ row, col: 3, formula: `SUM(${childRows.map((child) => `D${child}`).join(",") || "0"})`, value: isDivisionRow ? divisionPriorYtd : sumRows(childRows, 3) });
-      });
-      data[divRow - 1][1] = name;
-      formulaSpecs.push({ row: divRow, col: 7, formula: `IF(OR(F${divRow}="",G${divRow}="",G${divRow}=0),"",F${divRow}/G${divRow})` });
-      formulaSpecs.push({ row: divRow, col: 8, formula: `IF(OR(E${divRow}="",G${divRow}="",E${divRow}=0),"",G${divRow}/E${divRow})` });
-      formulaSpecs.push({ row: divRow, col: 9, formula: `G${divRow}/D${divRow}-1`, value: growthValue(divisionTotal, divisionPriorYtd) });
-      [existingSubtotal, newSubtotal].forEach((row) => {
-        formulaSpecs.push({ row, col: 7, formula: `IF(OR(F${row}="",G${row}="",G${row}=0),"",F${row}/G${row})` });
-        formulaSpecs.push({ row, col: 8, formula: `IF(OR(E${row}="",G${row}="",E${row}=0),"",G${row}/E${row})` });
-        const current = row === existingSubtotal ? existingTotal : newTotal;
-        const priorYtd = sumRows(row === existingSubtotal ? existingRows : newRows, 3);
-        formulaSpecs.push({ row, col: 9, formula: `G${row}/D${row}-1`, value: growthValue(current, priorYtd) });
+        addDetail("GB " + number, "gb" + number);
+        addDetail("Total Existing (ABC) + Non target", "existing" + number);
+        addDetail("Total New Product (D)", "new" + number);
       });
     };
+    addSection("CORPORATE");
+    addDetail("Total Existing (ABC) + Non target", null, corporateCodes.map((number) => "existing" + number));
+    addDetail("Total New Product (D)", null, corporateCodes.map((number) => "new" + number));
     addDivision("PHARMA", [1, 4]);
     addDivision("HCE", [2, 3]);
     addDivision("FOOD", [5, 6]);
-    // Ethical memiliki satu total pada sumber; jika tidak ada, rincikan existing/new.
-    if (valueByCode.has("ethicalExisting") || valueByCode.has("ethicalNew")) {
-      const ethicalSummaryRow = data.length + 1;
-      data.push(["", "ETHICAL", "", "", "", "", "", "", "", "", "", ""]);
-      const ethicalRows = [];
-      if (valueByCode.has("ethicalExisting")) ethicalRows.push(addDetail("Total Existing (ABC) + Non target", "ethicalExisting"));
-      if (valueByCode.has("ethicalNew")) ethicalRows.push(addDetail("Total New Product (D)", "ethicalNew"));
-      const sumEthicalRows = (column) => ethicalRows.reduce((sum, row) => sum + (Number(data[row - 1][column]) || 0), 0);
-      const ethicalMonths = previousYear.monthTotals.get("ethicalTotal");
-      const ethicalTotal = valueByCode.has("ethicalTotal")
-        ? Number(valueByCode.get("ethicalTotal")) || 0
-        : (Number(valueByCode.get("ethicalExisting")) || 0) + (Number(valueByCode.get("ethicalNew")) || 0);
-      data[ethicalSummaryRow - 1][2] = previousYear.totals.has("ethicalTotal") ? previousYear.totals.get("ethicalTotal") : sumEthicalRows(2);
-      data[ethicalSummaryRow - 1][3] = ethicalMonths
-        ? ethicalMonths.slice(0, reportMonth).reduce((sum, value) => sum + value, 0)
-        : sumEthicalRows(3);
-      if (valueByCode.has("ethicalTotal")) data[ethicalSummaryRow - 1][6] = ethicalTotal;
-      else formulaSpecs.push({ row: ethicalSummaryRow, col: 6, formula: `SUM(${ethicalRows.map((row) => `G${row}`).join(",")})`, value: ethicalTotal });
-      formulaSpecs.push({ row: ethicalSummaryRow, col: 7, formula: `IF(OR(F${ethicalSummaryRow}="",G${ethicalSummaryRow}="",G${ethicalSummaryRow}=0),"",F${ethicalSummaryRow}/G${ethicalSummaryRow})` });
-      formulaSpecs.push({ row: ethicalSummaryRow, col: 8, formula: `IF(OR(E${ethicalSummaryRow}="",G${ethicalSummaryRow}="",E${ethicalSummaryRow}=0),"",G${ethicalSummaryRow}/E${ethicalSummaryRow})` });
-      formulaSpecs.push({ row: ethicalSummaryRow, col: 9, formula: `G${ethicalSummaryRow}/D${ethicalSummaryRow}-1`, value: growthValue(ethicalTotal, data[ethicalSummaryRow - 1][3]) });
-    } else if (valueByCode.has("ethicalTotal")) {
-      addDetail("Ethical", "ethicalTotal");
-    }
+    addSection("INTERNATIONAL BUSINESS");
+    addDetail("Total Existing (ABC)", "internationalExisting");
+    addDetail("Total New Product (D)", "internationalNew");
+    addSection("ETHICAL");
+    addDetail("Total Existing (ABC) + Non target", "ethicalExisting");
+    addDetail("Total New Product (D)", "ethicalNew");
+    addSection("MTM");
+    addDetail("Total Existing (ABC)", "mtmExisting");
+    addDetail("Total New Product (D)", "mtmNew");
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.aoa_to_sheet(data);
     worksheet["!merges"] = [
@@ -565,10 +583,11 @@
       { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
       { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } },
       { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
-      { s: { r: 0, c: 6 }, e: { r: 1, c: 6 } },
-      { s: { r: 0, c: 7 }, e: { r: 0, c: 8 } },
-      { s: { r: 0, c: 9 }, e: { r: 1, c: 9 } },
-      { s: { r: 0, c: 10 }, e: { r: 0, c: 11 } }
+      { s: { r: 0, c: 6 }, e: { r: 0, c: 7 } },
+      { s: { r: 0, c: 8 }, e: { r: 1, c: 8 } },
+      { s: { r: 0, c: 9 }, e: { r: 0, c: 10 } },
+      { s: { r: 0, c: 11 }, e: { r: 1, c: 11 } },
+      { s: { r: 0, c: 12 }, e: { r: 0, c: 13 } }
     ];
     const formulaValueByCell = new Map(formulaSpecs.filter((spec) => Number.isFinite(spec.value)).map((spec) => [`${spec.row}:${spec.col}`, spec.value]));
     formulaSpecs.forEach(({ row, col, formula }) => {
@@ -577,29 +596,34 @@
       const cachedValue = formulaValueByCell.get(`${row}:${col}`);
       if (cachedValue !== undefined) worksheet[address].v = cachedValue;
     });
-    worksheet["!cols"] = [{ wch: 5 }, { wch: 36 }, { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 16 }, { wch: 13 }, { wch: 15 }, { wch: 15 }, { wch: 17 }];
+    worksheet["!cols"] = [{ wch: 5 }, { wch: 38 }, { wch: 15 }, { wch: 14 }, { wch: 15 }, { wch: 14 }, { wch: 15 }, { wch: 14 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 14 }, { wch: 15 }];
     const headerStyle = { fill: { fgColor: { rgb: "8FC9F4" } }, font: { bold: true, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: { top: { style: "thin", color: { rgb: "000000" } }, bottom: { style: "thin", color: { rgb: "000000" } }, left: { style: "thin", color: { rgb: "000000" } }, right: { style: "thin", color: { rgb: "000000" } } } };
-    for (let r = 0; r < 2; r++) for (let c = 0; c < 12; c++) {
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 14; c++) {
       const address = XLSX.utils.encode_cell({ r, c });
       if (worksheet[address]) worksheet[address].s = headerStyle;
     }
-    [7, 8, 9].forEach((col) => {
+    [9, 10, 11, 12, 13].forEach((col) => {
       for (let r = 2; r < data.length; r++) {
         const address = XLSX.utils.encode_cell({ r, c: col });
         if (worksheet[address]) worksheet[address].z = "0.00%";
       }
     });
-    [2, 3, 4, 5, 6].forEach((col) => {
+    [2, 3, 4, 5, 6, 7, 8].forEach((col) => {
       for (let r = 2; r < data.length; r++) {
         const address = XLSX.utils.encode_cell({ r, c: col });
         if (worksheet[address]) worksheet[address].z = "#,##0;[Red]-#,##0";
       }
     });
     data.forEach((row, index) => {
-      if (row[0] === "" && row[1]) {
-        for (let c = 0; c < 12; c++) {
+      if (row[1]) {
+        const section = row[0] === "";
+        const corporate = row[1] === "CORPORATE";
+        for (let c = 0; c < 14; c++) {
           const address = XLSX.utils.encode_cell({ r: index, c });
-          if (worksheet[address]) worksheet[address].s = { font: { bold: true }, fill: { fgColor: { rgb: "E8E6F7" } } };
+          if (worksheet[address]) worksheet[address].s = {
+            font: { bold: section, italic: !corporate },
+            fill: { fgColor: { rgb: corporate || index === 2 || index === 3 ? "DDE8CF" : section ? "FFF7DF" : "FFFFFF" } }
+          };
         }
       }
     });
