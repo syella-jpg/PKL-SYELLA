@@ -62,9 +62,6 @@
   * { scrollbar-width: none; -ms-overflow-style: none; }
   *::-webkit-scrollbar { display: none; }
   .chartcard { background: #fff; border-radius: 28px; box-shadow: 0 4px 8px rgba(0,0,0,.22); padding: 22px; margin: 0 8px; max-width: 760px; min-height: 220px; }
-  .chart-tools { display: flex; justify-content: flex-end; max-width: 760px; margin: 0 8px 10px; }
-  .chart-download { height: 34px; border: 1px solid #cfcaf5; border-radius: 10px; background: #fff; color: #111; padding: 0 13px; font-size: 12px; font-weight: 400; }
-  .chart-download:hover { background: #f8f7ff; }
   .empty { display: grid; place-items: center; min-height: 176px; text-align: center; font-size: 12.5px; color: #6b7280; border: 2px dashed #d6d3ee; border-radius: 18px; padding: 16px; }
   .chartcard svg { width: 100%; height: auto; display: block; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; margin-top: 12px; }
@@ -141,7 +138,6 @@
     <div class="cards" id="cards"></div>
 
     <div class="subs"><span>Ach &amp; Growth</span></div>
-    <div class="chart-tools"><button class="chart-download" id="downloadChart" type="button">Unduh gambar chart (PNG)</button></div>
     <div class="chartcard" id="chart"></div>
 
     <section class="analysis">
@@ -172,9 +168,9 @@
     "Branch Availability DOI Total", "Cost Saving", "UPB Konimex (RP)", "UPB MNJ (RP)",
     "On Time Formulation", "Sumber Daya Manusia", "Complain Level", "Ratio UPB"
   ];
-  // Halaman ini menampilkan laporan Revenue Konimex Selling In (RP).
+  // Halaman ini menampilkan laporan Ratio Biaya. Menu lain membuka halamannya sendiri:
   // isi alamat file-nya di sini (kosong = menampilkan pesan "belum tersedia").
-  const CURRENT = REPORTS[2];
+  const CURRENT = REPORTS[3];
   const PAGES = {
     "TM BOD": "",
     "MCM Konimex Sell In (RP)": "MCM%20KX%20SI.html",
@@ -199,7 +195,7 @@
     "Complain Level": "",
     "Ratio UPB": ""
   };
-  const TABS = ["Korporat", "Domestik", "Ekspor"];
+  const TABS = ["Corporate(incl.Bi No Product)", "Corporate (excl. Bi. Non Product)", "Pharma", "HCE", "Food", "EBITDA IB", "Ethical"];
 
   // Data hasil upload (kosong = angka & chart belum tampil).
   // Format: DATA[laporan][tab] = { cards: ["43.3%","9.0%","43.5%","6.7%"],
@@ -213,13 +209,7 @@
   const COLORS = ["#004586", "#ff420e", "#ffd320"];
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const DOWNLOAD_URL = location.protocol === "file:"
-    ? "http://127.0.0.1:8000/dashboard/revenue_kx_si_download.php"
-    : "revenue_kx_si_download.php";
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth() + 1;
-  const st = { sec: "Dashboard", report: CURRENT, tab: TABS[0], period: currentYear + "-" + String(currentMonth).padStart(2, "0") };
+  const st = { sec: "Dashboard", report: CURRENT, tab: TABS[0], period: "2026-06" };
   let token = 0, cur = null;
 
   function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2200); }
@@ -243,15 +233,10 @@
     b.onclick = () => { st.tab = t; render(); };
     $("tabs").appendChild(b);
   });
-  for (let year = 2025; year <= currentYear; year++) {
-    const lastMonth = year === currentYear ? currentMonth : 12;
-    for (let month = 1; month <= lastMonth; month++) {
-      const o = document.createElement("option");
-      o.value = year + "-" + String(month).padStart(2, "0");
-      o.textContent = BULAN[month - 1] + " " + year;
-      $("period").appendChild(o);
-    }
-  }
+  BULAN.forEach((m, i) => {
+    const o = document.createElement("option"); o.value = "2026-" + String(i + 1).padStart(2, "0"); o.textContent = m + " 2026";
+    $("period").appendChild(o);
+  });
   $("period").value = st.period;
   $("period").onchange = (e) => { st.period = e.target.value; render(); };
   document.querySelectorAll(".sec").forEach((b) => b.onclick = () => { if (b.dataset.sec !== "Dashboard") go("TM BOD"); });
@@ -284,8 +269,7 @@
   /* ---------- Kartu KPI ---------- */
   function renderCards() {
     const T = st.tab.toUpperCase(), M = monthName().toUpperCase();
-    const year = st.period.slice(0, 4);
-    const labels = ["% Achievement " + year + " " + T, "Growth YTD " + M + " " + T, "% Achievement " + year + " Total Existing", "Growth YTD Existing"];
+    const labels = ["% Achievement 2026 " + T, "Growth YTD " + M + " " + T, "% Achievement 2026 Total Existing", "Growth YTD Existing"];
     $("cards").innerHTML = labels.map((l, i) =>
       '<div class="kpi"><p>' + esc(l) + "</p><b>" + esc(cur && cur.cards && cur.cards[i] != null ? cur.cards[i] : "-") + "</b></div>").join("");
   }
@@ -323,36 +307,6 @@
       : '<div class="empty">Belum ada data. Chart akan muncul setelah file laporan diupload.</div>';
   }
 
-  function downloadChartImage() {
-    const svg = $("chart").querySelector("svg");
-    if (!svg) { toast("Data belum tersedia."); return; }
-    const svgText = new XMLSerializer().serializeToString(svg);
-    const svgUrl = URL.createObjectURL(new Blob([svgText], { type: "image/svg+xml;charset=utf-8" }));
-    const image = new Image();
-    image.onload = () => {
-      const scale = 2;
-      const canvas = document.createElement("canvas");
-      canvas.width = 680 * scale;
-      canvas.height = 330 * scale;
-      const context = canvas.getContext("2d");
-      context.fillStyle = "#fff";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(svgUrl);
-      canvas.toBlob((blob) => {
-        if (!blob) { toast("Gambar gagal dibuat."); return; }
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "Revenue_KX_SI_" + st.period + "_" + st.tab.replace(/[^a-z0-9]+/gi, "_") + ".png";
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-      }, "image/png");
-    };
-    image.onerror = () => { URL.revokeObjectURL(svgUrl); toast("Gambar gagal dibuat."); };
-    image.src = svgUrl;
-  }
-  $("downloadChart").onclick = downloadChartImage;
-
   /* ---------- Catatan analisis ---------- */
   const NK = "konimex_notes";
   function loadNotes() { try { return JSON.parse(localStorage.getItem(NK)) || {}; } catch (e) { return {}; } }
@@ -383,20 +337,87 @@
     $("note").value = ""; renderNotes(); toast("Catatan tersimpan");
   };
 
-  /* ---------- Unduh tabel Achievement Selling In (XLSX) ---------- */
-  $("dl").onclick = async () => {
-    const endpoint = new URL(DOWNLOAD_URL, location.href);
-    endpoint.searchParams.set("period", st.period);
-    const checkEndpoint = new URL(endpoint.href);
-    checkEndpoint.searchParams.set("check", "1");
-    try {
-      const response = await fetch(checkEndpoint.href);
-      const result = await response.json();
-      if (!response.ok || !result.available) { toast("Data belum tersedia."); return; }
-      window.location.href = endpoint.href;
-    } catch (error) {
-      toast("Data belum tersedia.");
-    }
+  /* ---------- Unduh template Ratio Biaya (Excel) ---------- */
+  $("dl").onclick = () => {
+    const units = [
+      { name: "Total (Domestik + Export)", kind: "total" },
+      { name: "FARMASI", kind: "group" },
+      { name: "GB 1", kind: "child" }, { name: "GB 4", kind: "child" },
+      { name: "HCE", kind: "group" },
+      { name: "GB 2", kind: "child" }, { name: "GB 3", kind: "child" },
+      { name: "BISKUIT", kind: "group" }, { name: "CANDY", kind: "group" },
+      { name: "BIAYA CM", kind: "group" }, { name: "ETHICAL", kind: "group" },
+      { name: "IB", kind: "group" }
+    ];
+    const cols = 10;
+    const blankCells = (style) => Array(cols - 2).fill('<td style="' + style + '"></td>').join("");
+    const bodyRows = units.map((unit) => {
+      const cls = unit.kind === "total" ? "total" : unit.kind === "group" ? "group" : "child";
+      const label = unit.kind === "child" ? "&nbsp;&nbsp;&nbsp;&nbsp;" + esc(unit.name) : esc(unit.name);
+      const fill = unit.kind === "total" ? "#d9ecff" : unit.kind === "group" ? "#e9e4ff" : (units.indexOf(unit) % 2 ? "#f1effa" : "#fbfaff");
+      const color = unit.kind === "group" ? "#40358a" : unit.kind === "total" ? "#173f62" : "#222222";
+      const style = "background-color:" + fill + ";color:" + color + ";border:1px solid #7890a8;height:19px;padding:3px 6px;" + (unit.kind !== "child" ? "font-weight:bold;" : "");
+      return '<tr class="' + cls + '"><td style="' + style + '"></td><td class="unit" style="' + style + (unit.kind === "child" ? "padding-left:24px;" : "") + '">' + label + "</td>" + blankCells(style) + "</tr>";
+    }).join("");
+    const periodMonth = monthName().toUpperCase();
+    const xml = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[ch]));
+    const cell = (value, style, extra) => '<table:table-cell office:value-type="string" table:style-name="' + style + '"' + (extra || '') + '><text:p>' + value + '</text:p></table:table-cell>';
+    const covered = '<table:covered-table-cell/>';
+    const headerRow1 = '<table:table-row>' +
+      cell('No', 'Header', ' table:number-rows-spanned="2"') +
+      cell('UNIT BISNIS', 'Header', ' table:number-rows-spanned="2"') +
+      cell('Actual BI PROMOSI - Last Year (2025)', 'Header', ' table:number-columns-spanned="2"') + covered +
+      cell('Actual 2026 YTD ' + xml(periodMonth), 'Header', ' table:number-rows-spanned="2"') +
+      cell('Anggaran 2026', 'Header', ' table:number-rows-spanned="2"') +
+      cell('Ratio Biaya', 'Header', ' table:number-columns-spanned="3"') + covered + covered +
+      cell('Target Ratio Biaya 2026', 'Header', ' table:number-rows-spanned="2"') +
+      '</table:table-row>';
+    const headerRow2 = '<table:table-row>' + covered + covered +
+      cell('Full Year', 'Header') + cell('YTD ' + xml(periodMonth), 'Header') + covered + covered +
+      cell('FY 2025', 'Header') + cell('YTD 2025', 'Header') + cell('YTD 2026', 'Header') + covered + '</table:table-row>';
+    const dataRows = units.map((unit, i) => {
+      const style = unit.kind === 'total' ? 'Total' : unit.kind === 'group' ? 'Group' : (i % 2 ? 'ChildAlt' : 'Child');
+      const label = unit.kind === 'child' ? '    ' + unit.name : unit.name;
+      return '<table:table-row>' + cell('', style) + cell(xml(label), style) + Array(8).fill(cell('', style)).join('') + '</table:table-row>';
+    }).join('');
+    const content = '<?xml version="1.0" encoding="UTF-8"?>' +
+      '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" office:version="1.2"><office:automatic-styles>' +
+      '<style:style style:name="Header" style:family="table-cell"><style:table-cell-properties fo:background-color="#91c8f2" fo:border="0.75pt solid #111111" fo:padding="0.08in"/><style:text-properties fo:font-weight="bold" fo:color="#000000"/><style:paragraph-properties fo:text-align="center"/></style:style>' +
+      '<style:style style:name="Total" style:family="table-cell"><style:table-cell-properties fo:background-color="#ffffff" fo:border="0.5pt solid #7890a8" fo:padding="0.04in"/><style:text-properties fo:font-weight="bold" fo:color="#000000"/></style:style>' +
+      '<style:style style:name="Group" style:family="table-cell"><style:table-cell-properties fo:background-color="#ffffff" fo:border="0.5pt solid #7890a8" fo:padding="0.04in"/><style:text-properties fo:font-weight="bold" fo:color="#000000"/></style:style>' +
+      '<style:style style:name="Child" style:family="table-cell"><style:table-cell-properties fo:background-color="#ffffff" fo:border="0.5pt solid #7890a8" fo:padding="0.04in"/><style:text-properties fo:color="#000000"/></style:style>' +
+      '<style:style style:name="ChildAlt" style:family="table-cell"><style:table-cell-properties fo:background-color="#ffffff" fo:border="0.5pt solid #7890a8" fo:padding="0.04in"/><style:text-properties fo:color="#000000"/></style:style>' +
+      '</office:automatic-styles><office:body><office:spreadsheet><table:table table:name="Ratio Biaya">' +
+      '<table:table-column table:number-columns-repeated="10"/>' + headerRow1 + headerRow2 + dataRows +
+      '</table:table></office:spreadsheet></office:body></office:document-content>';
+    const manifest = '<?xml version="1.0" encoding="UTF-8"?><manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/></manifest:manifest>';
+    const styles = '<?xml version="1.0" encoding="UTF-8"?><office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" office:version="1.2"><office:styles/></office:document-styles>';
+    const enc = new TextEncoder();
+    const crc32 = (bytes) => { let crc = -1; for (const b of bytes) { crc ^= b; for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (-(crc & 1) & 0xedb88320); } return (crc ^ -1) >>> 0; };
+    const zip = (files) => {
+      const chunks = [], central = []; let offset = 0;
+      const put16 = (v) => [v & 255, (v >>> 8) & 255];
+      const put32 = (v) => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+      files.forEach((file) => {
+        const name = enc.encode(file.name), data = typeof file.data === 'string' ? enc.encode(file.data) : file.data, crc = crc32(data);
+        const local = new Uint8Array([...put32(0x04034b50), ...put16(20), ...put16(0), ...put16(0), ...put16(0), ...put16(0), ...put32(crc), ...put32(data.length), ...put32(data.length), ...put16(name.length), ...put16(0), ...name, ...data]);
+        chunks.push(local);
+        central.push(new Uint8Array([...put32(0x02014b50), ...put16(20), ...put16(20), ...put16(0), ...put16(0), ...put16(0), ...put16(0), ...put32(crc), ...put32(data.length), ...put32(data.length), ...put16(name.length), ...put16(0), ...put16(0), ...put16(0), ...put16(0), ...put32(0), ...put32(offset), ...name]));
+        offset += local.length;
+      });
+      const centralSize = central.reduce((n, part) => n + part.length, 0);
+      return new Blob([...chunks, ...central, new Uint8Array([...put32(0x06054b50), ...put16(0), ...put16(0), ...put16(files.length), ...put16(files.length), ...put32(centralSize), ...put32(offset), ...put16(0)])], { type: 'application/vnd.oasis.opendocument.spreadsheet' });
+    };
+    const blob = zip([
+      { name: 'mimetype', data: enc.encode('application/vnd.oasis.opendocument.spreadsheet') },
+      { name: 'content.xml', data: content },
+      { name: 'styles.xml', data: styles },
+      { name: 'META-INF/manifest.xml', data: manifest }
+    ]);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (st.report + " - " + st.tab + " - " + st.period + ".ods").replace(/[\\/:*?"<>|]/g, "");
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
   /* ---------- Render utama ---------- */

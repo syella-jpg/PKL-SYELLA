@@ -44,7 +44,7 @@ if ($conn->connect_error) {
 }
 $conn->set_charset('utf8mb4');
 
-$stmt = $conn->prepare('SELECT parameter, achievement FROM revenue_konimex_selling_in WHERE report_period = ?');
+$stmt = $conn->prepare('SELECT parameter, achievement FROM revenue_selling_in WHERE report_period = ?');
 if (!$stmt) {
     http_response_code(500);
     header('Content-Type: text/plain; charset=utf-8');

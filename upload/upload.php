@@ -41,7 +41,7 @@ try {
     $divisi = trim((string)($_POST['divisi'] ?? ''));
     $reportTables = [
         'Revenue Konimex Selling Out' => 'revenue_selling_out',
-        'Revenue Konimex Selling In' => 'revenue_konimex_selling_in',
+        'Revenue Konimex Selling In' => 'revenue_selling_in',
     ];
     if (!isset($reportTables[$divisi])) {
         http_response_code(400);
