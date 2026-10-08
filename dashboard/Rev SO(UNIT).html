@@ -167,14 +167,14 @@
   const REPORTS = [
     "Revenue Konimex Selling Out (RP)", "MCM Konimex Sell In (RP)", "Revenue Konimex Selling In (RP)",
     "Ratio Biaya (Biaya vs Selling in)", "Ratio Sell Out vs Sell In (RP & Unit)", "MTM Contribution",
-    "Revenue Konimex sell in (Unit)", "Revenue Konimex Sell Out (Unit)", "Achievement & Growth Sell Out & Sell In (RP & UNIT)",
+    "Revenue Konimex sell in (Unit)", "Revenue Konimex Sell Out (UNIT)", "Achievement & Growth Sell Out & Sell In (RP & UNIT)",
     "Sales MNJ", "Service Level", "DOI RM - PM", "DOI Finished Good (KX & MNJ) Unit", "DOI FG",
     "Branch Availability DOI Total", "Cost Saving", "UPB Konimex (RP)", "UPB MNJ (RP)",
     "On Time Formulation", "Sumber Daya Manusia", "Complain Level", "Ratio UPB"
   ];
-  // Halaman ini menampilkan laporan Revenue Konimex Selling Out (RP).
+  // Halaman ini menampilkan laporan Revenue Konimex Sell Out (UNIT).
   // isi alamat file-nya di sini (kosong = menampilkan pesan "belum tersedia").
-  const CURRENT = REPORTS[0];
+  const CURRENT = "Revenue Konimex Sell Out (UNIT)";
   const PAGES = {
     "TM BOD": "",
     "MCM Konimex Sell In (RP)": "MCM%20KX%20SI.html",
@@ -184,7 +184,7 @@
     "Ratio Sell Out vs Sell In (RP & Unit)": "",
     "MTM Contribution": "",
     "Revenue Konimex sell in (Unit)": "",
-    "Revenue Konimex Sell Out (Unit)": "Rev%20SO(UNIT).html",
+    "Revenue Konimex Sell Out (UNIT)": "Rev%20SO(UNIT).html",
     "Achievement & Growth Sell Out & Sell In (RP & UNIT)": "",
     "Sales MNJ": "",
     "Service Level": "",
@@ -205,10 +205,14 @@
   // Format: DATA[laporan][tab] = { cards: ["43.3%","9.0%","43.5%","6.7%"],
   //   chart: { labels: ["CORPORATE", ...], series: [{ name: "% Achievement YTD JUNI", values: [95, 43, 9] }, ...] } }
   const DATA = {};
+  const TARGET_KEY = "konimex_revenue_so_targets_processed";
   // Atau ambil dari server: GET DATA_URL?report=..&tab=..&period=YYYY-MM  -> mengembalikan objek { cards, chart }
   const DATA_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_so_api.php"
     : "revenue_so_api.php";
+  const TARGET_API_URL = location.protocol === "file:"
+    ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
+    : "revenue_so_targets_api.php";
   const EDP_API_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_edp_mnj_api.php"
     : "revenue_edp_mnj_api.php";
@@ -406,12 +410,6 @@
       [/^TOTAL\s+ETH$/i, () => "ethicalTotal"]
     ];
     const buildRevenue = (records, fromBrowser) => {
-      const targetTemplateRows = records.some((record) => {
-        const cells = [record.code, record.label, record.gb, record.product_code, record.principal_product_code, record.product_name, record.kategori]
-          .map((value) => String(value == null ? "" : value).trim());
-        return cells.some((cell) => /^(?:EXIST|EXISTING|NP|NEW\s+PRODUCT)\s+GB\s*\d+$/i.test(cell));
-      });
-      if (targetTemplateRows) throw new Error("Baris Target EDP MNJ tidak dapat dipakai sebagai Achievement.");
       const totals = new Map(), monthTotals = new Map();
       records.forEach((record) => {
         let code = fromBrowser ? record.code : null;
@@ -442,19 +440,6 @@
       return { totals, monthTotals };
     };
     let sourceError;
-    // Achievement Sell Out adalah sumber resmi untuk Ach Last Year. Baca dari
-    // server lebih dulu agar cache lama dari file yang diunggah tidak menimpa.
-    try {
-      const response = await fetch(DATA_URL + "?" + new URLSearchParams({ report: st.report, tab: st.tab, period }));
-      if (!response.ok) throw new Error("Achievement Sell Out " + period + " tidak dapat dibaca.");
-      const payload = await response.json();
-      if (!payload.success || !Array.isArray(payload.data) || !payload.data.length) {
-        throw new Error("Achievement Sell Out " + period + " belum tersedia.");
-      }
-      return buildRevenue(payload.data, false);
-    } catch (error) {
-      sourceError = error;
-    }
     try {
       const history = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "{}");
       const uploaded = history && history[period];
@@ -462,7 +447,7 @@
         && uploaded.rows.some((record) => Array.isArray(record.revMonths) && record.revMonths.length === 12)) {
         return buildRevenue(uploaded.rows, true);
       }
-    } catch (error) { if (!sourceError) sourceError = error; }
+    } catch (_) { /* gunakan data server jika riwayat lokal tidak terbaca */ }
     try {
       const response = await fetch(EDP_API_URL + "?" + new URLSearchParams({ period }));
       if (!response.ok) throw new Error("Data periode " + period + " tidak dapat dibaca.");
@@ -470,7 +455,9 @@
       if (!payload.success || !Array.isArray(payload.data)) throw new Error(payload.message || "Data periode " + period + " tidak tersedia.");
       if (!payload.data.length) throw new Error("Data periode " + period + " belum tersedia di database.");
       return buildRevenue(payload.data, false);
-    } catch (error) { if (!sourceError) sourceError = error; }
+    } catch (error) {
+      if (!sourceError) sourceError = error;
+    }
     throw sourceError || new Error("Data periode " + period + " tidak tersedia.");
   }
 
@@ -518,8 +505,16 @@
         }
         if (mapped) break;
       }
+      if (!mapped) {
+        const totalGb = cells.map((value) => value.match(/^TOTAL\s+GB\s*(\d+)$/i)).find(Boolean);
+        if (totalGb) mapped = { code: "gb" + totalGb[1], label: "TOTAL GB " + totalGb[1] };
+      }
+      // Nama baris TOTAL EXISTING/NEW PRODUCT kadang tidak membawa nomor GB;
+      // nomor GB-nya ditulis di kolom terpisah.
       if (mapped && !/\d+$/.test(mapped.code) && gb) {
-        if (mapped.code === "existing" || mapped.code === "new") mapped.code += gb[1];
+        const suffix = gb[1];
+        if (mapped.code === "existing") mapped.code += suffix;
+        if (mapped.code === "new") mapped.code += suffix;
       }
       return mapped ? {
         ...mapped,
@@ -539,20 +534,22 @@
     st.period = selectedPeriod;
     const reportYear = Number(selectedPeriod.slice(0, 4));
     const reportMonth = Number(selectedPeriod.slice(5, 7));
-    const targetYear = reportYear - 1;
-    const sellOutTargetHistory = (() => {
-      try { return JSON.parse(localStorage.getItem("konimex_revenue_so_sellout_targets_processed") || "{}"); }
-      catch (_) { return {}; }
-    })();
     let processed = null;
     let achievementError = "";
     try { processed = await loadAchievement(selectedPeriod); }
     catch (error) { achievementError = error && error.message ? error.message : String(error); }
-    const targetData = sellOutTargetHistory[String(targetYear)] || null;
+    let targetData = null;
+    try {
+      const targetHistory = JSON.parse(localStorage.getItem(TARGET_KEY) || "{}");
+      targetData = targetHistory && targetHistory[String(reportYear)] ? targetHistory[String(reportYear)] : null;
+    } catch (_) { targetData = null; }
+    try {
+      const response = await fetch(TARGET_API_URL + "?year=" + encodeURIComponent(reportYear));
+      const result = await response.json();
+      if (response.ok && result.success && result.data && Array.isArray(result.data.rows)) targetData = result.data;
+    } catch (_) { /* localStorage remains the fallback for same-origin use */ }
     const hasAchievement = processed && Array.isArray(processed.rows) && processed.rows.length;
     const hasTarget = targetData && Array.isArray(targetData.rows) && targetData.rows.length;
-    let currentTargetData = null;
-    currentTargetData = sellOutTargetHistory[String(reportYear)] || null;
     let previousYear = { totals: new Map(), monthTotals: new Map() };
     let previousYearError = "";
     try {
@@ -561,14 +558,18 @@
       previousYearError = error && error.message ? error.message : String(error);
     }
     const hasPreviousYear = previousYear.totals.size > 0;
-    const hasCurrentTarget = currentTargetData && Array.isArray(currentTargetData.rows) && currentTargetData.rows.length;
-    if (!hasAchievement && !hasTarget && !hasCurrentTarget && !hasPreviousYear) {
+    if (!hasAchievement && !hasTarget && !hasPreviousYear) {
       toast("Achievement periode " + selectedPeriod + " tidak tersedia. " + achievementError + " REV " + (reportYear - 1) + ": " + previousYearError); return;
+    }
+    const targetCodes = new Set(hasTarget ? targetData.rows.map((record) => record.code) : []);
+    const hasNewProductBreakdown = [1, 2, 3, 4, 5, 6].every((number) => targetCodes.has("category" + number + "D"));
+    if (hasTarget && !hasNewProductBreakdown) {
+      toast("Data Target Revenue belum memuat kategori D untuk seluruh GB. Unggah ulang file Target Revenue."); return;
     }
     if (!window.XLSX) { toast("Komponen pembuat file ODS gagal dimuat."); return; }
     const monthLabel = "YTD " + BULAN[reportMonth - 1].toUpperCase();
     const data = [
-      ["No", "Parameter", "Target " + targetYear, "", "Ach Last Year (" + (reportYear - 1) + ")", "", "Target " + reportYear, "", "Achievement", "% Achievement", "", "Growth", "Contribution", ""],
+      ["No", "Parameter", "Target " + (reportYear - 1), "", "Ach Last Year (" + (reportYear - 1) + ")", "", "Target " + reportYear, "", "Achievement", "% Achievement", "", "Growth", "Contribution", ""],
       ["", "", "Full Year", monthLabel, "Full Year", monthLabel, "Full Year", monthLabel, monthLabel, monthLabel, reportYear, monthLabel, "vs Divisi", "vs Corporate"]
     ];
     const formulaSpecs = [];
@@ -598,49 +599,33 @@
       }
     });
     const valueByCode = values;
-    const priorTargetByCode = new Map((targetData && Array.isArray(targetData.rows) ? targetData.rows : []).map((record) => [record.code, record]));
-    const targetByCode = new Map((currentTargetData && Array.isArray(currentTargetData.rows) ? currentTargetData.rows : []).map((record) => [record.code, record]));
-    const targetSourceCodes = (code, sourceByCode) => {
+    const targetByCode = new Map((targetData && Array.isArray(targetData.rows) ? targetData.rows : []).map((record) => [record.code, record]));
+    const targetSourceCodes = (code) => {
       const gb = String(code).match(/^gb(\d+)$/);
       if (gb) return ["existing" + gb[1], "new" + gb[1]];
       const existing = String(code).match(/^existing(\d+)$/);
       if (existing) {
-        if (sourceByCode.has(code)) return [code];
         // Existing hanya menjumlahkan A+B+C dan Non Target; kategori D dikecualikan.
         const categories = ["A", "B", "C"].map((category) => "category" + existing[1] + category);
         const nonTarget = "nonTarget" + existing[1];
-        return categories.some((categoryCode) => sourceByCode.has(categoryCode))
-          ? categories.concat(sourceByCode.has(nonTarget) ? [nonTarget] : [])
+        return categories.some((categoryCode) => targetByCode.has(categoryCode))
+          ? categories.concat(targetByCode.has(nonTarget) ? [nonTarget] : [])
           : [code];
       }
       const newProduct = String(code).match(/^new(\d+)$/);
       if (newProduct) {
-        if (sourceByCode.has(code)) return [code];
         const categoryD = "category" + newProduct[1] + "D";
-        return sourceByCode.has(categoryD) ? [categoryD] : [code];
+        return targetByCode.has(categoryD) ? [categoryD] : [code];
       }
       return [code];
     };
-    const targetForCodes = (codes, sourceByCode) => {
-      const records = codes.flatMap((code) => targetSourceCodes(code, sourceByCode))
-        .map((code) => sourceByCode.get(code)).filter(Boolean);
+    const targetForCodes = (codes) => {
+      const records = codes.flatMap((code) => targetSourceCodes(code))
+        .map((code) => targetByCode.get(code)).filter(Boolean);
       if (!records.length) return null;
       return {
         // Hitung Full Year dari Jan–Des agar mengikuti rincian kategori,
         // bukan nilai kolom TOTAL yang bisa berbeda dari jumlah bulanan.
-        fullYear: records.reduce((sum, record) => sum + (Array.isArray(record.months)
-          ? record.months.reduce((total, value) => total + (Number(value) || 0), 0)
-          : (Number(record.fullYear) || 0)), 0) * TARGET_RP_SCALE,
-        ytd: records.reduce((sum, record) => sum + (Array.isArray(record.months)
-          ? record.months.slice(0, reportMonth).reduce((total, value) => total + (Number(value) || 0), 0)
-          : 0), 0) * TARGET_RP_SCALE
-      };
-    };
-    const priorTargetForCodes = (codes) => {
-      const records = codes.flatMap((code) => targetSourceCodes(code, priorTargetByCode))
-        .map((code) => priorTargetByCode.get(code)).filter(Boolean);
-      if (!records.length) return null;
-      return {
         fullYear: records.reduce((sum, record) => sum + (Array.isArray(record.months)
           ? record.months.reduce((total, value) => total + (Number(value) || 0), 0)
           : (Number(record.fullYear) || 0)), 0) * TARGET_RP_SCALE,
@@ -664,17 +649,6 @@
       const monthly = previousYear.monthTotals.get(code) || [];
       return sum + monthly.slice(0, reportMonth).reduce((total, value) => total + value, 0);
     }, 0);
-    if (targetData && hasPreviousYear) {
-      const corporateTarget = priorTargetForCodes(corporateCodes.flatMap((number) => ["existing" + number, "new" + number]));
-      const actualCodes = corporateCodes.flatMap((number) => ["existing" + number, "new" + number]);
-      const actualFull = priorFullForCodes(actualCodes);
-      const actualYtd = priorYtdForCodes(actualCodes);
-      const isSame = (left, right) => Math.abs(left - right) <= Math.max(1, Math.abs(right) * 1e-8);
-      if (corporateTarget && isSame(corporateTarget.fullYear, actualFull) && isSame(corporateTarget.ytd, actualYtd)) {
-        toast("Unduhan dibatalkan: Target " + targetYear + " sama dengan Achievement " + targetYear + ". Periksa sumber target sebelum mengunduh.");
-        return;
-      }
-    }
     const addDetail = (label, code, aggregateCodes) => {
       const row = data.length + 1;
       const codes = aggregateCodes || (code ? [code] : []);
@@ -693,10 +667,8 @@
             ? currentForCodes(["existing" + gbMatch[1], "new" + gbMatch[1]])
             : ""
         : aggregateCodes ? currentForCodes(codes) : "";
-      const codesForTarget = code ? [code] : aggregateCodes;
-      const priorTarget = codesForTarget ? priorTargetForCodes(codesForTarget) : null;
-      const target = codesForTarget ? targetForCodes(codesForTarget, targetByCode) : null;
-      data.push([++serialNo, label, priorTarget ? priorTarget.fullYear : "", priorTarget ? priorTarget.ytd : "", priorFull, priorYtd, target ? target.fullYear : "", target ? target.ytd : "", current, "", "", "", "", ""]);
+      const target = code ? targetForCodes([code]) : aggregateCodes ? targetForCodes(codes) : null;
+      data.push([++serialNo, label, "", "", priorFull, priorYtd, target ? target.fullYear : "", target ? target.ytd : "", current, "", "", "", "", ""]);
       formulaSpecs.push({ row, col: 9, formula: `IF(OR(H${row}="",I${row}="",H${row}=0),"",I${row}/H${row})`, value: achievementRatio(current, target ? target.ytd : "") });
       formulaSpecs.push({ row, col: 10, formula: `IF(OR(G${row}="",I${row}="",G${row}=0),"",I${row}/G${row})`, value: achievementRatio(current, target ? target.fullYear : "") });
       formulaSpecs.push({ row, col: 11, formula: `IF(OR(F${row}="",F${row}=0,I${row}=""),"",I${row}/F${row}-1)`, value: growthValue(current, priorYtd) });

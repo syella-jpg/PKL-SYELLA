@@ -41,6 +41,7 @@ try {
     $divisi = trim((string)($_POST['divisi'] ?? ''));
     $reportTables = [
         'Revenue Konimex Selling Out' => 'revenue_selling_out',
+        'REVENUE VERSI EDP MNJ' => 'revenue_edp_mnj',
         'Revenue Konimex Selling In' => 'revenue_selling_in',
     ];
     if (!isset($reportTables[$divisi])) {
@@ -48,8 +49,8 @@ try {
         throw new Exception('Divisi upload tidak valid.');
     }
     $tableName = $reportTables[$divisi];
-    $replaceExistingPeriod = $divisi === 'Revenue Konimex Selling Out'
-        && (($_POST['replace_existing'] ?? '') === '1');
+    $replaceExistingPeriod = $divisi === 'REVENUE VERSI EDP MNJ'
+        || ($divisi === 'Revenue Konimex Selling Out' && (($_POST['replace_existing'] ?? '') === '1'));
 
     // Periksa periode lebih dahulu agar periode yang sudah tersimpan tetap
     // menghasilkan pesan duplikat, meskipun bagian file tidak ikut terkirim.
@@ -68,6 +69,48 @@ try {
     }
     $conn->set_charset('utf8mb4');
 
+    if ($divisi === 'REVENUE VERSI EDP MNJ') {
+        $createEdpTable = "CREATE TABLE IF NOT EXISTS `{$tableName}` (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            report_period CHAR(7) NULL,
+            gb VARCHAR(50) NULL,
+            product_code VARCHAR(100) NULL,
+            principal_product_code VARCHAR(100) NULL,
+            product_name VARCHAR(255) NULL,
+            kategori VARCHAR(100) NULL,
+            qty_jan DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_feb DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_mar DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_apr DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_mei DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_jun DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_jul DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_agt DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_sep DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_okt DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_nov DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_des DECIMAL(15,2) NOT NULL DEFAULT 0,
+            qty_total DECIMAL(15,2) NOT NULL DEFAULT 0,
+            rev_jan DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_feb DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_mar DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_apr DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_mei DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_jun DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_jul DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_agt DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_sep DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_okt DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_nov DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_des DECIMAL(18,2) NOT NULL DEFAULT 0,
+            rev_total DECIMAL(18,2) NOT NULL DEFAULT 0,
+            KEY idx_revenue_edp_period (report_period)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+        if (!$conn->query($createEdpTable)) {
+            throw new Exception('Gagal menyiapkan tabel EDP MNJ: ' . $conn->error);
+        }
+    }
+
     if ($divisi === 'Revenue Konimex Selling In') {
         if (!$conn->query("CREATE TABLE IF NOT EXISTS `{$tableName}` (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -85,6 +128,14 @@ try {
                 throw new Exception('Gagal menyiapkan kolom periode laporan: ' . $conn->error);
             }
         }
+    }
+
+    if ($divisi === 'REVENUE VERSI EDP MNJ') {
+        $tagLegacyRows = $conn->prepare("UPDATE `{$tableName}` SET report_period = ? WHERE report_period IS NULL");
+        if (!$tagLegacyRows) throw new Exception('Gagal menandai periode data EDP lama: ' . $conn->error);
+        $tagLegacyRows->bind_param('s', $period);
+        if (!$tagLegacyRows->execute()) throw new Exception('Gagal menandai periode data EDP lama: ' . $tagLegacyRows->error);
+        $tagLegacyRows->close();
     }
 
     $periodCheck = $conn->prepare("SELECT COUNT(*) FROM `{$tableName}` WHERE report_period = ?");

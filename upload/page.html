@@ -31,30 +31,23 @@
   .label { display: block; font-size: 12px; font-weight: 700; margin: 28px 0 8px; }
   .label + .select-wrap { margin-top: 0; }
 
-  /* ===== Select divisi ===== */
+  /* ===== Pilihan ===== */
   .select-wrap { position: relative; }
-  #selWrap { height: 38px; }
-  .select-wrap select {
+  .select-wrap select, .select-wrap input {
     width: 100%; height: 38px; appearance: none; -webkit-appearance: none;
     border: 1px solid var(--line); border-radius: 10px; background: #fff;
     padding: 0 40px 0 40px; font-family: inherit; font-size: 13px; color: var(--ink); cursor: pointer;
   }
   .select-wrap select:invalid { color: var(--ink); }
-  .select-wrap select:focus-visible { outline: 3px solid rgba(227,30,36,.25); border-color: var(--red); }
-  .select-wrap .ic, .select-wrap .chev { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); pointer-events: none; }
-  .select-wrap .ic { left: 14px; width: 16px; height: 16px; stroke: var(--red); }
+  .select-wrap select:focus-visible, .select-wrap input:focus-visible { outline: 3px solid rgba(227,30,36,.25); border-color: var(--red); }
+  .select-wrap.err select, .select-wrap.err input { border-color: var(--red); }
+  .select-wrap .chev { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); pointer-events: none; }
   .select-wrap .chev { right: 14px; width: 14px; height: 14px; stroke: #4b5563; }
-  .select-wrap.err select { border-color: var(--red); }
-  .division-search { position: absolute; inset: 0; width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 0 40px; font-family: inherit; font-size: 13px; color: var(--ink); }
-  .division-select-value { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-  .division-search::placeholder { color: var(--ink); opacity: 1; }
-  .division-search:focus-visible { outline: 3px solid rgba(227,30,36,.25); border-color: var(--red); }
-  .division-options { display: none; position: absolute; z-index: 4; top: calc(100% + 4px); left: 0; right: 0; max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 8px 18px rgba(0,0,0,.12); padding: 4px; }
-  .select-wrap.open .division-options { display: block; }
-  .division-option { display: block; width: 100%; border: 0; border-radius: 7px; background: transparent; padding: 10px 12px; text-align: left; font-family: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
-  .division-option:hover, .division-option:focus-visible { background: #fff0ef; outline: none; }
-  .division-no-results { padding: 10px 12px; font-size: 12px; color: var(--muted); }
-  .select-wrap.err .division-search { border-color: var(--red); }
+  #bagianOptions { display: none; position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; max-height: 220px; overflow-y: auto; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 8px 20px rgba(31,36,48,.14); }
+  #bagian { cursor: text; }
+  #bagianWrap.open #bagianOptions { display: block; }
+  #bagianOptions button { display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
+  #bagianOptions button:hover, #bagianOptions button[aria-selected="true"] { background: #fff0ef; color: var(--red-dark); }
 
   /* ===== Dropzone ===== */
   .drop {
@@ -93,6 +86,8 @@
   .bar i { display: block; height: 100%; width: 0; background: var(--red); transition: width .15s; }
 
   .actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+  .actions .clear-local { margin-right: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); padding: 0 12px; font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .actions .clear-local:hover { background: #f4f4f4; }
   .btn {
     display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 22px;
     border: 0; border-radius: 10px; background: var(--red); color: #fff;
@@ -125,26 +120,37 @@
 <main>
   <form class="card" id="form" novalidate>
     <h1>Upload File Laporan</h1>
-    <p class="sub">Pilih bagian laporan dan jenis data sebelum mengunggah dokumen ke sistem Konimex.</p>
+    <p class="sub">Pilih bagian laporan dan periode sebelum mengunggah dokumen ke sistem Konimex.</p>
 
-    <label class="label" for="cariDivisi">Bagian File Laporan</label>
-    <div class="select-wrap" id="selWrap">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-      <input class="division-search" id="cariDivisi" type="text" placeholder="Pilih Bagian File Laporan" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="divisionOptions" autocomplete="off">
-      <select id="divisi" class="division-select-value" required tabindex="-1" aria-hidden="true">
-        <option value="" selected>Pilih Bagian File Laporan</option>
-      </select>
-      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-      <div class="division-options" id="divisionOptions" role="listbox"></div>
-    </div>
-
-    <label class="label" for="jenisData">Jenis Data</label>
-    <div class="select-wrap">
-      <select id="jenisData" required aria-label="Jenis data laporan">
-        <option value="" selected disabled>Pilih Jenis Data</option>
-        <option value="achievement">Achievement</option>
-        <option value="target">Target</option>
-      </select>
+    <label class="label" for="bagian">Bagian File Laporan</label>
+    <div class="select-wrap" id="bagianWrap">
+      <input id="bagian" type="text" required autocomplete="off" placeholder="Ketik atau pilih bagian laporan" aria-label="Bagian file laporan" aria-autocomplete="list" aria-controls="bagianOptions" aria-expanded="false">
+      <datalist id="daftarBagian">
+        <option value="IB"></option>
+        <option value="ETHICAL"></option>
+        <option value="MTM"></option>
+        <option value="UNIT"></option>
+        <option value="REVENUE VERSI EDP MNJ"></option>
+        <option value="REVENUE VERSI EDP MNJ Target"></option>
+        <option value="BIAYA"></option>
+        <option value="TARGET REVENUE"></option>
+        <option value="DAFTAR"></option>
+        <option value="LAUNCH"></option>
+        <option value="BOD KX Sell In"></option>
+        <option value="BOD MNJ"></option>
+        <option value="BOD JML SDM"></option>
+        <option value="BOD BI. Opr"></option>
+        <option value="RATIO UPB"></option>
+        <option value="UP BJ kx"></option>
+        <option value="UPB non BJ"></option>
+        <option value="UPB Distr"></option>
+        <option value="PARETO UPB DISTR"></option>
+        <option value="complaint - Accident"></option>
+        <option value="NEAR ED TW 3"></option>
+        <option value="TOP 10 NEAR ED TW 3"></option>
+        <option value="Revenue Konimex Selling Out"></option>
+      </datalist>
+      <div id="bagianOptions" role="listbox" aria-label="Pilihan bagian laporan"></div>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </div>
 
@@ -176,6 +182,7 @@
     <div class="msg" id="msg" role="status" aria-live="polite"></div>
 
     <div class="actions">
+      <button type="button" class="clear-local" id="clearLocal">Hapus Data Tersimpan</button>
       <button type="submit" class="btn" id="submit">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
         <span id="btnText">Upload File</span>
@@ -190,9 +197,6 @@
   // Saat dibuka langsung dengan file://, laporan Sell Out diproses di browser
   // dan disimpan ke localStorage; tidak perlu server PHP atau database.
   const LOCAL_FILE_MODE = location.protocol === "file:";
-  const DIVISI = LOCAL_FILE_MODE ? ["Revenue Konimex Selling Out"] : [
-    "Revenue Konimex Selling Out",
-  ];
 
   const UPLOAD_URL = LOCAL_FILE_MODE ? "" : "upload.php";
 
@@ -200,83 +204,70 @@
   const MAX_MB = 50;
   const PROCESSED_KEY = "konimex_revenue_so_processed";
   const TARGET_KEY = "konimex_revenue_so_targets_processed";
+  const SELL_OUT_TARGET_KEY = "konimex_revenue_so_sellout_targets_processed";
+  const TARGET_API_URL = LOCAL_FILE_MODE
+    ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
+    : "../dashboard/revenue_so_targets_api.php";
 
   // Nama pengguna di header (opsional)
   const USER_NAME = "Administrator";
   /* ===================================================================== */
 
   const $ = (id) => document.getElementById(id);
-  const form = $("form"), drop = $("drop"), fileInput = $("file"), select = $("divisi"), dataTypeSelect = $("jenisData"), periodSelect = $("periode");
+  const sectionSelect = $("bagian");
+  const form = $("form"), drop = $("drop"), fileInput = $("file"), periodSelect = $("periode");
   const msg = $("msg"), bar = $("bar"), barFill = $("barFill"), btn = $("submit"), btnText = $("btnText");
   let chosen = null, busy = false;
+
+  const sectionOptions = Array.from($("daftarBagian").options, (option) => option.value);
+  const sectionMenu = $("bagianOptions");
+  let highlightedSection = -1;
+  function renderSectionOptions() {
+    const query = sectionSelect.value.trim().toLocaleLowerCase();
+    const matches = sectionOptions.filter((name) => name.toLocaleLowerCase().includes(query));
+    highlightedSection = -1;
+    sectionMenu.innerHTML = matches.map((name, index) => '<button type="button" role="option" aria-selected="false" data-section-index="' + index + '">' + name.replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char])) + '</button>').join("");
+    $("bagianWrap").classList.toggle("open", matches.length > 0);
+    sectionSelect.setAttribute("aria-expanded", String(matches.length > 0));
+  }
+  function closeSectionOptions() {
+    $("bagianWrap").classList.remove("open");
+    sectionSelect.setAttribute("aria-expanded", "false");
+  }
+  function chooseSection(name) {
+    sectionSelect.value = name;
+    closeSectionOptions();
+    $("bagianWrap").classList.remove("err");
+    sectionSelect.focus();
+  }
+  sectionSelect.addEventListener("focus", renderSectionOptions);
+  sectionSelect.addEventListener("input", () => { $("bagianWrap").classList.remove("err"); renderSectionOptions(); });
+  sectionSelect.addEventListener("keydown", (event) => {
+    const items = Array.from(sectionMenu.querySelectorAll("[role=option]"));
+    if (event.key === "Escape") { closeSectionOptions(); return; }
+    if (event.key === "ArrowDown" && items.length) {
+      event.preventDefault(); highlightedSection = Math.min(highlightedSection + 1, items.length - 1);
+    } else if (event.key === "ArrowUp" && items.length) {
+      event.preventDefault(); highlightedSection = Math.max(highlightedSection - 1, 0);
+    } else if (event.key === "Enter" && $("bagianWrap").classList.contains("open") && items.length) {
+      event.preventDefault(); chooseSection(items[Math.max(highlightedSection, 0)].textContent); return;
+    } else return;
+    items.forEach((item, index) => item.setAttribute("aria-selected", String(index === highlightedSection)));
+    items[highlightedSection].scrollIntoView({ block: "nearest" });
+  });
+  sectionMenu.addEventListener("mousedown", (event) => event.preventDefault());
+  sectionMenu.addEventListener("click", (event) => {
+    const option = event.target.closest("[role=option]");
+    if (option) chooseSection(option.textContent);
+  });
+  document.addEventListener("click", (event) => {
+    if (!$("bagianWrap").contains(event.target)) closeSectionOptions();
+  });
 
   // Header
   $("userName").textContent = "Welcome, " + USER_NAME;
   $("avatar").textContent = USER_NAME.slice(0, 2).toUpperCase();
 
-  // Isi dropdown divisi
-  DIVISI.forEach((d) => {
-    const o = document.createElement("option");
-    o.value = d; o.textContent = d;
-    select.appendChild(o);
-  });
-  const divisionOptions = Array.from(select.options).slice(1);
-  const divisionInput = $("cariDivisi"), divisionList = $("divisionOptions"), divisionWrap = $("selWrap");
-  function renderDivisionOptions(query = "") {
-    const normalized = query.trim().toLocaleLowerCase("id");
-    const matches = divisionOptions.filter((option) => option.textContent.toLocaleLowerCase("id").includes(normalized));
-    divisionList.replaceChildren();
-    if (!matches.length) {
-      const empty = document.createElement("div");
-      empty.className = "division-no-results";
-      empty.textContent = "Divisi tidak ditemukan.";
-      divisionList.appendChild(empty);
-      return;
-    }
-    matches.forEach((option) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "division-option";
-      item.setAttribute("role", "option");
-      item.textContent = option.textContent;
-      item.addEventListener("click", () => {
-        select.value = option.value;
-        divisionInput.value = option.textContent;
-        closeDivisionOptions();
-        divisionWrap.classList.remove("err");
-      });
-      divisionList.appendChild(item);
-    });
-  }
-  function openDivisionOptions() {
-    const selectedName = select.selectedOptions[0]?.textContent;
-    renderDivisionOptions(divisionInput.value === selectedName ? "" : divisionInput.value);
-    divisionWrap.classList.add("open");
-    divisionInput.setAttribute("aria-expanded", "true");
-  }
-  function closeDivisionOptions() {
-    divisionWrap.classList.remove("open");
-    divisionInput.setAttribute("aria-expanded", "false");
-  }
-  divisionInput.addEventListener("focus", openDivisionOptions);
-  divisionInput.addEventListener("click", openDivisionOptions);
-  divisionInput.addEventListener("input", () => {
-    select.value = "";
-    renderDivisionOptions(divisionInput.value);
-    divisionWrap.classList.add("open");
-    divisionInput.setAttribute("aria-expanded", "true");
-  });
-  divisionInput.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeDivisionOptions();
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      divisionList.querySelector(".division-option")?.focus();
-    }
-  });
-  document.addEventListener("click", (event) => {
-    if (!divisionWrap.contains(event.target)) closeDivisionOptions();
-  });
-  renderDivisionOptions();
   const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
   const now = new Date();
   for (let year = now.getFullYear(); year >= 2025; year--) {
@@ -315,10 +306,16 @@
     ];
     workbook.SheetNames.forEach((sheetName) => {
       const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: true });
-      let headerRow = -1, revColumn = -1;
+      let headerRow = -1, revColumn = -1, revMonthColumns = [];
       for (let r = 0; r < rows.length && headerRow < 0; r++) {
-        const c = rows[r].findIndex((value) => String(value).trim().replace(/\s+/g, " ").toUpperCase() === "REV TOTAL");
-        if (c >= 0) { headerRow = r; revColumn = c; }
+        const headers = rows[r].map((value) => String(value).trim().replace(/\s+/g, " ").toUpperCase());
+        const c = headers.indexOf("REV TOTAL");
+        if (c >= 0) {
+          headerRow = r;
+          revColumn = c;
+          revMonthColumns = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGT", "SEP", "OKT", "NOV", "DES"]
+            .map((month) => headers.indexOf("REV " + month));
+        }
       }
       if (headerRow < 0) return;
       rows.forEach((row, index) => {
@@ -333,131 +330,215 @@
           }
           return null;
         }).find(Boolean);
-        if (match) records.push({ sheet: sheetName, ...match, revTotal: row[revColumn] ?? "" });
+        if (match) records.push({
+          sheet: sheetName,
+          ...match,
+          revTotal: row[revColumn] ?? "",
+          revMonths: revMonthColumns.map((column) => column >= 0 ? (row[column] ?? 0) : 0)
+        });
       });
     });
     if (!records.length) throw new Error("Tidak ditemukan baris TOTAL (GB, Existing GB, atau New Product GB) dengan kolom REV TOTAL.");
     return records;
   }
 
-  // Target berisi Januari–Desember dan total tahunan (TOTAL atau TOTAL 2026).
-  // Existing memakai total kategori A+B+C. New Product memakai Kategori D;
-  // Full Year menjumlahkan Januari–Desember dan YTD menjumlahkan sampai bulan laporan.
-  async function processRevenueSOTarget(file) {
+  // Target Revenue berisi subtotal bulanan per GB dan kategori.
+  // Kategori dibaca dari baris subtotal agar sumber bisa tetap memakai
+  // ejaan "NOPEMBER"; urutan bulan mengikuti kolom Jan–Des pada workbook.
+  async function processTargetRevenue(file) {
     if (!window.XLSX) throw new Error("Komponen pembaca spreadsheet gagal dimuat.");
     const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
-    const monthNames = [
-      ["JANUARI", "JANUARY", "JAN"], ["FEBRUARI", "FEBRUARY", "FEB"], ["MARET", "MARCH", "MAR"],
-      ["APRIL", "APR"], ["MEI", "MAY"], ["JUNI", "JUNE", "JUN"],
-      ["JULI", "JULY", "JUL"], ["AGUSTUS", "AUGUST", "AGU", "AUG"],
-      ["SEPTEMBER", "SEP"], ["OKTOBER", "OCTOBER", "OKT", "OCT"],
-      ["NOVEMBER", "NOPEMBER", "NOV"], ["DESEMBER", "DECEMBER", "DES", "DEC"]
-    ];
-    const gbRows = new Map();
-    const categoryTotals = new Map();
-    let targetYear = null;
-    const asNumber = (value) => {
-      if (typeof value === "number") return Number.isFinite(value) ? value : null;
-      const text = String(value == null ? "" : value).trim();
-      if (!text || text === "-") return null;
-      const normalized = text.replace(/\s/g, "").replace(/,/g, "");
-      const n = Number(normalized);
-      return Number.isFinite(n) ? n : null;
-    };
-    const readAmounts = (row, monthColumns, totalColumn) => ({
-      months: monthColumns.map((column) => asNumber(row[column]) ?? 0),
-      fullYear: asNumber(row[totalColumn])
-    });
-    const addAmounts = (left, right) => ({
-      months: left.months.map((value, index) => value + right.months[index]),
-      fullYear: (left.fullYear ?? left.months.reduce((sum, value) => sum + value, 0))
-        + (right.fullYear ?? right.months.reduce((sum, value) => sum + value, 0))
-    });
+    const rows = [];
+    let sourceYear = null;
+    const monthNames = ["JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI", "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"];
     workbook.SheetNames.forEach((sheetName) => {
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: true });
-      let headerRow = -1, monthColumns = [], totalColumn = -1;
-      for (let r = 0; r < rows.length && headerRow < 0; r++) {
-        const normalized = rows[r].map((value) => String(value == null ? "" : value)
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " "));
-        const foundMonths = monthNames.map((aliases) => normalized.findIndex((value) =>
-          aliases.some((alias) => value === alias || new RegExp("^" + alias + "(?:\\s|[-/]\\d|$)").test(value))));
-        const totalIndex = normalized.findIndex((value) => /^TOTAL(?:\s|$)/.test(value));
-        if (foundMonths.every((index) => index >= 0) && totalIndex >= 0) {
-          headerRow = r;
-          monthColumns = foundMonths;
-          totalColumn = totalIndex;
-        }
-      }
+      const sheet = workbook.Sheets[sheetName];
+      const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
+      const flat = grid.flat().map((value) => String(value == null ? "" : value).trim());
+      const title = flat.find((value) => /REKAP\s+REVENUE\s+PER\s+PRODUCT\s+TAHUN\s+\d{4}/i.test(value));
+      if (title) sourceYear = Number((title.match(/(20\d{2})/) || [])[1]) || sourceYear;
+      const headerRow = grid.findIndex((row) => row.some((value) => monthNames.includes(String(value).trim().toUpperCase().replace(/^NOPEMBER$/, "NOVEMBER"))));
       if (headerRow < 0) return;
+      const headers = grid[headerRow].map((value) => String(value).trim().toUpperCase().replace(/^NOPEMBER$/, "NOVEMBER"));
+      const monthColumns = monthNames.map((name) => headers.indexOf(name));
+      if (monthColumns.some((column) => column < 0)) return;
 
-      for (let r = 0; r < headerRow; r++) {
-        const title = rows[r].map((value) => String(value == null ? "" : value)).join(" ");
-        const year = title.match(/TAHUN\s+(20\d{2})/i);
-        if (year) targetYear = Number(year[1]);
+      let gb = null;
+      grid.forEach((row) => {
+        const cells = row.map((value) => String(value == null ? "" : value).trim());
+        const group = cells.map((value) => value.match(/^GB\s*(\d+)$/i)).find(Boolean);
+        if (group) gb = Number(group[1]);
+        const category = cells.map((value) => value.match(/^KATEGORI\s*([ABCD])$/i)).find(Boolean);
+        const nonTarget = cells.some((value) => /^NON\s+TARGET$/i.test(value));
+        if (!gb || (!category && !nonTarget)) return;
+        const months = monthColumns.map((column) => {
+          const value = row[column];
+          const number = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+          return Number.isFinite(number) ? number : 0;
+        });
+        const code = nonTarget ? "nonTarget" + gb : "category" + gb + category[1].toUpperCase();
+        rows.push({ code, months, fullYear: months.reduce((sum, value) => sum + value, 0) });
+      });
+    });
+    if (!rows.some((record) => /^category\d+A$/.test(record.code))) return null;
+    const duplicates = new Set();
+    rows.forEach((record) => {
+      if (duplicates.has(record.code)) throw new Error("Baris " + record.code + " muncul lebih dari sekali pada Target Revenue.");
+      duplicates.add(record.code);
+    });
+    return { sourceYear, rows };
+  }
+
+  // Target EDP MNJ memakai baris EXIST/NP per GB dan kolom bulan Jan–Des.
+  // Cari header dan baris dari isinya agar posisi baris dapat berubah.
+  async function processEdpTarget(file, targetYear) {
+    if (!window.XLSX) throw new Error("Komponen pembaca spreadsheet gagal dimuat.");
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
+    const months = [
+      ["JANUARI", "JAN"], ["FEBRUARI", "FEB"], ["MARET", "MAR"], ["APRIL", "APR"],
+      ["MEI", "MAY"], ["JUNI", "JUN"], ["JULI", "JUL"], ["AGUSTUS", "AGT", "AGU", "AUG"],
+      ["SEPTEMBER", "SEP"], ["OKTOBER", "OKT", "OCT"], ["NOVEMBER", "NOV"], ["DESEMBER", "DES", "DEC"]
+    ];
+    const rowsByCode = new Map();
+    let foundEdpLayout = false;
+    const norm = (value) => String(value == null ? "" : value).trim().toUpperCase().replace(/\s+/g, " ");
+    workbook.SheetNames.forEach((sheetName) => {
+      const grid = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: true });
+      const titleRows = [];
+      grid.forEach((row, index) => {
+        const title = row.map(norm).find((cell) => /^(?:REVENUE|BIAYA)\s+TAHUN\s+20\d{2}$/.test(cell));
+        if (title) titleRows.push({ index, title });
+      });
+      // Jika workbook memiliki judul section, proses hanya blok REVENUE.
+      // Pada workbook tanpa judul section, tetap dukung sheet target sederhana.
+      const revenueBlocks = titleRows.length
+        ? titleRows.filter((item) => item.title === "REVENUE TAHUN " + targetYear).map((item) => {
+          const nextTitle = titleRows.find((candidate) => candidate.index > item.index);
+          return grid.slice(item.index + 1, nextTitle ? nextTitle.index : grid.length);
+        })
+        : [grid];
+      if (titleRows.some((item) => item.title.startsWith("REVENUE ")) && !revenueBlocks.length) {
+        throw new Error("Blok REVENUE TAHUN " + targetYear + " tidak ditemukan pada file.");
       }
-      if (!targetYear) targetYear = 2026;
+      revenueBlocks.forEach((block) => {
+        let monthColumns = null;
+        for (const row of block) {
+          const headers = row.map(norm);
+          const columns = months.map((aliases) => headers.findIndex((header) => aliases.includes(header)));
+          if (columns.every((column) => column >= 0)) { monthColumns = columns; break; }
+        }
+        if (!monthColumns) return;
+        let hasEdpRows = false;
+        block.forEach((row) => {
+        const labels = row.map(norm);
+        let match = null;
+        for (const label of labels) {
+          match = label.match(/^(?:EXIST|EXISTING)\s+GB\s*(\d+)$/i);
+          if (match) { match = { gb: match[1], kind: "existing" }; break; }
+          match = label.match(/^(?:NP|NEW\s+PRODUCT)\s+GB\s*(\d+)$/i);
+          if (match) { match = { gb: match[1], kind: "new" }; break; }
+        }
+        if (!match) return; // Baris TOTAL sengaja diabaikan supaya tidak ganda.
+        hasEdpRows = true;
+        const code = (match.kind === "existing" ? "existing" : "new") + match.gb;
+        const values = monthColumns.map((column) => {
+          const value = row[column];
+          if (typeof value === "number" && Number.isFinite(value)) return value;
+          const parsed = Number(String(value == null ? "" : value).replace(/,/g, "").trim());
+          return String(value == null ? "" : value).trim() !== "" && Number.isFinite(parsed) ? parsed : 0;
+        });
+        if (rowsByCode.has(code)) throw new Error("Baris target " + code + " muncul lebih dari sekali.");
+        rowsByCode.set(code, { code, months: values });
+        });
+        foundEdpLayout = foundEdpLayout || hasEdpRows;
+      });
+    });
+    if (!foundEdpLayout) return null;
+    const rows = Array.from(rowsByCode.values());
+    if (![1, 2, 3, 4, 5, 6].every((gb) => rowsByCode.has("existing" + gb) && rowsByCode.has("new" + gb))) {
+      throw new Error("Target EDP MNJ harus memuat baris EXIST GB dan NP GB untuk GB 1 sampai 6.");
+    }
+    if (!rows.some((record) => record.months.some((value) => value !== 0))) {
+      throw new Error("Nilai target bulanan tidak ditemukan pada baris EXIST/NP GB.");
+    }
+    return { year: Number(targetYear), rows };
+  }
 
-      let currentGb = null;
-      rows.slice(headerRow + 1).forEach((row) => {
-        const labels = row.map((value) => String(value == null ? "" : value).trim().replace(/\s+/g, " ").toUpperCase());
-        const label = labels.find((value) => /^(?:GB\s*\d+|TOTAL\s+GB\s*\d+|KATEGORI\s+[A-D])$/.test(value)) || "";
-        const gbHeading = label.match(/^GB\s*(\d+)$/);
-        if (gbHeading) { currentGb = gbHeading[1]; return; }
-        const amounts = readAmounts(row, monthColumns, totalColumn);
-        const totalMatch = label.match(/^TOTAL\s+GB\s*(\d+)$/);
-        if (totalMatch) gbRows.set("gb" + totalMatch[1], amounts);
-        else if (currentGb && /^KATEGORI\s+[A-D]$/.test(label)) {
-          const category = label.slice(-1);
-          const code = currentGb + ":" + category;
-          const accumulated = categoryTotals.get(code) || { months: Array(12).fill(0), fullYear: 0 };
-          categoryTotals.set(code, addAmounts(accumulated, amounts));
+  // TARGET SELL OUT can appear anywhere in a workbook and its YTD column
+  // changes month as the year progresses. Read the month columns by label and
+  // use only the block under the matching TARGET SELL OUT YYYY heading.
+  async function processSellOutTarget(file) {
+    if (!window.XLSX) throw new Error("Komponen pembaca spreadsheet gagal dimuat.");
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
+    const monthAliases = [
+      ["JANUARI", "JAN"], ["FEBRUARI", "FEB"], ["MARET", "MAR"], ["APRIL", "APR"],
+      ["MEI", "MAY"], ["JUNI", "JUN"], ["JULI", "JUL"], ["AGUSTUS", "AGT", "AGU", "AUG"],
+      ["SEPTEMBER", "SEP"], ["OKTOBER", "OKT", "OCT"], ["NOVEMBER", "NOV"], ["DESEMBER", "DES", "DEC"]
+    ];
+    const norm = (value) => String(value == null ? "" : value).trim().toUpperCase().replace(/\s+/g, " ");
+    const rowsByCode = new Map();
+    let foundTitle = false;
+    let sourceYear = null;
+    workbook.SheetNames.forEach((sheetName) => {
+      const grid = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: true });
+      grid.forEach((row, titleIndex) => {
+        const title = row.map(norm).find((cell) => /^TARGET\s+SELL\s+OUT\s+20\d{2}$/.test(cell));
+        if (!title) return;
+        foundTitle = true;
+        const year = Number((title.match(/(20\d{2})/) || [])[1]);
+        let end = grid.length;
+        for (let i = titleIndex + 1; i < grid.length; i++) {
+          if (grid[i].map(norm).some((cell) => /^(?:TARGET\s+SELL\s+OUT|REVENUE|BIAYA|MCM)\s+(?:TAHUN\s+)?20\d{2}$/.test(cell))) { end = i; break; }
+        }
+        let monthColumns = null;
+        let productColumn = -1;
+        let headerIndex = -1;
+        for (let i = titleIndex + 1; i < end; i++) {
+          const headers = grid[i].map(norm);
+          const columns = monthAliases.map((aliases) => headers.findIndex((header) => aliases.includes(header)));
+          if (columns.every((column) => column >= 0)) {
+            monthColumns = columns;
+            headerIndex = i;
+            productColumn = headers.findIndex((header) => /^(PRODUK|PRODUCT)$/.test(header));
+            break;
+          }
+        }
+        if (!monthColumns) return;
+        sourceYear = year;
+        for (let i = headerIndex + 1; i < end; i++) {
+          const row = grid[i];
+          const labels = row.map(norm);
+          const label = productColumn >= 0 ? labels[productColumn] : labels.find((cell) => /^(?:EXIST(?:ING)?|NP|NEW\s+PRODUCT)\s+GB\s*\d+$/.test(cell));
+          const match = String(label || "").match(/^(EXIST(?:ING)?|NP|NEW\s+PRODUCT)\s+GB\s*(\d+)$/);
+          if (!match) continue;
+          const code = /^(?:EXIST|EXISTING)$/.test(match[1]) ? "existing" + match[2] : "new" + match[2];
+          if (rowsByCode.has(code)) throw new Error("Baris target " + code + " muncul lebih dari sekali pada TARGET SELL OUT " + year + ".");
+          const months = monthColumns.map((column) => {
+            const value = row[column];
+            if (typeof value === "number" && Number.isFinite(value)) return value;
+            const parsed = Number(String(value == null ? "" : value).replace(/,/g, "").trim());
+            return String(value == null ? "" : value).trim() !== "" && Number.isFinite(parsed) ? parsed : 0;
+          });
+          rowsByCode.set(code, { code, months });
         }
       });
     });
-
-    if (!gbRows.size) {
-      throw new Error("Target tidak terbaca. Pastikan file memiliki kolom JANUARI–DESEMBER, TOTAL (atau TOTAL 2026), dan baris TOTAL GB.");
+    if (!foundTitle) return null;
+    if (!sourceYear || ![1, 2, 3, 4, 5, 6].every((gb) => rowsByCode.has("existing" + gb) && rowsByCode.has("new" + gb))) {
+      throw new Error("TARGET SELL OUT harus memiliki EXIST GB dan NP GB 1–6 serta kolom Januari–Desember.");
     }
-    const resultRows = [];
-    const gbNumbers = new Set();
-    gbRows.forEach((_, code) => {
-      const found = code.match(/(\d+)$/);
-      if (found) gbNumbers.add(found[1]);
-    });
-    const emptyAmounts = () => ({ months: Array(12).fill(0), fullYear: 0 });
-    const getExisting = (number) => {
-      // Baris Existing hanya mengambil kategori A, B, dan C. Abaikan nilai
-      // TOTAL sumber dan hitung Full Year dari jumlah Januari–Desember.
-      const months = ["A", "B", "C"]
-        .map((category) => categoryTotals.get(number + ":" + category) || emptyAmounts())
-        .reduce((sum, amount) => sum.map((value, index) => value + amount.months[index]), Array(12).fill(0));
-      return { months, fullYear: months.reduce((sum, value) => sum + value, 0) };
-    };
-    const getNew = (number) => {
-      const categoryD = categoryTotals.get(number + ":D") || emptyAmounts();
-      return {
-        fullYear: categoryD.months.reduce((sum, value) => sum + value, 0),
-        months: categoryD.months
-      };
-    };
-    gbNumbers.forEach((number) => {
-      const existing = getExisting(number), newProduct = getNew(number);
-      const total = addAmounts(existing, newProduct);
-      resultRows.push({ code: "gb" + number, fullYear: total.fullYear, months: total.months });
-      // Simpan rincian kategori agar file download dapat membentuk ulang
-      // Existing dari A+B+C secara eksplisit, tanpa kemungkinan kategori D.
-      ["A", "B", "C", "D"].forEach((category) => {
-        const amount = categoryTotals.get(number + ":" + category) || emptyAmounts();
-        resultRows.push({
-          code: "category" + number + category,
-          fullYear: amount.months.reduce((sum, value) => sum + value, 0),
-          months: amount.months
-        });
-      });
-      resultRows.push({ code: "existing" + number, fullYear: existing.fullYear, months: existing.months });
-      resultRows.push({ code: "new" + number, fullYear: newProduct.fullYear, months: newProduct.months });
-    });
-    return { year: targetYear || 2026, rows: resultRows };
+    if (!Array.from(rowsByCode.values()).some((record) => record.months.some((value) => value !== 0))) {
+      throw new Error("Nilai bulanan tidak ditemukan pada TARGET SELL OUT " + sourceYear + ".");
+    }
+    return { year: sourceYear, rows: Array.from(rowsByCode.values()) };
+  }
+
+  async function processRevenueUpload(file) {
+    const sellOutTarget = await processSellOutTarget(file);
+    if (sellOutTarget) return { type: "target", ...sellOutTarget };
+    const target = await processTargetRevenue(file);
+    if (target) return { type: "target", ...target };
+    return { type: "achievement", rows: await processRevenueSO(file) };
   }
 
   // Validasi file: ekstensi + ukuran
@@ -521,8 +602,8 @@
   function send(divisi, file, period) {
     return new Promise((resolve, reject) => {
       if (LOCAL_FILE_MODE) {
-        if (divisi !== "Revenue Konimex Selling Out") {
-          reject(new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out."));
+        if (divisi !== "Revenue Konimex Selling Out" && divisi !== "REVENUE VERSI EDP MNJ") {
+          reject(new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out dan Revenue Versi EDP MNJ."));
           return;
         }
         resolve({ success: true, local: true });
@@ -571,74 +652,107 @@
     e.preventDefault();
     if (busy) return;
     setMsg("");
-    $("selWrap").classList.remove("err");
+    $("bagianWrap").classList.remove("err");
     drop.classList.remove("err");
 
-    if (!select.value) { $("selWrap").classList.add("err"); setMsg("Pilih bagian file laporan terlebih dahulu.", "error"); divisionInput.focus(); return; }
-    if (!dataTypeSelect.value) { setMsg("Pilih jenis data Achievement atau Target.", "error"); dataTypeSelect.focus(); return; }
+    const validSection = sectionOptions.includes(sectionSelect.value);
+    if (!validSection) { $("bagianWrap").classList.add("err"); setMsg("Ketik lalu pilih bagian laporan yang tersedia.", "error"); sectionSelect.focus(); return; }
     if (!periodSelect.value) { setMsg("Pilih periode laporan terlebih dahulu.", "error"); periodSelect.focus(); return; }
     if (!chosen) { drop.classList.add("err"); setMsg("Pilih file dokumen terlebih dahulu.", "error"); return; }
     setBusy(true);
     try {
-      const isRevenueSO = select.value.trim() === "Revenue Konimex Selling Out";
-      if (LOCAL_FILE_MODE && !isRevenueSO) {
-        throw new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out.");
+      const isRevenueSO = sectionSelect.value === "Revenue Konimex Selling Out";
+      const isTargetSection = sectionSelect.value.toUpperCase() === "TARGET REVENUE";
+      const isEdpMnjRevenue = sectionSelect.value === "REVENUE VERSI EDP MNJ";
+      const isEdpMnjTarget = sectionSelect.value === "REVENUE VERSI EDP MNJ Target";
+      if (LOCAL_FILE_MODE && !isRevenueSO && !isEdpMnjRevenue && !isEdpMnjTarget && !isTargetSection) {
+        throw new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out dan Target Revenue.");
       }
-      const isTarget = dataTypeSelect.value === "target";
-      let processedRows = null;
-      if (isTarget) {
-        const target = await processRevenueSOTarget(chosen);
-        if (target.year !== Number(periodSelect.value.slice(0, 4))) {
-          throw new Error("Tahun pada file Target (" + target.year + ") berbeda dari periode yang dipilih (" + periodSelect.value.slice(0, 4) + ").");
-        }
+      const edpTarget = isEdpMnjTarget ? await processEdpTarget(chosen, 2025) : null;
+      const processed = edpTarget
+        ? { type: "target", ...edpTarget }
+        : isTargetSection
+        ? await processRevenueUpload(chosen).then((target) => target && target.type === "target" ? target : null)
+        : (isRevenueSO || isEdpMnjRevenue) ? await processRevenueUpload(chosen) : null;
+      const isTarget = processed && processed.type === "target";
+      if ((isTargetSection || isEdpMnjTarget) && !isTarget) {
+        throw new Error(isEdpMnjTarget
+          ? "Target EDP MNJ tidak dikenali. Pastikan blok REVENUE TAHUN 2025 memiliki baris EXIST GB dan NP GB 1–6 serta kolom Januari–Desember."
+          : "File tidak dikenali sebagai Target Revenue. Gunakan workbook target dengan subtotal Kategori A–D.");
+      }
+      const processedRows = processed && processed.rows;
+      const period = periodSelect.value;
+      const targetStorageYear = isTarget && Number.isInteger(Number(processed.year))
+        ? Number(processed.year)
+        : Number(period.slice(0, 4));
+      if (isTarget && processed.sourceYear && String(processed.sourceYear) !== period.slice(0, 4)) {
+        throw new Error("Tahun pada file Target Revenue (" + processed.sourceYear + ") berbeda dari periode yang dipilih (" + period.slice(0, 4) + ").");
+      }
+      if (LOCAL_FILE_MODE && !isTarget) {
         let history = {};
-        try { history = JSON.parse(localStorage.getItem(TARGET_KEY) || "{}"); } catch (_) { history = {}; }
-        history[String(target.year)] = {
-          year: target.year, source: chosen.name, processedAt: new Date().toISOString(), rows: target.rows
-        };
+        try { history = JSON.parse(localStorage.getItem(PROCESSED_KEY) || "{}"); } catch (_) { history = {}; }
+        history[period] = { period, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
         try {
-          localStorage.setItem(TARGET_KEY, JSON.stringify(history));
+          localStorage.setItem(PROCESSED_KEY, JSON.stringify(history));
         } catch (_) {
           throw new Error("Browser tidak mengizinkan penyimpanan lokal. Buka halaman ini di Chrome atau Edge, lalu izinkan penyimpanan situs untuk file lokal.");
         }
-      } else {
-        processedRows = isRevenueSO ? await processRevenueSO(chosen) : null;
-        if (LOCAL_FILE_MODE) {
-          let history = {};
-          try { history = JSON.parse(localStorage.getItem(PROCESSED_KEY) || "{}"); } catch (_) { history = {}; }
-          const period = periodSelect.value;
-          history[period] = { period, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
-          try {
-            localStorage.setItem(PROCESSED_KEY, JSON.stringify(history));
-          } catch (_) {
-            throw new Error("Browser tidak mengizinkan penyimpanan lokal. Buka halaman ini di Chrome atau Edge, lalu izinkan penyimpanan situs untuk file lokal.");
-          }
+      }
+      if (!isTarget) await send(sectionSelect.value, chosen, period);
+      if (isTarget) {
+        let history = {};
+        try { history = JSON.parse(localStorage.getItem(TARGET_KEY) || "{}"); } catch (_) { history = {}; }
+        history[String(targetStorageYear)] = { year: targetStorageYear, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
+        try { localStorage.setItem(TARGET_KEY, JSON.stringify(history)); } catch (_) { /* API menyimpan data lintas halaman */ }
+        if (!isEdpMnjTarget) {
+          let sellOutTargets = {};
+          try { sellOutTargets = JSON.parse(localStorage.getItem(SELL_OUT_TARGET_KEY) || "{}"); } catch (_) { sellOutTargets = {}; }
+          sellOutTargets[String(targetStorageYear)] = { year: targetStorageYear, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
+          try { localStorage.setItem(SELL_OUT_TARGET_KEY, JSON.stringify(sellOutTargets)); } catch (_) { /* target API remains available to other reports */ }
         }
-        await send(select.value, chosen, periodSelect.value);
-        if (processedRows && !LOCAL_FILE_MODE) {
-          let history = {};
-          try { history = JSON.parse(localStorage.getItem(PROCESSED_KEY) || "{}"); } catch (_) { history = {}; }
-          history[periodSelect.value] = { period: periodSelect.value, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
-          localStorage.setItem(PROCESSED_KEY, JSON.stringify(history));
+        let response;
+        try {
+          response = await fetch(TARGET_API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ year: targetStorageYear, month: Number(period.slice(5, 7)), source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows })
+          });
+        } catch (_) {
+          if (!LOCAL_FILE_MODE) throw new Error("Server lokal belum terhubung. Jalankan aplikasi lewat http://127.0.0.1:8000 agar data Target Revenue dapat dipakai di halaman Dashboard.");
         }
+        const result = response ? await response.json().catch(() => null) : null;
+        if (response && (!response.ok || !result || result.success !== true)) {
+          throw new Error(result && result.message ? result.message : "Target tersimpan di halaman Upload, tetapi belum bisa dibagikan ke Dashboard. Buka aplikasi melalui server lokal dan unggah ulang.");
+        }
+      } else if (processedRows && !LOCAL_FILE_MODE) {
+        let history = {};
+        try { history = JSON.parse(localStorage.getItem(PROCESSED_KEY) || "{}"); } catch (_) { history = {}; }
+        history[periodSelect.value] = { period: periodSelect.value, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
+        localStorage.setItem(PROCESSED_KEY, JSON.stringify(history));
       }
       barFill.style.width = "100%";
       setMsg(isTarget
-        ? "Berhasil: target " + periodSelect.value.slice(0, 4) + " diproses dan disimpan untuk laporan " + select.value + "."
-        : LOCAL_FILE_MODE
-          ? "Berhasil: \"" + chosen.name + "\" diproses dan disimpan di browser untuk periode " + periodSelect.value + "."
-          : "Berhasil: \"" + chosen.name + "\" terkirim pada bagian " + select.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
+          ? "Target Sell Out " + targetStorageYear + " berhasil disimpan dan siap diunduh dari halaman Revenue Konimex Selling Out (RP)."
+          : LOCAL_FILE_MODE
+            ? "Berhasil: \"" + chosen.name + "\" diproses dan disimpan di browser untuk periode " + period + "."
+            : isEdpMnjRevenue
+              ? "Berhasil: data REV EDP MNJ tersimpan di database revenue_edp_mnj untuk periode " + period + " dan siap dipakai pada unduhan Revenue Konimex Selling Out."
+              : "Berhasil: \"" + chosen.name + "\" terkirim pada bagian " + sectionSelect.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
       clearFile();
-      select.value = "";
-      dataTypeSelect.value = "";
-      divisionInput.value = "";
+      sectionSelect.value = "";
     } catch (err) {
       setMsg(err.message || "Upload gagal. Coba lagi.", "error");
     } finally {
       setBusy(false);
     }
   });
-  divisionInput.addEventListener("input", () => $("selWrap").classList.remove("err"));
+  $("clearLocal").addEventListener("click", () => {
+    if (!window.confirm("Hapus data Achievement dan Target Revenue Selling Out yang tersimpan di browser ini?")) return;
+    localStorage.removeItem(PROCESSED_KEY);
+    localStorage.removeItem(TARGET_KEY);
+    localStorage.removeItem(SELL_OUT_TARGET_KEY);
+    setMsg("Data laporan yang tersimpan di browser sudah dihapus.", "ok");
+  });
 </script>
 </body>
 </html>
