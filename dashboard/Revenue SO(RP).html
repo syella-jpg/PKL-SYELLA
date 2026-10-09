@@ -209,6 +209,27 @@
   const DATA_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_so_api.php"
     : "revenue_so_api.php";
+  const TARGET_API_URL = location.protocol === "file:"
+    ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
+    : "revenue_so_targets_api.php";
+  // Nilai bulanan TARGET SELL OUT 2025 dari file Target 25 real.ods, dalam (000).
+  // Dipakai langsung oleh unduhan 2026; tahun lain tetap dibaca dari upload/API.
+  const SELL_OUT_TARGET_SOURCE = {
+    2025: [
+      ["existing1", [12444037.27609,22653850.46512,14560235.65769,25375038.88855,17734727.74865,22273132.57636,15160449.66817,28132232.67465,16974054.05558,21098378.87788,13738474.98232,30763506.85394]],
+      ["new1", [468606.6,694346.4,781070.4,620720.1,740401.2,905968.8,911700.9,956498.4,1033926.3,953676.9,1055439,1101870]],
+      ["existing2", [13913601.55188,11331092.40412,17912942.46496,12468823.64388,20354059.82486,12536056.03973,19635140.78246,15298062.60641,17742216.88172,19586384.87182,20853295.51416,16355357.559]],
+      ["new2", [1691386.796,2254395.48,2422288.089,2867755.6515,3053291.1995,2981753.436,3064569.773,3631902.5525,4702976.9235,4949878.049,5757148.212,6591755.478]],
+      ["existing3", [11781384.8255,14076151.8555,14935205.9575,14312149.7135,13520713.8885,14617399.8985,13984634.6145,16433407.7465,16265139.0878,17369380.0678,15722573.8588,16909225.8061]],
+      ["new3", [285191.28,438158.16,438609.6,660670.56,608850,1205828.91,1263253.1175,994576.5225,1128251.1735,1129376.061,1296639.333,1413964.2825]],
+      ["existing4", [19605872.7714,38360386.015,24920902.9665,80667526.2245,18585597.328,63416431.093,25719205.831,93130713.925,21527773.7716,50603827.975,29063352.9265,86411667.2765]],
+      ["new4", [496821.6,536322.6,584466.3,808196.4,856845,864745.2,954676.8,918888.3,1035817.2,973150.2,1053280.8,1156310.1]],
+      ["existing5", [28920285.692025,16046407.728495,15355192.39468,15818990.91052,15834198.95943,16364800.61808,17235026.59699,17825506.27677,17558412.68196,21767874.94967,26202377.9657,50907893.14558]],
+      ["new5", [1637875.8,2225886.3,2297032.65,2686147.2,2987577.45,2929603.05,3101353.2,3097348.65,3290958,3152872.8,3324212.1,4219449.3]],
+      ["existing6", [15400673.03072,12503573.49675,13396084.3233,13733809.83737,16775953.03466,14631485.93776,17046803.34446,15362591.81786,17404652.03915,16807424.2139,20523225.13478,22714660.38289]],
+      ["new6", [489451.32,986210.388,604767.024,718652.592,1432200.6015,1896421.750875,2448747.454875,3434671.38525,3741083.06325,3780506.74725,5319778.33270946,5903582.74265541]]
+    ].map(([code, months]) => ({ code, months }))
+  };
   const EDP_API_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_edp_mnj_api.php"
     : "revenue_edp_mnj_api.php";
@@ -548,11 +569,26 @@
     let achievementError = "";
     try { processed = await loadAchievement(selectedPeriod); }
     catch (error) { achievementError = error && error.message ? error.message : String(error); }
-    const targetData = sellOutTargetHistory[String(targetYear)] || null;
+    const loadTargetYear = async (year) => {
+      let saved = sellOutTargetHistory[String(year)] || null;
+      try {
+        const response = await fetch(TARGET_API_URL + "?year=" + encodeURIComponent(year));
+        const result = await response.json();
+        if (response.ok && result.success && result.data && Array.isArray(result.data.rows) && result.data.rows.length) {
+          saved = result.data;
+        }
+      } catch (_) { /* gunakan salinan lokal bila endpoint target tidak tersedia */ }
+      // Data target yang diunggah belakangan mengalahkan cadangan bawaan 2025.
+      return saved || (SELL_OUT_TARGET_SOURCE[year]
+        ? { year: Number(year), rows: SELL_OUT_TARGET_SOURCE[year] }
+        : null);
+    };
+    const [targetData, currentTargetData] = await Promise.all([
+      loadTargetYear(targetYear),
+      loadTargetYear(reportYear)
+    ]);
     const hasAchievement = processed && Array.isArray(processed.rows) && processed.rows.length;
     const hasTarget = targetData && Array.isArray(targetData.rows) && targetData.rows.length;
-    let currentTargetData = null;
-    currentTargetData = sellOutTargetHistory[String(reportYear)] || null;
     let previousYear = { totals: new Map(), monthTotals: new Map() };
     let previousYearError = "";
     try {
