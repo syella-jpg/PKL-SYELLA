@@ -208,6 +208,9 @@
   const TARGET_API_URL = LOCAL_FILE_MODE
     ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
     : "../dashboard/revenue_so_targets_api.php";
+  const EDP_MNJ_TARGET_API_URL = LOCAL_FILE_MODE
+    ? "http://127.0.0.1:8000/dashboard/revenue_edp_mnj_target_api.php"
+    : "../dashboard/revenue_edp_mnj_target_api.php";
 
   // Nama pengguna di header (opsional)
   const USER_NAME = "Administrator";
@@ -668,7 +671,8 @@
       if (LOCAL_FILE_MODE && !isRevenueSO && !isEdpMnjRevenue && !isEdpMnjTarget && !isTargetSection) {
         throw new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out dan Target Revenue.");
       }
-      const edpTarget = isEdpMnjTarget ? await processEdpTarget(chosen, 2025) : null;
+      const selectedYear = Number(periodSelect.value.slice(0, 4));
+      const edpTarget = isEdpMnjTarget ? await processEdpTarget(chosen, selectedYear) : null;
       const processed = edpTarget
         ? { type: "target", ...edpTarget }
         : isTargetSection
@@ -677,7 +681,7 @@
       const isTarget = processed && processed.type === "target";
       if ((isTargetSection || isEdpMnjTarget) && !isTarget) {
         throw new Error(isEdpMnjTarget
-          ? "Target EDP MNJ tidak dikenali. Pastikan blok REVENUE TAHUN 2025 memiliki baris EXIST GB dan NP GB 1–6 serta kolom Januari–Desember."
+          ? "Target EDP MNJ tidak dikenali. Pastikan blok REVENUE TAHUN " + selectedYear + " memiliki baris EXIST GB dan NP GB 1–6 serta kolom Januari–Desember."
           : "File tidak dikenali sebagai Target Revenue. Gunakan workbook target dengan subtotal Kategori A–D.");
       }
       const processedRows = processed && processed.rows;
@@ -687,6 +691,9 @@
         : Number(period.slice(0, 4));
       if (isTarget && processed.sourceYear && String(processed.sourceYear) !== period.slice(0, 4)) {
         throw new Error("Tahun pada file Target Revenue (" + processed.sourceYear + ") berbeda dari periode yang dipilih (" + period.slice(0, 4) + ").");
+      }
+      if (isEdpMnjTarget && targetStorageYear !== selectedYear) {
+        throw new Error("Tahun target EDP MNJ pada file (" + targetStorageYear + ") berbeda dari tahun periode yang dipilih (" + selectedYear + ").");
       }
       if (LOCAL_FILE_MODE && !isTarget) {
         let history = {};
@@ -700,11 +707,11 @@
       }
       if (!isTarget) await send(sectionSelect.value, chosen, period);
       if (isTarget) {
-        let history = {};
-        try { history = JSON.parse(localStorage.getItem(TARGET_KEY) || "{}"); } catch (_) { history = {}; }
-        history[String(targetStorageYear)] = { year: targetStorageYear, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
-        try { localStorage.setItem(TARGET_KEY, JSON.stringify(history)); } catch (_) { /* API menyimpan data lintas halaman */ }
         if (!isEdpMnjTarget) {
+          let history = {};
+          try { history = JSON.parse(localStorage.getItem(TARGET_KEY) || "{}"); } catch (_) { history = {}; }
+          history[String(targetStorageYear)] = { year: targetStorageYear, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
+          try { localStorage.setItem(TARGET_KEY, JSON.stringify(history)); } catch (_) { /* API menyimpan data lintas halaman */ }
           let sellOutTargets = {};
           try { sellOutTargets = JSON.parse(localStorage.getItem(SELL_OUT_TARGET_KEY) || "{}"); } catch (_) { sellOutTargets = {}; }
           sellOutTargets[String(targetStorageYear)] = { year: targetStorageYear, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
@@ -712,17 +719,21 @@
         }
         let response;
         try {
-          response = await fetch(TARGET_API_URL, {
+          response = await fetch(isEdpMnjTarget ? EDP_MNJ_TARGET_API_URL : TARGET_API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ year: targetStorageYear, month: Number(period.slice(5, 7)), source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows })
           });
         } catch (_) {
-          if (!LOCAL_FILE_MODE) throw new Error("Server lokal belum terhubung. Jalankan aplikasi lewat http://127.0.0.1:8000 agar data Target Revenue dapat dipakai di halaman Dashboard.");
+          throw new Error(isEdpMnjTarget
+            ? "Server/database belum terhubung. Target EDP MNJ belum tersimpan di revenue_edp_mnj_target."
+            : "Server lokal belum terhubung. Jalankan aplikasi lewat http://127.0.0.1:8000 agar data Target Revenue dapat dipakai di halaman Dashboard.");
         }
         const result = response ? await response.json().catch(() => null) : null;
         if (response && (!response.ok || !result || result.success !== true)) {
-          throw new Error(result && result.message ? result.message : "Target tersimpan di halaman Upload, tetapi belum bisa dibagikan ke Dashboard. Buka aplikasi melalui server lokal dan unggah ulang.");
+          throw new Error(result && result.message ? result.message : (isEdpMnjTarget
+            ? "Target EDP MNJ gagal disimpan ke revenue_edp_mnj_target."
+            : "Target tersimpan di halaman Upload, tetapi belum bisa dibagikan ke Dashboard. Buka aplikasi melalui server lokal dan unggah ulang."));
         }
       } else if (processedRows && !LOCAL_FILE_MODE) {
         let history = {};
@@ -732,7 +743,9 @@
       }
       barFill.style.width = "100%";
       setMsg(isTarget
-          ? "Target Sell Out " + targetStorageYear + " berhasil disimpan dan siap diunduh dari halaman Revenue Konimex Selling Out (RP)."
+          ? isEdpMnjTarget
+            ? "Target EDP MNJ " + targetStorageYear + " berhasil disimpan ke database revenue_edp_mnj_target."
+            : "Target Sell Out " + targetStorageYear + " berhasil disimpan dan siap diunduh dari halaman Revenue Konimex Selling Out (RP)."
           : LOCAL_FILE_MODE
             ? "Berhasil: \"" + chosen.name + "\" diproses dan disimpan di browser untuk periode " + period + "."
             : isEdpMnjRevenue
