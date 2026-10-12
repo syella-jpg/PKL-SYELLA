@@ -162,7 +162,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="edp-template.js"></script>
+<script src="edp-template.js?v=unit-template-20261012"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -309,7 +309,8 @@
   /* ---------- Kartu KPI ---------- */
   function renderCards() {
     const T = st.tab.toUpperCase(), M = monthName().toUpperCase();
-    const labels = ["% Achievement 2026 " + T, "Growth YTD " + M + " " + T, "% Achievement 2026 Total Existing", "Growth YTD Existing"];
+    const year = Number(st.period.slice(0, 4));
+    const labels = ["% Achievement " + year + " " + T, "Growth YTD " + M + " " + T, "% Achievement " + year + " Total Existing", "Growth YTD Existing"];
     $("cards").innerHTML = labels.map((l, i) =>
       '<div class="kpi"><p>' + esc(l) + "</p><b>" + esc(cur && cur.cards && cur.cards[i] != null ? cur.cards[i] : "-") + "</b></div>").join("");
   }
@@ -588,6 +589,7 @@
         : undefined;
     };
     const values = new Map();
+    const sourceLabels = new Map();
     (hasAchievement ? processed.rows : []).forEach((record) => {
       if (!record.code) return;
       const n = Array.isArray(record.revMonths) && record.revMonths.length === 12
@@ -595,8 +597,11 @@
         : Number(record.revTotal);
       if (Number.isFinite(n)) {
         values.set(record.code, (values.get(record.code) || 0) + n);
+        if (!sourceLabels.has(record.code)) sourceLabels.set(record.code, record.label || record.code);
       }
     });
+    const sourceData = [["Kode sumber", "Baris asal", "REV TOTAL"]];
+    values.forEach((value, code) => sourceData.push([code, sourceLabels.get(code) || code, value]));
     const valueByCode = values;
     const targetByCode = new Map((targetData && Array.isArray(targetData.rows) ? targetData.rows : []).map((record) => [record.code, record]));
     const targetSourceCodes = (code) => {
@@ -801,8 +806,12 @@
       }
     }
     XLSX.utils.book_append_sheet(workbook, laporan, "LAPORAN");
-    XLSX.utils.book_append_sheet(workbook, worksheet, "UNIT");
+    const unitSourceSheet = XLSX.utils.aoa_to_sheet(sourceData);
+    unitSourceSheet["!cols"] = [{ wch: 13 }, { wch: 17 }, { wch: 36 }];
+    XLSX.utils.book_append_sheet(workbook, unitSourceSheet, "UNIT");
     workbookSheetNames.filter((name) => !["LAPORAN", "UNIT"].includes(name)).forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), name));
+    try { await replaceUnitTemplateSheet(workbook, selectedPeriod); }
+    catch (error) { toast(error.message || "Template sheet UNIT gagal dimuat."); return; }
     try { await replaceEdpTemplateSheet(workbook, selectedPeriod); }
     catch (error) { toast(error.message || "Template Revenue EDP MNJ gagal dimuat."); return; }
     const filename = (st.report + " - " + selectedPeriod + ".ods").replace(/[\\/:*?"<>|]/g, "");

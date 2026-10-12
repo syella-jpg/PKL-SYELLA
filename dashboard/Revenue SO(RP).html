@@ -162,7 +162,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="edp-template.js"></script>
+<script src="edp-template.js?v=unit-template-20261012"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -859,6 +859,8 @@
     XLSX.utils.book_append_sheet(workbook, worksheet, "LAPORAN");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sourceData), "UNIT");
     workbookSheetNames.filter((name) => !["LAPORAN", "UNIT"].includes(name)).forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), name));
+    try { await replaceUnitTemplateSheet(workbook, selectedPeriod); }
+    catch (error) { toast(error.message || "Template sheet UNIT gagal dimuat."); return; }
     try { await replaceEdpTemplateSheet(workbook, selectedPeriod); }
     catch (error) { toast(error.message || "Template Revenue EDP MNJ gagal dimuat."); return; }
     const filename = (st.report + " - " + selectedPeriod + ".ods").replace(/[\\/:*?"<>|]/g, "");
