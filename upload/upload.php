@@ -28,6 +28,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// Reject non-upload requests before touching the database. This also makes a
+// POST-to-GET redirect visible as a clear endpoint error instead of allowing
+// the request to continue through the upload setup.
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    http_response_code(405);
+    header('Allow: POST, OPTIONS');
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'success' => false,
+        'message' => 'Endpoint upload menerima ' . ($_SERVER['REQUEST_METHOD'] ?? 'metode tidak diketahui') . ', bukan POST. URL upload harus menuju upload/upload.php tanpa redirect.'
+    ]);
+    exit;
+}
+
 header('Content-Type: application/json; charset=utf-8');
 
 $host = '127.0.0.1';
@@ -150,12 +164,6 @@ try {
 
     if ($existingRows > 0 && !$replaceExistingPeriod) {
         throw new Exception('Periode laporan ' . $period . ' sudah ada di database. Upload dibatalkan agar data tidak duplikat.');
-    }
-
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        http_response_code(405);
-        header('Allow: POST, OPTIONS');
-        throw new Exception('Endpoint upload menerima ' . ($_SERVER['REQUEST_METHOD'] ?? 'metode tidak diketahui') . ', bukan POST. Periksa URL endpoint atau redirect server.');
     }
 
     // =========================

@@ -158,6 +158,8 @@
 
 <div class="toast" id="toast" role="status"></div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="edp-template.js"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -338,16 +340,19 @@
   };
 
   /* ---------- Unduh data (CSV) ---------- */
-  $("dl").onclick = () => {
+  $("dl").onclick = async () => {
     const c = cur && cur.chart;
     if (!c || !Array.isArray(c.labels) || !c.labels.length || !Array.isArray(c.series) || !c.series.length) { toast("Data belum tersedia."); return; }
-    const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
-    const rows = [["Kategori"].concat(c.series.map((s) => s.name)).map(q).join(",")];
-    c.labels.forEach((lb, i) => rows.push([q(lb)].concat(c.series.map((s) => s.values[i])).join(",")));
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob(["\ufeff" + rows.join("\n")], { type: "text/csv" }));
-    a.download = (st.report + " - " + st.tab + " - " + st.period + ".csv").replace(/[\\/:*?"<>|]/g, "");
-    a.click(); URL.revokeObjectURL(a.href);
+    if (!window.XLSX) { toast("Komponen pembuat file Excel gagal dimuat."); return; }
+    const workbook = XLSX.utils.book_new();
+    const reportRows = [["Kategori"].concat(c.series.map((s) => s.name))];
+    c.labels.forEach((lb, i) => reportRows.push([lb].concat(c.series.map((s) => s.values[i]))));
+    const names = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE VERSI EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    names.forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(name === "BOD KX Sell In" ? reportRows : []), name));
+    try { await replaceEdpTemplateSheet(workbook, st.period); }
+    catch (error) { toast(error.message || "Template Revenue EDP MNJ gagal dimuat."); return; }
+    const filename = (st.report + " - " + st.tab + " - " + st.period + ".xlsx").replace(/[\\/:*?"<>|]/g, "");
+    XLSX.writeFile(workbook, filename, { cellStyles: true });
   };
 
   /* ---------- Render utama ---------- */

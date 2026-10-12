@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -105,8 +106,35 @@ $definitions = [
 ];
 
 $output = new Spreadsheet();
-$sheet = $output->getActiveSheet();
-$sheet->setTitle('Revenue KX Selling In');
+$output->getActiveSheet()->setTitle('LAPORAN');
+$workbookSheetNames = ['LAPORAN', 'IB', 'ETHICAL', 'MNJ', 'MTM', 'UNIT', 'REVENUE VERSI EDP MNJ', 'BIAYA', 'TARGET REVENUE', 'DAFTAR', 'LAUNCH', 'BOD KX Sell In', 'BOD MNJ', 'BOD JML SDM', 'BOD BI.Opr', 'RATIO UPB', 'UP BJ kx', 'UPB non BJ', 'UPB DISTR', 'PARETO UPB DISTR AGT 26', 'complaint - Accident', 'NEAR ED TW 3', 'TOP 10 NEAR ED TW 3'];
+$edpTemplateWorkbook = IOFactory::load(__DIR__ . '/templates/revenue-edp-mnj.ods');
+foreach ($workbookSheetNames as $sheetName) {
+    if ($sheetName === 'LAPORAN') continue;
+    if ($sheetName === 'REVENUE VERSI EDP MNJ') {
+        $edpTemplateSheet = $edpTemplateWorkbook->getActiveSheet();
+        $previousYear = $periodYear - 1;
+        $sectionRows = [
+            1 => 'REVENUE TAHUN ' . $periodYear,
+            32 => 'BIAYA TAHUN ' . $periodYear,
+            61 => 'MCM TAHUN ' . $periodYear,
+            91 => 'TARGET SELL OUT ' . $previousYear,
+            118 => 'REVENUE TAHUN ' . $previousYear,
+            149 => 'BIAYA TAHUN ' . $previousYear,
+            178 => 'MCM TAHUN ' . $previousYear,
+        ];
+        foreach ($sectionRows as $row => $label) {
+            $edpTemplateSheet->setCellValue('A' . $row, $label);
+            $edpTemplateSheet->setCellValue('C' . $row, $periodMonthName);
+            $edpTemplateSheet->setCellValue('C' . ($row + 1), 'YTD ' . $periodMonthName);
+        }
+        $edpTemplateSheet->setTitle($sheetName);
+        $output->addExternalSheet($edpTemplateSheet);
+        continue;
+    }
+    $output->createSheet()->setTitle($sheetName);
+}
+$sheet = $output->getSheetByName('BOD KX Sell In');
 $sheet->mergeCells('A1:A2');
 $sheet->mergeCells('B1:B2');
 $sheet->mergeCells('C1:D1');
@@ -189,6 +217,8 @@ $sheet->getRowDimension(1)->setRowHeight(28);
 $sheet->getRowDimension(2)->setRowHeight(24);
 $sheet->freezePane('C3');
 
+// Keep a consistent workbook layout across report downloads. Tabs without
+// data for this report remain empty and are ready for their corresponding data.
 $filename = 'Revenue_Konimex_Selling_In_' . str_replace('-', '_', $period) . '.xlsx';
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="' . $filename . '"');

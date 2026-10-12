@@ -158,6 +158,8 @@
 
 <div class="toast" id="toast" role="status"></div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="edp-template.js"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -338,7 +340,7 @@
   };
 
   /* ---------- Unduh template Ratio Biaya (Excel) ---------- */
-  $("dl").onclick = () => {
+  $("dl").onclick = async () => {
     const units = [
       { name: "Total (Domestik + Export)", kind: "total" },
       { name: "FARMASI", kind: "group" },
@@ -349,75 +351,47 @@
       { name: "BIAYA CM", kind: "group" }, { name: "ETHICAL", kind: "group" },
       { name: "IB", kind: "group" }
     ];
-    const cols = 10;
-    const blankCells = (style) => Array(cols - 2).fill('<td style="' + style + '"></td>').join("");
-    const bodyRows = units.map((unit) => {
-      const cls = unit.kind === "total" ? "total" : unit.kind === "group" ? "group" : "child";
-      const label = unit.kind === "child" ? "&nbsp;&nbsp;&nbsp;&nbsp;" + esc(unit.name) : esc(unit.name);
-      const fill = unit.kind === "total" ? "#d9ecff" : unit.kind === "group" ? "#e9e4ff" : (units.indexOf(unit) % 2 ? "#f1effa" : "#fbfaff");
-      const color = unit.kind === "group" ? "#40358a" : unit.kind === "total" ? "#173f62" : "#222222";
-      const style = "background-color:" + fill + ";color:" + color + ";border:1px solid #7890a8;height:19px;padding:3px 6px;" + (unit.kind !== "child" ? "font-weight:bold;" : "");
-      return '<tr class="' + cls + '"><td style="' + style + '"></td><td class="unit" style="' + style + (unit.kind === "child" ? "padding-left:24px;" : "") + '">' + label + "</td>" + blankCells(style) + "</tr>";
-    }).join("");
+    if (!window.XLSX) { toast("Komponen pembuat file Excel gagal dimuat."); return; }
     const periodMonth = monthName().toUpperCase();
-    const xml = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[ch]));
-    const cell = (value, style, extra) => '<table:table-cell office:value-type="string" table:style-name="' + style + '"' + (extra || '') + '><text:p>' + value + '</text:p></table:table-cell>';
-    const covered = '<table:covered-table-cell/>';
-    const headerRow1 = '<table:table-row>' +
-      cell('No', 'Header', ' table:number-rows-spanned="2"') +
-      cell('UNIT BISNIS', 'Header', ' table:number-rows-spanned="2"') +
-      cell('Actual BI PROMOSI - Last Year (2025)', 'Header', ' table:number-columns-spanned="2"') + covered +
-      cell('Actual 2026 YTD ' + xml(periodMonth), 'Header', ' table:number-rows-spanned="2"') +
-      cell('Anggaran 2026', 'Header', ' table:number-rows-spanned="2"') +
-      cell('Ratio Biaya', 'Header', ' table:number-columns-spanned="3"') + covered + covered +
-      cell('Target Ratio Biaya 2026', 'Header', ' table:number-rows-spanned="2"') +
-      '</table:table-row>';
-    const headerRow2 = '<table:table-row>' + covered + covered +
-      cell('Full Year', 'Header') + cell('YTD ' + xml(periodMonth), 'Header') + covered + covered +
-      cell('FY 2025', 'Header') + cell('YTD 2025', 'Header') + cell('YTD 2026', 'Header') + covered + '</table:table-row>';
-    const dataRows = units.map((unit, i) => {
-      const style = unit.kind === 'total' ? 'Total' : unit.kind === 'group' ? 'Group' : (i % 2 ? 'ChildAlt' : 'Child');
-      const label = unit.kind === 'child' ? '    ' + unit.name : unit.name;
-      return '<table:table-row>' + cell('', style) + cell(xml(label), style) + Array(8).fill(cell('', style)).join('') + '</table:table-row>';
-    }).join('');
-    const content = '<?xml version="1.0" encoding="UTF-8"?>' +
-      '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" office:version="1.2"><office:automatic-styles>' +
-      '<style:style style:name="Header" style:family="table-cell"><style:table-cell-properties fo:background-color="#91c8f2" fo:border="0.75pt solid #111111" fo:padding="0.08in"/><style:text-properties fo:font-weight="bold" fo:color="#000000"/><style:paragraph-properties fo:text-align="center"/></style:style>' +
-      '<style:style style:name="Total" style:family="table-cell"><style:table-cell-properties fo:background-color="#ffffff" fo:border="0.5pt solid #7890a8" fo:padding="0.04in"/><style:text-properties fo:font-weight="bold" fo:color="#000000"/></style:style>' +
-      '<style:style style:name="Group" style:family="table-cell"><style:table-cell-properties fo:background-color="#ffffff" fo:border="0.5pt solid #7890a8" fo:padding="0.04in"/><style:text-properties fo:font-weight="bold" fo:color="#000000"/></style:style>' +
-      '<style:style style:name="Child" style:family="table-cell"><style:table-cell-properties fo:background-color="#ffffff" fo:border="0.5pt solid #7890a8" fo:padding="0.04in"/><style:text-properties fo:color="#000000"/></style:style>' +
-      '<style:style style:name="ChildAlt" style:family="table-cell"><style:table-cell-properties fo:background-color="#ffffff" fo:border="0.5pt solid #7890a8" fo:padding="0.04in"/><style:text-properties fo:color="#000000"/></style:style>' +
-      '</office:automatic-styles><office:body><office:spreadsheet><table:table table:name="Ratio Biaya">' +
-      '<table:table-column table:number-columns-repeated="10"/>' + headerRow1 + headerRow2 + dataRows +
-      '</table:table></office:spreadsheet></office:body></office:document-content>';
-    const manifest = '<?xml version="1.0" encoding="UTF-8"?><manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/></manifest:manifest>';
-    const styles = '<?xml version="1.0" encoding="UTF-8"?><office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" office:version="1.2"><office:styles/></office:document-styles>';
-    const enc = new TextEncoder();
-    const crc32 = (bytes) => { let crc = -1; for (const b of bytes) { crc ^= b; for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (-(crc & 1) & 0xedb88320); } return (crc ^ -1) >>> 0; };
-    const zip = (files) => {
-      const chunks = [], central = []; let offset = 0;
-      const put16 = (v) => [v & 255, (v >>> 8) & 255];
-      const put32 = (v) => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
-      files.forEach((file) => {
-        const name = enc.encode(file.name), data = typeof file.data === 'string' ? enc.encode(file.data) : file.data, crc = crc32(data);
-        const local = new Uint8Array([...put32(0x04034b50), ...put16(20), ...put16(0), ...put16(0), ...put16(0), ...put16(0), ...put32(crc), ...put32(data.length), ...put32(data.length), ...put16(name.length), ...put16(0), ...name, ...data]);
-        chunks.push(local);
-        central.push(new Uint8Array([...put32(0x02014b50), ...put16(20), ...put16(20), ...put16(0), ...put16(0), ...put16(0), ...put16(0), ...put32(crc), ...put32(data.length), ...put32(data.length), ...put16(name.length), ...put16(0), ...put16(0), ...put16(0), ...put16(0), ...put32(0), ...put32(offset), ...name]));
-        offset += local.length;
-      });
-      const centralSize = central.reduce((n, part) => n + part.length, 0);
-      return new Blob([...chunks, ...central, new Uint8Array([...put32(0x06054b50), ...put16(0), ...put16(0), ...put16(files.length), ...put16(files.length), ...put32(centralSize), ...put32(offset), ...put16(0)])], { type: 'application/vnd.oasis.opendocument.spreadsheet' });
-    };
-    const blob = zip([
-      { name: 'mimetype', data: enc.encode('application/vnd.oasis.opendocument.spreadsheet') },
-      { name: 'content.xml', data: content },
-      { name: 'styles.xml', data: styles },
-      { name: 'META-INF/manifest.xml', data: manifest }
-    ]);
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = (st.report + " - " + st.tab + " - " + st.period + ".ods").replace(/[\\/:*?"<>|]/g, "");
-    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    const rows = [
+      ["No", "UNIT BISNIS", "Actual BI PROMOSI - Last Year (2025)", "", "Actual 2026 YTD " + periodMonth, "Anggaran 2026", "Ratio Biaya", "", "", "Target Ratio Biaya 2026"],
+      ["", "", "Full Year", "YTD 2025", "", "", "FY 2025", "YTD 2025", "YTD 2026", ""],
+      ...units.map((unit) => ["", unit.name, "", "", "", "", "", "", "", ""])
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    worksheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
+      { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } }, { s: { r: 0, c: 4 }, e: { r: 1, c: 4 } },
+      { s: { r: 0, c: 5 }, e: { r: 1, c: 5 } }, { s: { r: 0, c: 6 }, e: { r: 0, c: 8 } },
+      { s: { r: 0, c: 9 }, e: { r: 1, c: 9 } }
+    ];
+    worksheet["!cols"] = [{ wch: 8 }, { wch: 36 }, ...Array(8).fill({ wch: 20 })];
+    const headerStyle = { fill: { fgColor: { rgb: "91C8F2" } }, font: { bold: true, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: { top: { style: "thin", color: { rgb: "111111" } }, bottom: { style: "thin", color: { rgb: "111111" } }, left: { style: "thin", color: { rgb: "111111" } }, right: { style: "thin", color: { rgb: "111111" } } } };
+    const cellBorder = { top: { style: "thin", color: { rgb: "7890A8" } }, bottom: { style: "thin", color: { rgb: "7890A8" } }, left: { style: "thin", color: { rgb: "7890A8" } }, right: { style: "thin", color: { rgb: "7890A8" } } };
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 10; c++) {
+      const address = XLSX.utils.encode_cell({ r, c });
+      if (worksheet[address]) worksheet[address].s = headerStyle;
+    }
+    units.forEach((unit, index) => {
+      const fill = unit.kind === "total" ? "D9ECFF" : unit.kind === "group" ? "E9E4FF" : (index % 2 ? "F1EFFA" : "FBFAFF");
+      for (let c = 0; c < 10; c++) {
+        const address = XLSX.utils.encode_cell({ r: index + 2, c });
+        if (!worksheet[address]) worksheet[address] = { t: "s", v: "" };
+        worksheet[address].s = {
+          fill: { fgColor: { rgb: fill } },
+          font: { bold: unit.kind !== "child", color: { rgb: unit.kind === "group" ? "40358A" : unit.kind === "total" ? "173F62" : "222222" } },
+          alignment: c === 1 && unit.kind === "child" ? { indent: 2 } : { vertical: "center" },
+          border: cellBorder
+        };
+      }
+    });
+    const names = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE VERSI EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    const workbook = XLSX.utils.book_new();
+    names.forEach((name) => XLSX.utils.book_append_sheet(workbook, name === "BIAYA" ? worksheet : XLSX.utils.aoa_to_sheet([]), name));
+    try { await replaceEdpTemplateSheet(workbook, st.period); }
+    catch (error) { toast(error.message || "Template Revenue EDP MNJ gagal dimuat."); return; }
+    const filename = (st.report + " - " + st.tab + " - " + st.period + ".ods").replace(/[\\/:*?"<>|]/g, "");
+    XLSX.writeFile(workbook, filename, { bookType: "ods", cellStyles: true });
   };
 
   /* ---------- Render utama ---------- */

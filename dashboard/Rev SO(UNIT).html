@@ -162,6 +162,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="edp-template.js"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -587,7 +588,6 @@
         : undefined;
     };
     const values = new Map();
-    const sourceLabels = new Map();
     (hasAchievement ? processed.rows : []).forEach((record) => {
       if (!record.code) return;
       const n = Array.isArray(record.revMonths) && record.revMonths.length === 12
@@ -595,7 +595,6 @@
         : Number(record.revTotal);
       if (Number.isFinite(n)) {
         values.set(record.code, (values.get(record.code) || 0) + n);
-        if (!sourceLabels.has(record.code)) sourceLabels.set(record.code, record.label);
       }
     });
     const valueByCode = values;
@@ -634,10 +633,6 @@
           : 0), 0) * TARGET_RP_SCALE
       };
     };
-    const sourceData = [["Kode sumber", "Baris asal", "REV TOTAL"]];
-    values.forEach((value, code) => {
-      sourceData.push([code, sourceLabels.get(code) || code, value]);
-    });
     let serialNo = 0;
     const corporateCodes = [1, 2, 3, 4, 5, 6];
     const currentForCodes = (codes) => codes.reduce((sum, code) => sum + (Number(valueByCode.get(code)) || 0), 0);
@@ -794,8 +789,22 @@
         }
       }
     });
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Revenue Sell Out");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sourceData), "Sumber REV TOTAL");
+    const workbookSheetNames = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE VERSI EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    const laporan = {};
+    Object.entries(worksheet).forEach(([key, value]) => {
+      laporan[key] = key.startsWith("!") ? value : { ...value };
+    });
+    for (let r = 2; r < data.length; r++) {
+      for (let c = 2; c < 14; c++) {
+        const address = XLSX.utils.encode_cell({ r, c });
+        laporan[address] = { t: "s", v: "" };
+      }
+    }
+    XLSX.utils.book_append_sheet(workbook, laporan, "LAPORAN");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "UNIT");
+    workbookSheetNames.filter((name) => !["LAPORAN", "UNIT"].includes(name)).forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), name));
+    try { await replaceEdpTemplateSheet(workbook, selectedPeriod); }
+    catch (error) { toast(error.message || "Template Revenue EDP MNJ gagal dimuat."); return; }
     const filename = (st.report + " - " + selectedPeriod + ".ods").replace(/[\\/:*?"<>|]/g, "");
     XLSX.writeFile(workbook, filename, { bookType: "ods", cellStyles: true });
   };
