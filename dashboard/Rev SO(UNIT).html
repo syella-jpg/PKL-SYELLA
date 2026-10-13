@@ -162,7 +162,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="edp-template.js?v=unit-template-20261012"></script>
+<script src="report-templates.js?v=report-template-edp-v2-20261013"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -476,6 +476,11 @@
         && history[candidate] && Array.isArray(history[candidate].rows) && history[candidate].rows.length)
       .sort();
     if (laterLocalPeriods.length) return history[laterLocalPeriods[0]];
+    const earlierLocalPeriods = Object.keys(history).filter((candidate) =>
+      candidate.startsWith(period.slice(0, 4) + "-") && Number(candidate.slice(5, 7)) < selectedMonth
+        && history[candidate] && Array.isArray(history[candidate].rows) && history[candidate].rows.length)
+      .sort().reverse();
+    if (earlierLocalPeriods.length) return history[earlierLocalPeriods[0]];
     let payload = null;
     for (let month = selectedMonth; month <= 12; month++) {
       const sourcePeriod = period.slice(0, 4) + "-" + String(month).padStart(2, "0");
@@ -483,8 +488,22 @@
         const response = await fetch(DATA_URL + "?" + new URLSearchParams({ report: st.report, tab: st.tab, period: sourcePeriod }));
         if (!response.ok) continue;
         const result = await response.json();
-        if (result.success && Array.isArray(result.data) && result.data.length) { payload = result; break; }
+        if (result.success && Array.isArray(result.data) && result.data.length) { payload = { ...result, period: sourcePeriod }; break; }
       } catch (_) { /* coba periode sesudahnya yang mungkin memiliki data */ }
+    }
+    if (!payload) {
+      for (let month = selectedMonth - 1; month >= 1; month--) {
+        const sourcePeriod = period.slice(0, 4) + "-" + String(month).padStart(2, "0");
+        try {
+          const response = await fetch(DATA_URL + "?" + new URLSearchParams({ report: st.report, tab: st.tab, period: sourcePeriod }));
+          if (!response.ok) continue;
+          const result = await response.json();
+          if (result.success && Array.isArray(result.data) && result.data.length) {
+            payload = { ...result, period: sourcePeriod };
+            break;
+          }
+        } catch (_) { /* coba periode terdahulu yang mungkin memiliki data */ }
+      }
     }
     if (!payload) throw new Error("Data Revenue Sell Out periode " + period + " dan periode sesudahnya tidak tersedia.");
     const rules = [
@@ -526,7 +545,7 @@
       } : null;
     }).filter(Boolean);
     if (!rows.length) throw new Error("Baris Achievement tidak ditemukan pada data periode " + period + ".");
-    return { period, rows };
+    return { period: payload.period || period, rows };
   }
 
   $("dl").onclick = async () => {
@@ -812,8 +831,13 @@
     workbookSheetNames.filter((name) => !["LAPORAN", "UNIT"].includes(name)).forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), name));
     try { await replaceUnitTemplateSheet(workbook, selectedPeriod); }
     catch (error) { toast(error.message || "Template sheet UNIT gagal dimuat."); return; }
-    try { await replaceEdpTemplateSheet(workbook, selectedPeriod); }
-    catch (error) { toast(error.message || "Template Revenue EDP MNJ gagal dimuat."); return; }
+    try { await replaceEdpTemplateSheet(workbook, selectedPeriod); } catch (error) { console.warn(error); }
+    try {
+      const reportYear = Number(selectedPeriod.slice(0, 4));
+      const hjpData = await getEthicalHjpData(reportYear, reportYear + 1, reportYear - 1);
+      await replaceEthicalTemplateSheet(workbook, selectedPeriod, hjpData);
+    }
+    catch (error) { toast(error.message || "Template Ethical gagal dimuat."); return; }
     const filename = (st.report + " - " + selectedPeriod + ".ods").replace(/[\\/:*?"<>|]/g, "");
     XLSX.writeFile(workbook, filename, { bookType: "ods", cellStyles: true });
   };

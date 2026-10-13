@@ -57,6 +57,7 @@ try {
         'Revenue Konimex Selling Out' => 'revenue_selling_out',
         'REVENUE VERSI EDP MNJ' => 'revenue_edp_mnj',
         'Revenue Konimex Selling In' => 'revenue_selling_in',
+        'ETHICAL' => 'ETHICAL',
     ];
     if (!isset($reportTables[$divisi])) {
         http_response_code(400);
@@ -64,6 +65,7 @@ try {
     }
     $tableName = $reportTables[$divisi];
     $replaceExistingPeriod = $divisi === 'REVENUE VERSI EDP MNJ'
+        || $divisi === 'ETHICAL'
         || ($divisi === 'Revenue Konimex Selling Out' && (($_POST['replace_existing'] ?? '') === '1'));
 
     // Periksa periode lebih dahulu agar periode yang sudah tersimpan tetap
@@ -123,6 +125,71 @@ try {
         if (!$conn->query($createEdpTable)) {
             throw new Exception('Gagal menyiapkan tabel EDP MNJ: ' . $conn->error);
         }
+        if (!$conn->query("CREATE TABLE IF NOT EXISTS `UNIT` (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            report_period CHAR(7) NULL, gb VARCHAR(50) NULL, product_code VARCHAR(100) NULL,
+            principal_product_code VARCHAR(100) NULL, product_name VARCHAR(255) NULL, kategori VARCHAR(100) NULL,
+            unit_jan DECIMAL(15,2) NOT NULL DEFAULT 0, unit_feb DECIMAL(15,2) NOT NULL DEFAULT 0,
+            unit_mar DECIMAL(15,2) NOT NULL DEFAULT 0, unit_apr DECIMAL(15,2) NOT NULL DEFAULT 0,
+            unit_mei DECIMAL(15,2) NOT NULL DEFAULT 0, unit_jun DECIMAL(15,2) NOT NULL DEFAULT 0,
+            unit_jul DECIMAL(15,2) NOT NULL DEFAULT 0, unit_agt DECIMAL(15,2) NOT NULL DEFAULT 0,
+            unit_sep DECIMAL(15,2) NOT NULL DEFAULT 0, unit_okt DECIMAL(15,2) NOT NULL DEFAULT 0,
+            unit_nov DECIMAL(15,2) NOT NULL DEFAULT 0, unit_des DECIMAL(15,2) NOT NULL DEFAULT 0,
+            unit_total DECIMAL(15,2) NOT NULL DEFAULT 0, KEY idx_unit_report_period (report_period)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
+            throw new Exception('Gagal menyiapkan tabel UNIT: ' . $conn->error);
+        }
+    }
+
+    if ($divisi === 'ETHICAL') {
+        $createEthicalTable = "CREATE TABLE IF NOT EXISTS `ETHICAL` (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            report_year SMALLINT UNSIGNED NOT NULL,
+            source_row INT UNSIGNED NOT NULL,
+            product_no VARCHAR(50) NULL,
+            product_name VARCHAR(255) NULL,
+            product_hna DECIMAL(20,2) NOT NULL DEFAULT 0,
+            avg_current_year DECIMAL(20,2) NOT NULL DEFAULT 0,
+            avg_previous_year DECIMAL(20,2) NOT NULL DEFAULT 0,
+            estimated_total_previous_year DECIMAL(20,2) NOT NULL DEFAULT 0,
+            g_value DECIMAL(20,2) NOT NULL DEFAULT 0,
+            total_target_unit DECIMAL(20,2) NOT NULL DEFAULT 0,
+            total_target_hna DECIMAL(20,2) NOT NULL DEFAULT 0,
+            total_target_hjp DECIMAL(20,2) NOT NULL DEFAULT 0,
+            total_real_unit DECIMAL(20,2) NOT NULL DEFAULT 0,
+            total_real_hna DECIMAL(20,2) NOT NULL DEFAULT 0,
+            total_real_hjp DECIMAL(20,2) NOT NULL DEFAULT 0,
+            month_number TINYINT UNSIGNED NOT NULL,
+            data_type ENUM('TARGET','REAL') NOT NULL,
+            unit_value DECIMAL(20,2) NOT NULL DEFAULT 0,
+            hna_value DECIMAL(20,2) NOT NULL DEFAULT 0,
+            hjp_value DECIMAL(20,2) NOT NULL DEFAULT 0,
+            source_filename VARCHAR(255) NULL,
+            uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_ethical_row_month_type (report_year, source_row, month_number, data_type),
+            KEY idx_ethical_year_month (report_year, month_number)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+        if (!$conn->query($createEthicalTable)) {
+            throw new Exception('Gagal menyiapkan tabel ETHICAL: ' . $conn->error);
+        }
+        // Tambah kolom total per TARGET/REAL pada tabel ETHICAL yang dibuat
+        // dari versi skema awal, tanpa menghapus atau menimpa data lama.
+        $ethicalTotalColumns = [
+            'total_target_unit' => 'DECIMAL(20,2) NOT NULL DEFAULT 0',
+            'total_target_hna' => 'DECIMAL(20,2) NOT NULL DEFAULT 0',
+            'total_target_hjp' => 'DECIMAL(20,2) NOT NULL DEFAULT 0',
+            'total_real_unit' => 'DECIMAL(20,2) NOT NULL DEFAULT 0',
+            'total_real_hna' => 'DECIMAL(20,2) NOT NULL DEFAULT 0',
+            'total_real_hjp' => 'DECIMAL(20,2) NOT NULL DEFAULT 0',
+        ];
+        foreach ($ethicalTotalColumns as $column => $definition) {
+            $columnCheck = $conn->query("SHOW COLUMNS FROM `ETHICAL` LIKE '" . $conn->real_escape_string($column) . "'");
+            if (!$columnCheck || $columnCheck->num_rows === 0) {
+                if (!$conn->query("ALTER TABLE `ETHICAL` ADD COLUMN `{$column}` {$definition}")) {
+                    throw new Exception('Gagal menyiapkan kolom ' . $column . ' pada tabel ETHICAL: ' . $conn->error);
+                }
+            }
+        }
     }
 
     if ($divisi === 'Revenue Konimex Selling In') {
@@ -135,7 +202,7 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
             throw new Exception('Gagal menyiapkan tabel Selling In: ' . $conn->error);
         }
-    } else {
+    } elseif ($divisi !== 'ETHICAL') {
         $columnCheck = $conn->query("SHOW COLUMNS FROM `{$tableName}` LIKE 'report_period'");
         if (!$columnCheck || $columnCheck->num_rows === 0) {
             if (!$conn->query("ALTER TABLE `{$tableName}` ADD COLUMN report_period CHAR(7) NULL")) {
@@ -152,15 +219,18 @@ try {
         $tagLegacyRows->close();
     }
 
-    $periodCheck = $conn->prepare("SELECT COUNT(*) FROM `{$tableName}` WHERE report_period = ?");
-    if (!$periodCheck) {
-        throw new Exception('Gagal mengecek periode laporan: ' . $conn->error);
+    $existingRows = 0;
+    if ($divisi !== 'ETHICAL') {
+        $periodCheck = $conn->prepare("SELECT COUNT(*) FROM `{$tableName}` WHERE report_period = ?");
+        if (!$periodCheck) {
+            throw new Exception('Gagal mengecek periode laporan: ' . $conn->error);
+        }
+        $periodCheck->bind_param('s', $period);
+        $periodCheck->execute();
+        $periodCheck->bind_result($existingRows);
+        $periodCheck->fetch();
+        $periodCheck->close();
     }
-    $periodCheck->bind_param('s', $period);
-    $periodCheck->execute();
-    $periodCheck->bind_result($existingRows);
-    $periodCheck->fetch();
-    $periodCheck->close();
 
     if ($existingRows > 0 && !$replaceExistingPeriod) {
         throw new Exception('Periode laporan ' . $period . ' sudah ada di database. Upload dibatalkan agar data tidak duplikat.');
@@ -189,6 +259,181 @@ try {
     }
 
     $file = $_FILES['file']['tmp_name'];
+
+    // ETHICAL disimpan per tahun, produk, bulan, dan TARGET/REAL. Nilai dari
+    // file ODS/XLSX masuk ke database; upload ulang mengganti tahun tersebut
+    // dalam satu transaksi sehingga tidak menggandakan baris.
+    if ($divisi === 'ETHICAL') {
+        $spreadsheet = IOFactory::load($file);
+        $sheet = null;
+        $sourceTitle = '';
+        foreach ($spreadsheet->getWorksheetIterator() as $candidate) {
+            $title = trim((string)$candidate->getCell('A1')->getValue());
+            if (preg_match('/ETHICAL/i', $title) && preg_match('/20\d{2}/', $title)) {
+                $sheet = $candidate;
+                $sourceTitle = $title;
+                break;
+            }
+        }
+        if (!$sheet) {
+            $sheet = $spreadsheet->getActiveSheet();
+            $sourceTitle = trim((string)$sheet->getCell('A1')->getValue());
+        }
+        if (!preg_match('/(20\d{2})/', $sourceTitle, $yearMatch)) {
+            throw new Exception('Tahun data ETHICAL tidak ditemukan pada judul A1 file.');
+        }
+        $sourceYear = (int)$yearMatch[1];
+        if ($sourceYear < 2025) throw new Exception('Tahun data ETHICAL tidak valid.');
+
+        $monthAliases = [
+            'JAN' => 1, 'JANUARI' => 1, 'FEB' => 2, 'FEBRUARI' => 2,
+            'MAR' => 3, 'MARET' => 3, 'APR' => 4, 'APRIL' => 4,
+            'MAY' => 5, 'MEI' => 5, 'JUN' => 6, 'JUNI' => 6,
+            'JUL' => 7, 'JULI' => 7, 'AUG' => 8, 'AGS' => 8,
+            'AGUSTUS' => 8, 'SEP' => 9, 'SEPTEMBER' => 9,
+            'OCT' => 10, 'OKT' => 10, 'OKTOBER' => 10,
+            'NOV' => 11, 'NOVEMBER' => 11, 'DEC' => 12,
+            'DES' => 12, 'DESEMBER' => 12,
+        ];
+        $columnLetter = static fn(int $column): string => \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column);
+        $readCell = static function (int $column, int $row) use ($sheet, $columnLetter) {
+            $cell = $sheet->getCell($columnLetter($column) . $row);
+            $value = $cell->getValue();
+            if (is_string($value) && str_starts_with($value, '=')) {
+                try { $value = $cell->getCalculatedValue(); } catch (Throwable $ignored) { $value = null; }
+            }
+            return $value;
+        };
+        $number = static function ($value): float {
+            if (is_numeric($value)) return (float)$value;
+            $value = trim((string)$value);
+            if ($value === '') return 0.0;
+            $value = preg_replace('/[^0-9,.\-]/', '', $value);
+            if (str_contains($value, ',') && str_contains($value, '.')) {
+                if (strrpos($value, ',') > strrpos($value, '.')) {
+                    $value = str_replace('.', '', $value);
+                    $value = str_replace(',', '.', $value);
+                } else {
+                    $value = str_replace(',', '', $value);
+                }
+            } elseif (substr_count($value, ',') > 1 || substr_count($value, '.') > 1) {
+                $value = str_replace([',', '.'], '', $value);
+            } elseif (str_contains($value, ',')) {
+                $value = strlen(substr(strrchr($value, ','), 1)) === 3
+                    ? str_replace(',', '', $value) : str_replace(',', '.', $value);
+            }
+            return is_numeric($value) ? (float)$value : 0.0;
+        };
+
+        $monthColumns = [];
+        $highestColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+        for ($column = 1; $column <= $highestColumn; $column++) {
+            $label = strtoupper(preg_replace('/[^A-Z]/i', '', trim((string)$readCell($column, 3))));
+            if (isset($monthAliases[$label])) $monthColumns[$monthAliases[$label]] = $column;
+        }
+        if (count($monthColumns) !== 12) {
+            throw new Exception('Header bulan Januari–Desember tidak lengkap pada baris 3 file ETHICAL.');
+        }
+        for ($month = 1; $month <= 12; $month++) {
+            $base = $monthColumns[$month];
+            if (strtoupper(trim((string)$readCell($base, 4))) !== 'TARGET'
+                || strtoupper(trim((string)$readCell($base + 3, 4))) !== 'REAL'
+                || strtoupper(trim((string)$readCell($base, 5))) !== 'UNIT'
+                || strtoupper(trim((string)$readCell($base + 1, 5))) !== 'HNA'
+                || strtoupper(trim((string)$readCell($base + 2, 5))) !== 'HJP'
+                || strtoupper(trim((string)$readCell($base + 3, 5))) !== 'UNIT'
+                || strtoupper(trim((string)$readCell($base + 4, 5))) !== 'HNA'
+                || strtoupper(trim((string)$readCell($base + 5, 5))) !== 'HJP') {
+                throw new Exception('Susunan kolom TARGET/REAL UNIT, HNA, HJP tidak sesuai untuk bulan ' . $month . '.');
+            }
+        }
+
+        $insertSql = "INSERT INTO `ETHICAL` (
+            report_year, source_row, product_no, product_name, product_hna,
+            avg_current_year, avg_previous_year, estimated_total_previous_year, g_value,
+            total_target_unit, total_target_hna, total_target_hjp,
+            total_real_unit, total_real_hna, total_real_hjp,
+            month_number, data_type, unit_value, hna_value, hjp_value, source_filename
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        $insert = $conn->prepare($insertSql);
+        if (!$insert) throw new Exception('Gagal menyiapkan penyimpanan tabel ETHICAL: ' . $conn->error);
+        $bindEthicalRow = static function (mysqli_stmt $statement, array $values): bool {
+            $types = 'iiss' . str_repeat('d', 11) . 'is' . str_repeat('d', 3) . 's';
+            $arguments = [$types];
+            foreach ($values as $index => &$value) $arguments[] = &$value;
+            unset($value);
+            return call_user_func_array([$statement, 'bind_param'], $arguments);
+        };
+
+        $dataRows = [];
+        for ($rowNumber = 6; $rowNumber <= $sheet->getHighestDataRow(); $rowNumber++) {
+            $productNoValue = $readCell(1, $rowNumber);
+            $productNameValue = $readCell(2, $rowNumber);
+            $productNo = trim((string)($productNoValue ?? ''));
+            $productName = trim((string)($productNameValue ?? ''));
+            if ($productNo === '' && $productName === '') continue;
+            $dataRows[] = [
+                'source_row' => $rowNumber,
+                'product_no' => $productNo,
+                'product_name' => $productName,
+                'metadata' => [
+                    $number($readCell(3, $rowNumber)), $number($readCell(4, $rowNumber)),
+                    $number($readCell(5, $rowNumber)), $number($readCell(6, $rowNumber)),
+                    $number($readCell(7, $rowNumber)),
+                ],
+                'totals' => array_map(fn(int $column): float => $number($readCell($column, $rowNumber)), range(8, 13)),
+            ];
+        }
+        if (!$dataRows) {
+            $insert->close();
+            throw new Exception('Tidak ada baris produk ETHICAL yang dapat disimpan dari file.');
+        }
+
+        $conn->begin_transaction();
+        $deleteYear = $conn->prepare('DELETE FROM `ETHICAL` WHERE report_year = ?');
+        if (!$deleteYear) throw new Exception('Gagal menyiapkan penggantian data tahun ETHICAL: ' . $conn->error);
+        $deleteYear->bind_param('i', $sourceYear);
+        if (!$deleteYear->execute()) throw new Exception('Gagal mengganti data ETHICAL tahun ' . $sourceYear . ': ' . $deleteYear->error);
+        $deleteYear->close();
+
+        $inserted = 0;
+        foreach ($dataRows as $dataRow) {
+            foreach ($monthColumns as $month => $base) {
+                foreach ([
+                    ['TARGET', 0],
+                    ['REAL', 3],
+                ] as [$dataType, $offset]) {
+                    $values = [
+                        $sourceYear, $dataRow['source_row'], $dataRow['product_no'], $dataRow['product_name'],
+                        $dataRow['metadata'][0], $dataRow['metadata'][1], $dataRow['metadata'][2],
+                        $dataRow['metadata'][3], $dataRow['metadata'][4],
+                        $dataRow['totals'][0], $dataRow['totals'][1], $dataRow['totals'][2],
+                        $dataRow['totals'][3], $dataRow['totals'][4], $dataRow['totals'][5],
+                        $month, $dataType, $number($readCell($base + $offset, $dataRow['source_row'])),
+                        $number($readCell($base + $offset + 1, $dataRow['source_row'])),
+                        $number($readCell($base + $offset + 2, $dataRow['source_row'])),
+                        substr((string)($_FILES['file']['name'] ?? ''), 0, 255),
+                    ];
+                    if (!$bindEthicalRow($insert, $values) || !$insert->execute()) {
+                        throw new Exception('Gagal menyimpan data ETHICAL pada baris ' . $dataRow['source_row'] . ': ' . $insert->error);
+                    }
+                    $inserted++;
+                }
+            }
+        }
+        $insert->close();
+        $conn->commit();
+        $conn->close();
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Data ETHICAL tahun ' . $sourceYear . ' berhasil disimpan ke database.',
+            'report_year' => $sourceYear,
+            'products' => count($dataRows),
+            'rows_inserted' => $inserted,
+        ]);
+        exit;
+    }
 
     // Selling In memakai file ringkasan ODS dan disimpan sebagai subtotal per parameter.
     if ($divisi === 'Revenue Konimex Selling In') {
@@ -399,6 +644,15 @@ try {
             'Gagal menyiapkan query: ' . $conn->error
         );
     }
+    $unitStmt = null;
+    if ($divisi === 'REVENUE VERSI EDP MNJ') {
+        $unitStmt = $conn->prepare("INSERT INTO `UNIT` (
+            report_period, gb, product_code, principal_product_code, product_name, kategori,
+            unit_jan, unit_feb, unit_mar, unit_apr, unit_mei, unit_jun, unit_jul, unit_agt,
+            unit_sep, unit_okt, unit_nov, unit_des, unit_total
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        if (!$unitStmt) throw new Exception('Gagal menyiapkan query UNIT: ' . $conn->error);
+    }
 
     // =========================
     // 6. TRANSACTION
@@ -416,6 +670,13 @@ try {
             throw new Exception('Gagal mengganti data periode: ' . $deletePeriod->error);
         }
         $deletePeriod->close();
+        if ($unitStmt) {
+            $deleteUnit = $conn->prepare('DELETE FROM `UNIT` WHERE report_period = ?');
+            if (!$deleteUnit) throw new Exception('Gagal menyiapkan penggantian periode UNIT: ' . $conn->error);
+            $deleteUnit->bind_param('s', $period);
+            if (!$deleteUnit->execute()) throw new Exception('Gagal mengganti data UNIT: ' . $deleteUnit->error);
+            $deleteUnit->close();
+        }
     }
 
     $inserted = 0;
@@ -473,6 +734,11 @@ try {
                 $numbers[] = (float)$value;
             }
         }
+        $unitNumbers = array_slice($numbers, 0, 13);
+        // Pada jalur upload UNIT & Revenue, nilai QTY hanya masuk ke tabel UNIT.
+        if ($unitStmt) {
+            for ($i = 0; $i < 13; $i++) $numbers[$i] = 0;
+        }
 
         // =========================
         // BIND DATA
@@ -524,6 +790,13 @@ try {
                 $stmt->error
             );
         }
+        if ($unitStmt) {
+            $unitStmt->bind_param('ssssss' . str_repeat('d', 13),
+                $period, $gb, $productCode, $principalProductCode, $productName, $kategori,
+                $unitNumbers[0], $unitNumbers[1], $unitNumbers[2], $unitNumbers[3], $unitNumbers[4], $unitNumbers[5], $unitNumbers[6],
+                $unitNumbers[7], $unitNumbers[8], $unitNumbers[9], $unitNumbers[10], $unitNumbers[11], $unitNumbers[12]);
+            if (!$unitStmt->execute()) throw new Exception('Gagal menyimpan UNIT pada baris Excel ke-' . $rowNumber . ': ' . $unitStmt->error);
+        }
 
         $inserted++;
     }
@@ -535,6 +808,7 @@ try {
     $conn->commit();
 
     $stmt->close();
+    if ($unitStmt) $unitStmt->close();
     $conn->close();
 
     echo json_encode([

@@ -159,7 +159,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="edp-template.js"></script>
+<script src="report-templates.js?v=report-template-edp-v2-20261013"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -349,8 +349,13 @@
     c.labels.forEach((lb, i) => reportRows.push([lb].concat(c.series.map((s) => s.values[i]))));
     const names = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE VERSI EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
     names.forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(name === "BOD KX Sell In" ? reportRows : []), name));
-    try { await replaceEdpTemplateSheet(workbook, st.period); }
-    catch (error) { toast(error.message || "Template Revenue EDP MNJ gagal dimuat."); return; }
+    try { await replaceEdpTemplateSheet(workbook, st.period); } catch (error) { console.warn(error); }
+    try {
+      const reportYear = Number(st.period.slice(0, 4));
+      const hjpData = await getEthicalHjpData(reportYear, reportYear + 1, reportYear - 1);
+      await replaceEthicalTemplateSheet(workbook, st.period, hjpData);
+    }
+    catch (error) { toast(error.message || "Template Ethical gagal dimuat."); return; }
     const filename = (st.report + " - " + st.tab + " - " + st.period + ".xlsx").replace(/[\\/:*?"<>|]/g, "");
     XLSX.writeFile(workbook, filename, { cellStyles: true });
   };

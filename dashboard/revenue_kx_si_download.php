@@ -70,6 +70,48 @@ $loadAmounts = static function (mysqli_stmt $statement, string $requestedPeriod)
 $lastYearFullAmounts = $loadAmounts($stmt, $lastYearFullPeriod);
 $lastYearYtdAmounts = $loadAmounts($stmt, $lastYearYtdPeriod);
 $stmt->close();
+
+// Reuse the UNIT & Revenue upload for the EDP sheet in this server-generated
+// workbook. Pick the latest available month up to the requested period.
+$edpRecords = [];
+$edpSourcePeriod = null;
+$edpColumns = ['rev_jan', 'rev_feb', 'rev_mar', 'rev_apr', 'rev_mei', 'rev_jun', 'rev_jul', 'rev_agt', 'rev_sep', 'rev_okt', 'rev_nov', 'rev_des'];
+$candidateMonths = array_merge(range($periodMonth, 1), $periodMonth < 12 ? range($periodMonth + 1, 12) : []);
+$edpQuery = $conn->prepare('SELECT report_period, gb, product_name, kategori, rev_jan, rev_feb, rev_mar, rev_apr, rev_mei, rev_jun, rev_jul, rev_agt, rev_sep, rev_okt, rev_nov, rev_des FROM revenue_edp_mnj WHERE report_period = ? ORDER BY id ASC');
+if ($edpQuery) {
+    foreach ($candidateMonths as $candidateMonth) {
+        $candidatePeriod = $periodYear . '-' . str_pad((string)$candidateMonth, 2, '0', STR_PAD_LEFT);
+        $edpQuery->bind_param('s', $candidatePeriod);
+        $edpQuery->execute();
+        $edpResult = $edpQuery->get_result();
+        $candidateRecords = $edpResult ? $edpResult->fetch_all(MYSQLI_ASSOC) : [];
+        if ($candidateRecords) {
+            $edpRecords = $candidateRecords;
+            $edpSourcePeriod = $candidatePeriod;
+            break;
+        }
+    }
+    $edpQuery->close();
+}
+// Masa transisi: upload UNIT & Revenue versi lama tersimpan di selling_out.
+if (!$edpRecords) {
+    $legacyEdpQuery = $conn->prepare('SELECT report_period, gb, product_name, kategori, rev_jan, rev_feb, rev_mar, rev_apr, rev_mei, rev_jun, rev_jul, rev_agt, rev_sep, rev_okt, rev_nov, rev_des FROM revenue_selling_out WHERE report_period = ? ORDER BY id ASC');
+    if ($legacyEdpQuery) {
+        foreach ($candidateMonths as $candidateMonth) {
+            $candidatePeriod = $periodYear . '-' . str_pad((string)$candidateMonth, 2, '0', STR_PAD_LEFT);
+            $legacyEdpQuery->bind_param('s', $candidatePeriod);
+            $legacyEdpQuery->execute();
+            $legacyResult = $legacyEdpQuery->get_result();
+            $legacyRecords = $legacyResult ? $legacyResult->fetch_all(MYSQLI_ASSOC) : [];
+            if ($legacyRecords) {
+                $edpRecords = $legacyRecords;
+                $edpSourcePeriod = $candidatePeriod;
+                break;
+            }
+        }
+        $legacyEdpQuery->close();
+    }
+}
 $conn->close();
 
 if (!$amounts) {
@@ -128,6 +170,58 @@ foreach ($workbookSheetNames as $sheetName) {
             $edpTemplateSheet->setCellValue('C' . $row, $periodMonthName);
             $edpTemplateSheet->setCellValue('C' . ($row + 1), 'YTD ' . $periodMonthName);
         }
+        if ($edpRecords && $edpSourcePeriod) {
+            $sourceMonth = (int)substr($edpSourcePeriod, 5, 2);
+            $sourceMonthName = strtoupper($monthNames[$sourceMonth - 1]);
+            $edpTemplateSheet->setCellValue('C1', $sourceMonthName);
+            $edpTemplateSheet->setCellValue('C2', 'YTD ' . $sourceMonthName);
+            $monthlyByCode = [];
+            foreach ($edpRecords as $record) {
+                $name = strtoupper(trim((string)($record['product_name'] ?? '')));
+                $gb = [];
+                preg_match('/^GB\s*(\d+)$/', strtoupper(trim((string)($record['gb'] ?? ''))), $gb);
+                $code = null;
+                if (preg_match('/^TOTAL\s+GB\s*(\d+)$/', $name, $match)) $code = 'gb' . $match[1];
+                elseif (preg_match('/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/', $name, $match)) $code = 'existing' . ($match[1] ?: ($gb[1] ?? ''));
+                elseif (preg_match('/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/', $name, $match)) $code = 'new' . ($match[1] ?: ($gb[1] ?? ''));
+                elseif (preg_match('/^TOTAL\s+EXISTING\s+GB\s+ET$/', $name)) $code = 'ethicalExisting';
+                elseif (preg_match('/^TOTAL\s+NEW\s+PRODUCT\s+GB\s+ET$/', $name)) $code = 'ethicalNew';
+                elseif (preg_match('/^TOTAL\s+GB\s+ET$/', $name)) $code = 'ethicalTotal';
+                elseif (preg_match('/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/', $name)) $code = 'ethicalExisting';
+                elseif (preg_match('/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH$/', $name)) $code = 'ethicalNew';
+                elseif (preg_match('/^TOTAL\s+ETH$/', $name)) $code = 'ethicalTotal';
+                if (!$code) continue;
+                $monthlyByCode[$code] ??= array_fill(0, 12, 0.0);
+                foreach ($edpColumns as $index => $column) $monthlyByCode[$code][$index] += (float)($record[$column] ?? 0);
+            }
+            $templateRows = [];
+            for ($gb = 1; $gb <= 6; $gb++) {
+                $templateRows['existing' . $gb] = ['EXIST GB ' . $gb, 3 + (($gb - 1) * 4)];
+                $templateRows['new' . $gb] = ['NP GB ' . $gb, 4 + (($gb - 1) * 4)];
+                $templateRows['gb' . $gb] = ['TOTAL GB ' . $gb, 5 + (($gb - 1) * 4)];
+            }
+            $templateRows['ethicalExisting'] = ['EXIST ETHICAL', 27];
+            $templateRows['ethicalNew'] = ['NP ETHICAL', 28];
+            $templateRows['ethicalTotal'] = ['TOTAL ETHICAL', 29];
+            foreach ($templateRows as $code => [$label, $rowNumber]) {
+                if (!isset($monthlyByCode[$code])) continue;
+                $values = $monthlyByCode[$code];
+                $ytd = 0.0;
+                for ($monthIndex = 0; $monthIndex < 12; $monthIndex++) {
+                    $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(4 + $monthIndex);
+                    if ($monthIndex < $sourceMonth) {
+                        $edpTemplateSheet->setCellValue($column . $rowNumber, $values[$monthIndex]);
+                        $ytd += $values[$monthIndex];
+                    } else {
+                        $edpTemplateSheet->setCellValue($column . $rowNumber, null);
+                    }
+                }
+                $edpTemplateSheet->setCellValue('C' . $rowNumber, $ytd);
+                $edpTemplateSheet->setCellValue('P' . $rowNumber, $ytd);
+            }
+        }
+        // Tampilkan angka revenue dengan pemisah ribuan, tetap sebagai nilai numerik.
+        $edpTemplateSheet->getStyle('C3:P29')->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
         $edpTemplateSheet->setTitle($sheetName);
         $output->addExternalSheet($edpTemplateSheet);
         continue;

@@ -101,12 +101,22 @@ $periodCheck->execute();
 $periodCheck->bind_result($existingRows);
 $periodCheck->fetch();
 $periodCheck->close();
-$sql = "SELECT id, gb, product_code, principal_product_code, product_name, kategori,
-        qty_jan, qty_feb, qty_mar, qty_apr, qty_mei, qty_jun, qty_jul, qty_agt,
-        qty_sep, qty_okt, qty_nov, qty_des, qty_total,
-        rev_jan, rev_feb, rev_mar, rev_apr, rev_mei, rev_jun, rev_jul, rev_agt,
-        rev_sep, rev_okt, rev_nov, rev_des, rev_total
-        FROM revenue_edp_mnj WHERE report_period = ? ORDER BY id ASC";
+$sql = "SELECT r.id, r.gb, r.product_code, r.principal_product_code, r.product_name, r.kategori,
+        COALESCE(u.unit_jan, r.qty_jan) AS qty_jan, COALESCE(u.unit_feb, r.qty_feb) AS qty_feb,
+        COALESCE(u.unit_mar, r.qty_mar) AS qty_mar, COALESCE(u.unit_apr, r.qty_apr) AS qty_apr,
+        COALESCE(u.unit_mei, r.qty_mei) AS qty_mei, COALESCE(u.unit_jun, r.qty_jun) AS qty_jun,
+        COALESCE(u.unit_jul, r.qty_jul) AS qty_jul, COALESCE(u.unit_agt, r.qty_agt) AS qty_agt,
+        COALESCE(u.unit_sep, r.qty_sep) AS qty_sep, COALESCE(u.unit_okt, r.qty_okt) AS qty_okt,
+        COALESCE(u.unit_nov, r.qty_nov) AS qty_nov, COALESCE(u.unit_des, r.qty_des) AS qty_des,
+        COALESCE(u.unit_total, r.qty_total) AS qty_total,
+        r.rev_jan, r.rev_feb, r.rev_mar, r.rev_apr, r.rev_mei, r.rev_jun, r.rev_jul, r.rev_agt,
+        r.rev_sep, r.rev_okt, r.rev_nov, r.rev_des, r.rev_total
+        FROM revenue_edp_mnj r
+        LEFT JOIN `UNIT` u ON u.report_period = r.report_period
+            AND u.gb <=> r.gb AND u.product_code <=> r.product_code
+            AND u.principal_product_code <=> r.principal_product_code
+            AND u.product_name <=> r.product_name AND u.kategori <=> r.kategori
+        WHERE r.report_period = ? ORDER BY r.id ASC";
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
     http_response_code(500);
