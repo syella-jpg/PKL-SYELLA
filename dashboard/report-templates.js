@@ -304,6 +304,40 @@
       sheet[address] = { ...(sheet[address] || {}), t: "n", v: value };
     });
     sheet.B112 = { ...(sheet.B112 || {}), t: "s", v: "LAMPIRAN : EXPORT " + (year - 2) };
+    const revenueApi = location.protocol === "file:"
+      ? "http://127.0.0.1:8000/dashboard/revenue_ibfm_api.php"
+      : new URL("revenue_ibfm_api.php", location.href).href;
+    try {
+      const response = await fetch(revenueApi + "?" + new URLSearchParams({ year: String(year), month: String(month) }), { cache: "no-store" });
+      const payload = await response.json();
+      const data = payload && payload.success && payload.data;
+      if (!response.ok || !data || !data.period) {
+        throw new Error((payload && payload.message) || "Data IB belum tersedia untuk periode " + year + ". Unggah raw data melalui bagian IB.");
+      }
+      const hasFoodData = [data.targetFd, data.actualFd].some((values) => Array.isArray(values)
+        && values.some((value) => value !== null && value !== undefined && Number.isFinite(Number(value))));
+      if (!hasFoodData) {
+        throw new Error("Baris IB FD masih kosong karena nilai TARGET/REALISASI pada sheet IAP belum masuk. Unggah ulang raw data yang berisi nilai IAP.");
+      }
+      {
+        const put = (address, value) => {
+          const cell = { ...(sheet[address] || {}) };
+          if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+            cell.t = "s"; cell.v = ""; delete cell.f; delete cell.w;
+          } else { cell.t = "n"; cell.v = Number(value); cell.z = "#,##0"; delete cell.f; delete cell.w; }
+          sheet[address] = cell;
+        };
+        const write = (row, values, ytd, total) => {
+          put("D" + row, ytd);
+          values.forEach((value, index) => put(String.fromCharCode(70 + index) + row, value));
+          put("R" + row, total);
+        };
+        write(8, data.target, data.ytd && data.ytd.target, data.fullYear && data.fullYear.target);
+        write(11, data.actual, data.ytd && data.ytd.actual, data.fullYear && data.fullYear.actual);
+        write(9, data.targetFd, data.ytd && data.ytd.targetFd, data.fullYear && data.fullYear.targetFd);
+        write(12, data.actualFd, data.ytd && data.ytd.actualFd, data.fullYear && data.fullYear.actualFd);
+      }
+    } catch (error) { throw error; }
     const index = workbook.SheetNames.indexOf("IB");
     if (index < 0) global.XLSX.utils.book_append_sheet(workbook, sheet, "IB");
     else workbook.Sheets.IB = sheet;

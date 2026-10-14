@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -54,6 +55,7 @@ try {
     // Tentukan tabel hanya dari pilihan divisi yang diizinkan.
     $divisi = trim((string)($_POST['divisi'] ?? ''));
     $reportTables = [
+        'IB' => 'revenue_ibfm',
         'Revenue Konimex Selling Out' => 'revenue_selling_out',
         'REVENUE VERSI EDP MNJ' => 'revenue_edp_mnj',
         'Revenue Konimex Selling In' => 'revenue_selling_in',
@@ -66,6 +68,7 @@ try {
     $tableName = $reportTables[$divisi];
     $replaceExistingPeriod = $divisi === 'REVENUE VERSI EDP MNJ'
         || $divisi === 'ETHICAL'
+        || $divisi === 'IB'
         || ($divisi === 'Revenue Konimex Selling Out' && (($_POST['replace_existing'] ?? '') === '1'));
 
     // Periksa periode lebih dahulu agar periode yang sudah tersimpan tetap
@@ -192,6 +195,29 @@ try {
         }
     }
 
+    if ($divisi === 'IB' && !$conn->query("CREATE TABLE IF NOT EXISTS `revenue_ibfm` (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        report_period CHAR(7) NOT NULL,
+        month_number TINYINT UNSIGNED NOT NULL,
+        target_ib_fm DECIMAL(20,2) NULL,
+        actual_ib_fm DECIMAL(20,2) NULL,
+        target_ib_fd DECIMAL(20,2) NULL,
+        actual_ib_fd DECIMAL(20,2) NULL,
+        UNIQUE KEY unique_ibfm_period_month (report_period, month_number)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
+        throw new Exception('Gagal menyiapkan tabel IB FM: ' . $conn->error);
+    }
+    if ($divisi === 'IB') {
+        foreach (['target_ib_fd' => 'DECIMAL(20,2) NULL', 'actual_ib_fd' => 'DECIMAL(20,2) NULL'] as $column => $definition) {
+            $check = $conn->query("SHOW COLUMNS FROM `revenue_ibfm` LIKE '{$column}'");
+            if (!$check || $check->num_rows === 0) {
+                if (!$conn->query("ALTER TABLE `revenue_ibfm` ADD COLUMN `{$column}` {$definition}")) {
+                    throw new Exception('Gagal menyiapkan kolom IB FD: ' . $conn->error);
+                }
+            }
+        }
+    }
+
     if ($divisi === 'Revenue Konimex Selling In') {
         if (!$conn->query("CREATE TABLE IF NOT EXISTS `{$tableName}` (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -259,6 +285,50 @@ try {
     }
 
     $file = $_FILES['file']['tmp_name'];
+
+    if ($divisi === 'IB') {
+        // Pengguna dapat mengisi salah satu sheet lebih dahulu; simpan nilai
+        // sheet yang tersedia dan biarkan kolom sheet lainnya kosong.
+        $monthlyFm = processRevenueExistIbFmSpreadsheet($file, (int)substr($period, 0, 4), 'YFR - IBFM', true);
+        $monthlyFd = processRevenueExistIbFmSpreadsheet($file, (int)substr($period, 0, 4), 'IAP', true);
+        $hasRevenueData = false;
+        foreach ([$monthlyFm, $monthlyFd] as $sourceData) {
+            foreach (['target', 'actual'] as $kind) {
+                foreach ($sourceData[$kind] as $value) {
+                    if ($value !== null) { $hasRevenueData = true; break 3; }
+                }
+            }
+        }
+        if (!$hasRevenueData) throw new Exception('Nilai kumulatif REVENUE EXIST pada sheet YFR - IBFM dan IAP masih kosong.');
+        $hasFoodData = false;
+        foreach (['target', 'actual'] as $kind) {
+            foreach ($monthlyFd[$kind] as $value) {
+                if ($value !== null) { $hasFoodData = true; break 2; }
+            }
+        }
+        $conn->begin_transaction();
+        // Upload sheet IAP saja tidak boleh menghapus nilai IB FM yang sudah
+        // tersimpan (dan sebaliknya). Nilai NULL mempertahankan nilai lama.
+        $insert = $conn->prepare('INSERT INTO `revenue_ibfm` (report_period, month_number, target_ib_fm, actual_ib_fm, target_ib_fd, actual_ib_fd) VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                target_ib_fm = COALESCE(VALUES(target_ib_fm), target_ib_fm),
+                actual_ib_fm = COALESCE(VALUES(actual_ib_fm), actual_ib_fm),
+                target_ib_fd = COALESCE(VALUES(target_ib_fd), target_ib_fd),
+                actual_ib_fd = COALESCE(VALUES(actual_ib_fd), actual_ib_fd)');
+        if (!$insert) throw new Exception('Gagal menyiapkan penyimpanan IB FM/IB FD: ' . $conn->error);
+        for ($month = 1; $month <= 12; $month++) {
+            $targetFm = $monthlyFm['target'][$month]; $actualFm = $monthlyFm['actual'][$month];
+            $targetFd = $monthlyFd['target'][$month]; $actualFd = $monthlyFd['actual'][$month];
+            $insert->bind_param('sidddd', $period, $month, $targetFm, $actualFm, $targetFd, $actualFd);
+            if (!$insert->execute()) throw new Exception('Gagal menyimpan data IB FM: ' . $insert->error);
+        }
+        $insert->close(); $conn->commit(); $conn->close();
+        echo json_encode(['success' => true, 'message' => $hasFoodData
+            ? 'REVENUE EXIST IB FARMA dan IB FOOD berhasil dimuat ke baris IB FM dan IB FD pada sheet IB.'
+            : 'Data IB berhasil dimuat, tetapi sheet IAP kosong sehingga baris IB FD belum memiliki nilai.',
+            'rows_inserted' => 12, 'ib_fd_has_data' => $hasFoodData]);
+        exit;
+    }
 
     // ETHICAL disimpan per tahun, produk, bulan, dan TARGET/REAL. Nilai dari
     // file ODS/XLSX masuk ke database; upload ulang mengganti tahun tersebut

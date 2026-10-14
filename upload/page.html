@@ -192,7 +192,7 @@
 </main>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="../dashboard/report-templates.js?v=ethical-hna-target-v4-20261014"></script>
+<script src="../dashboard/report-templates.js?v=ib-food-ytd-v2-20261014"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -684,8 +684,9 @@
           }
         }
       }
-      if (LOCAL_FILE_MODE && !isRevenueSO && !isEthical && !isEdpMnjRevenue && !isEdpMnjTarget && !isTargetSection) {
-        throw new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out dan Target Revenue.");
+      const isIbRevenue = sectionSelect.value === "IB";
+      if (LOCAL_FILE_MODE && !isRevenueSO && !isEthical && !isEdpMnjRevenue && !isEdpMnjTarget && !isTargetSection && !isIbRevenue) {
+        throw new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out, IB, dan Target Revenue.");
       }
       const selectedYear = Number(periodSelect.value.slice(0, 4));
       const edpTarget = isEdpMnjTarget ? await processEdpTarget(chosen, selectedYear) : null;
