@@ -3,7 +3,7 @@
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear = null, string $sheetName = 'YFR - IBFM', bool $allowEmpty = false): array
+function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear = null, string $sheetName = 'YFR - IBFM', bool $allowEmpty = false, string $subKpi = 'SALES REVENUE (USD)', int $targetRow = 6): array
 {
     $spreadsheet = IOFactory::load($filePath);
     $sheet = $spreadsheet->getSheetByName($sheetName);
@@ -12,10 +12,10 @@ function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear
     if ($expectedYear !== null && preg_match('/\b(20\d{2})\b/', $title, $match) && (int)$match[1] !== $expectedYear) {
         throw new RuntimeException('Tahun pada sheet ' . $sheetName . ' tidak sama dengan periode upload yang dipilih.');
     }
-    if (strtoupper(trim((string)$sheet->getCell('C6')->getValue())) !== 'SALES REVENUE (USD)'
-        || strtoupper(trim((string)$sheet->getCell('M6')->getValue())) !== 'TARGET'
-        || strtoupper(trim((string)$sheet->getCell('M7')->getValue())) !== 'REALISASI') {
-        throw new RuntimeException('Struktur REVENUE EXIST di sheet ' . $sheetName . ' tidak sesuai.');
+    if (strtoupper(trim((string)$sheet->getCell('C' . $targetRow)->getValue())) !== strtoupper($subKpi)
+        || strtoupper(trim((string)$sheet->getCell('M' . $targetRow)->getValue())) !== 'TARGET'
+        || strtoupper(trim((string)$sheet->getCell('M' . ($targetRow + 1))->getValue())) !== 'REALISASI') {
+        throw new RuntimeException('Struktur ' . $subKpi . ' di sheet ' . $sheetName . ' tidak sesuai.');
     }
     $headers = ['JAN','S/D FEB','S/D MAR','S/D APR','S/D MEI','S/D JUN','S/D JUL','S/D AGS','S/D SEP','S/D OKT','S/D NOV','S/D DES'];
     foreach ($headers as $i => $expected) {
@@ -36,7 +36,7 @@ function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear
     };
     $result = ['target' => array_fill(1, 12, null), 'actual' => array_fill(1, 12, null)];
     $found = false;
-    foreach ([6 => 'target', 7 => 'actual'] as $row => $key) {
+    foreach ([$targetRow => 'target', ($targetRow + 1) => 'actual'] as $row => $key) {
         $previous = null;
         for ($month = 1; $month <= 12; $month++) {
             $cell = $sheet->getCell(Coordinate::stringFromColumnIndex(13 + $month) . $row);
@@ -48,6 +48,6 @@ function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear
             $previous = $cumulative;
         }
     }
-    if (!$found && !$allowEmpty) throw new RuntimeException('Nilai kumulatif TARGET/REALISASI REVENUE EXIST di sheet ' . $sheetName . ' masih kosong.');
+    if (!$found && !$allowEmpty) throw new RuntimeException('Nilai kumulatif TARGET/REALISASI ' . $subKpi . ' di sheet ' . $sheetName . ' masih kosong.');
     return $result;
 }

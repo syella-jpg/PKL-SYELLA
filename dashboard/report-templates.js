@@ -314,7 +314,7 @@
       if (!response.ok || !data || !data.period) {
         throw new Error((payload && payload.message) || "Data IB belum tersedia untuk periode " + year + ". Unggah raw data melalui bagian IB.");
       }
-      const hasFoodData = [data.targetFd, data.actualFd].some((values) => Array.isArray(values)
+      const hasFoodData = [data.targetFd, data.actualFd, data.newTargetFd, data.newActualFd].some((values) => Array.isArray(values)
         && values.some((value) => value !== null && value !== undefined && Number.isFinite(Number(value))));
       if (!hasFoodData) {
         throw new Error("Baris IB FD masih kosong karena nilai TARGET/REALISASI pada sheet IAP belum masuk. Unggah ulang raw data yang berisi nilai IAP.");
@@ -332,10 +332,27 @@
           values.forEach((value, index) => put(String.fromCharCode(70 + index) + row, value));
           put("R" + row, total);
         };
+        const addMonthly = (first, second) => Array.from({ length: 12 }, (_, index) =>
+          (Number(first && first[index]) || 0) + (Number(second && second[index]) || 0));
+        const sumThroughMonth = (values, endMonth) => values.slice(0, endMonth).reduce((sum, value) => sum + (Number(value) || 0), 0);
         write(8, data.target, data.ytd && data.ytd.target, data.fullYear && data.fullYear.target);
         write(11, data.actual, data.ytd && data.ytd.actual, data.fullYear && data.fullYear.actual);
         write(9, data.targetFd, data.ytd && data.ytd.targetFd, data.fullYear && data.fullYear.targetFd);
         write(12, data.actualFd, data.ytd && data.ytd.actualFd, data.fullYear && data.fullYear.actualFd);
+        write(14, data.newTarget, data.ytd && data.ytd.newTarget, data.fullYear && data.fullYear.newTarget);
+        write(15, data.newTargetFd, data.ytd && data.ytd.newTargetFd, data.fullYear && data.fullYear.newTargetFd);
+        write(17, data.newActual, data.ytd && data.ytd.newActual, data.fullYear && data.fullYear.newActual);
+        write(18, data.newActualFd, data.ytd && data.ytd.newActualFd, data.fullYear && data.fullYear.newActualFd);
+        write(4, data.mcmTarget, data.ytd && data.ytd.mcmTarget, data.fullYear && data.fullYear.mcmTarget);
+        write(5, data.mcmActual, data.ytd && data.ytd.mcmActual, data.fullYear && data.fullYear.mcmActual);
+        const targetTotal = addMonthly(data.target, data.targetFd);
+        const actualTotal = addMonthly(data.actual, data.actualFd);
+        const newTargetTotal = addMonthly(data.newTarget, data.newTargetFd);
+        const newActualTotal = addMonthly(data.newActual, data.newActualFd);
+        write(7, targetTotal, sumThroughMonth(targetTotal, month), sumThroughMonth(targetTotal, 12));
+        write(13, newTargetTotal, sumThroughMonth(newTargetTotal, month), sumThroughMonth(newTargetTotal, 12));
+        write(10, actualTotal, sumThroughMonth(actualTotal, month), sumThroughMonth(actualTotal, 12));
+        write(16, newActualTotal, sumThroughMonth(newActualTotal, month), sumThroughMonth(newActualTotal, 12));
       }
     } catch (error) { throw error; }
     const index = workbook.SheetNames.indexOf("IB");

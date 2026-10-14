@@ -19,20 +19,23 @@ $conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
 if ($conn->connect_error) { http_response_code(500); echo json_encode(['success'=>false,'message'=>'Database tidak dapat dihubungkan.']); exit; }
 $conn->set_charset('utf8mb4');
 try {
-    $stmt = $conn->prepare("SELECT month_number,target_ib_fm,actual_ib_fm,target_ib_fd,actual_ib_fd,report_period FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,'-%') AND report_period=(SELECT MAX(report_period) FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,'-%')) ORDER BY month_number");
+    $stmt = $conn->prepare("SELECT month_number,target_ib_fm,actual_ib_fm,target_ib_fd,actual_ib_fd,target_new_ib_fm,actual_new_ib_fm,target_new_ib_fd,actual_new_ib_fd,target_mcm,actual_mcm,report_period FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,'-%') AND report_period=(SELECT MAX(report_period) FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,'-%')) ORDER BY month_number");
     if (!$stmt) throw new RuntimeException('Data sheet IB belum tersedia. Unggah file melalui bagian IB terlebih dahulu.');
     $stmt->bind_param('ss',$year,$year); if (!$stmt->execute()) throw new RuntimeException('Data sheet IB gagal dibaca.');
-    $rows=$stmt->get_result(); $data=['period'=>null,'target'=>array_fill(0,12,null),'actual'=>array_fill(0,12,null),'targetFd'=>array_fill(0,12,null),'actualFd'=>array_fill(0,12,null)];
-    while($row=$rows->fetch_assoc()){ $i=(int)$row['month_number']-1; if($i<0||$i>11)continue; $data['period']=$row['report_period']; $data['target'][$i]=$row['target_ib_fm']===null?null:(float)$row['target_ib_fm']; $data['actual'][$i]=$row['actual_ib_fm']===null?null:(float)$row['actual_ib_fm']; $data['targetFd'][$i]=$row['target_ib_fd']===null?null:(float)$row['target_ib_fd']; $data['actualFd'][$i]=$row['actual_ib_fd']===null?null:(float)$row['actual_ib_fd']; }
+    $rows=$stmt->get_result(); $data=['period'=>null,'target'=>array_fill(0,12,null),'actual'=>array_fill(0,12,null),'targetFd'=>array_fill(0,12,null),'actualFd'=>array_fill(0,12,null),'newTarget'=>array_fill(0,12,null),'newActual'=>array_fill(0,12,null),'newTargetFd'=>array_fill(0,12,null),'newActualFd'=>array_fill(0,12,null),'mcmTarget'=>array_fill(0,12,null),'mcmActual'=>array_fill(0,12,null)];
+    while($row=$rows->fetch_assoc()){ $i=(int)$row['month_number']-1; if($i<0||$i>11)continue; $data['period']=$row['report_period']; $data['target'][$i]=$row['target_ib_fm']===null?null:(float)$row['target_ib_fm']; $data['actual'][$i]=$row['actual_ib_fm']===null?null:(float)$row['actual_ib_fm']; $data['targetFd'][$i]=$row['target_ib_fd']===null?null:(float)$row['target_ib_fd']; $data['actualFd'][$i]=$row['actual_ib_fd']===null?null:(float)$row['actual_ib_fd']; $data['newTarget'][$i]=$row['target_new_ib_fm']===null?null:(float)$row['target_new_ib_fm']; $data['newActual'][$i]=$row['actual_new_ib_fm']===null?null:(float)$row['actual_new_ib_fm']; $data['newTargetFd'][$i]=$row['target_new_ib_fd']===null?null:(float)$row['target_new_ib_fd']; $data['newActualFd'][$i]=$row['actual_new_ib_fd']===null?null:(float)$row['actual_new_ib_fd']; $data['mcmTarget'][$i]=$row['target_mcm']===null?null:(float)$row['target_mcm']; $data['mcmActual'][$i]=$row['actual_mcm']===null?null:(float)$row['actual_mcm']; }
     $sum=static function(array $values):?float { return in_array(null,$values,true)?null:array_sum($values); };
     $sumYtd=static function(array $values,int $month):?float {
         $selected=array_slice($values,0,$month);
         if (!array_filter($selected,static fn($value)=>$value!==null)) return null;
         return array_sum(array_map(static fn($value)=>(float)($value ?? 0),$selected));
     };
-    $data['ytd']=['target'=>$sumYtd($data['target'],$requestedMonth),'actual'=>$sumYtd($data['actual'],$requestedMonth),'targetFd'=>$sumYtd($data['targetFd'],$requestedMonth),'actualFd'=>$sumYtd($data['actualFd'],$requestedMonth)];
+    $data['ytd']=['target'=>$sumYtd($data['target'],$requestedMonth),'actual'=>$sumYtd($data['actual'],$requestedMonth),'targetFd'=>$sumYtd($data['targetFd'],$requestedMonth),'actualFd'=>$sumYtd($data['actualFd'],$requestedMonth),'newTarget'=>$sumYtd($data['newTarget'],$requestedMonth),'newActual'=>$sumYtd($data['newActual'],$requestedMonth),'newTargetFd'=>$sumYtd($data['newTargetFd'],$requestedMonth),'newActualFd'=>$sumYtd($data['newActualFd'],$requestedMonth),'mcmTarget'=>$sumYtd($data['mcmTarget'],$requestedMonth),'mcmActual'=>$sumYtd($data['mcmActual'],$requestedMonth)];
     $data['fullYear']=['target'=>$sum($data['target']),'actual'=>$sum($data['actual'])];
     $data['fullYear']['targetFd']=$sum($data['targetFd']); $data['fullYear']['actualFd']=$sum($data['actualFd']);
+    $data['fullYear']['newTarget']=$sum($data['newTarget']); $data['fullYear']['newActual']=$sum($data['newActual']);
+    $data['fullYear']['newTargetFd']=$sum($data['newTargetFd']); $data['fullYear']['newActualFd']=$sum($data['newActualFd']);
+    $data['fullYear']['mcmTarget']=$sum($data['mcmTarget']); $data['fullYear']['mcmActual']=$sum($data['mcmActual']);
     echo json_encode(['success'=>true,'data'=>$data],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE); $stmt->close();
 } catch(Throwable $e){ http_response_code(500); echo json_encode(['success'=>false,'message'=>$e->getMessage()],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE); }
 $conn->close();

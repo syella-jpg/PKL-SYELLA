@@ -203,12 +203,23 @@ try {
         actual_ib_fm DECIMAL(20,2) NULL,
         target_ib_fd DECIMAL(20,2) NULL,
         actual_ib_fd DECIMAL(20,2) NULL,
+        target_new_ib_fm DECIMAL(20,2) NULL,
+        actual_new_ib_fm DECIMAL(20,2) NULL,
+        target_new_ib_fd DECIMAL(20,2) NULL,
+        actual_new_ib_fd DECIMAL(20,2) NULL,
+        target_mcm DECIMAL(20,2) NULL,
+        actual_mcm DECIMAL(20,2) NULL,
         UNIQUE KEY unique_ibfm_period_month (report_period, month_number)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
         throw new Exception('Gagal menyiapkan tabel IB FM: ' . $conn->error);
     }
     if ($divisi === 'IB') {
-        foreach (['target_ib_fd' => 'DECIMAL(20,2) NULL', 'actual_ib_fd' => 'DECIMAL(20,2) NULL'] as $column => $definition) {
+        foreach ([
+            'target_ib_fd' => 'DECIMAL(20,2) NULL', 'actual_ib_fd' => 'DECIMAL(20,2) NULL',
+            'target_new_ib_fm' => 'DECIMAL(20,2) NULL', 'actual_new_ib_fm' => 'DECIMAL(20,2) NULL',
+            'target_new_ib_fd' => 'DECIMAL(20,2) NULL', 'actual_new_ib_fd' => 'DECIMAL(20,2) NULL',
+            'target_mcm' => 'DECIMAL(20,2) NULL', 'actual_mcm' => 'DECIMAL(20,2) NULL',
+        ] as $column => $definition) {
             $check = $conn->query("SHOW COLUMNS FROM `revenue_ibfm` LIKE '{$column}'");
             if (!$check || $check->num_rows === 0) {
                 if (!$conn->query("ALTER TABLE `revenue_ibfm` ADD COLUMN `{$column}` {$definition}")) {
@@ -291,8 +302,11 @@ try {
         // sheet yang tersedia dan biarkan kolom sheet lainnya kosong.
         $monthlyFm = processRevenueExistIbFmSpreadsheet($file, (int)substr($period, 0, 4), 'YFR - IBFM', true);
         $monthlyFd = processRevenueExistIbFmSpreadsheet($file, (int)substr($period, 0, 4), 'IAP', true);
+        $monthlyNewFm = processRevenueExistIbFmSpreadsheet($file, (int)substr($period, 0, 4), 'YFR - IBFM', true, 'SALES REVENUE NEW BUSINESS PRODUCT (USD)', 9);
+        $monthlyNewFd = processRevenueExistIbFmSpreadsheet($file, (int)substr($period, 0, 4), 'IAP', true, 'SALES REVENUE NEW BUSINESS PRODUCT (USD)', 9);
+        $monthlyMcm = processRevenueExistIbFmSpreadsheet($file, (int)substr($period, 0, 4), 'HRU', true, 'MCM = REVENUE - HPP – EXPENSES', 15);
         $hasRevenueData = false;
-        foreach ([$monthlyFm, $monthlyFd] as $sourceData) {
+        foreach ([$monthlyFm, $monthlyFd, $monthlyNewFm, $monthlyNewFd, $monthlyMcm] as $sourceData) {
             foreach (['target', 'actual'] as $kind) {
                 foreach ($sourceData[$kind] as $value) {
                     if ($value !== null) { $hasRevenueData = true; break 3; }
@@ -301,31 +315,42 @@ try {
         }
         if (!$hasRevenueData) throw new Exception('Nilai kumulatif REVENUE EXIST pada sheet YFR - IBFM dan IAP masih kosong.');
         $hasFoodData = false;
-        foreach (['target', 'actual'] as $kind) {
-            foreach ($monthlyFd[$kind] as $value) {
-                if ($value !== null) { $hasFoodData = true; break 2; }
+        foreach ([$monthlyFd, $monthlyNewFd] as $foodData) {
+            foreach (['target', 'actual'] as $kind) {
+                foreach ($foodData[$kind] as $value) {
+                    if ($value !== null) { $hasFoodData = true; break 3; }
+                }
             }
         }
         $conn->begin_transaction();
         // Upload sheet IAP saja tidak boleh menghapus nilai IB FM yang sudah
         // tersimpan (dan sebaliknya). Nilai NULL mempertahankan nilai lama.
-        $insert = $conn->prepare('INSERT INTO `revenue_ibfm` (report_period, month_number, target_ib_fm, actual_ib_fm, target_ib_fd, actual_ib_fd) VALUES (?, ?, ?, ?, ?, ?)
+        $insert = $conn->prepare('INSERT INTO `revenue_ibfm` (report_period, month_number, target_ib_fm, actual_ib_fm, target_ib_fd, actual_ib_fd, target_new_ib_fm, actual_new_ib_fm, target_new_ib_fd, actual_new_ib_fd, target_mcm, actual_mcm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 target_ib_fm = COALESCE(VALUES(target_ib_fm), target_ib_fm),
                 actual_ib_fm = COALESCE(VALUES(actual_ib_fm), actual_ib_fm),
                 target_ib_fd = COALESCE(VALUES(target_ib_fd), target_ib_fd),
-                actual_ib_fd = COALESCE(VALUES(actual_ib_fd), actual_ib_fd)');
+                actual_ib_fd = COALESCE(VALUES(actual_ib_fd), actual_ib_fd),
+                target_new_ib_fm = COALESCE(VALUES(target_new_ib_fm), target_new_ib_fm),
+                actual_new_ib_fm = COALESCE(VALUES(actual_new_ib_fm), actual_new_ib_fm),
+                target_new_ib_fd = COALESCE(VALUES(target_new_ib_fd), target_new_ib_fd),
+                actual_new_ib_fd = COALESCE(VALUES(actual_new_ib_fd), actual_new_ib_fd),
+                target_mcm = COALESCE(VALUES(target_mcm), target_mcm),
+                actual_mcm = COALESCE(VALUES(actual_mcm), actual_mcm)');
         if (!$insert) throw new Exception('Gagal menyiapkan penyimpanan IB FM/IB FD: ' . $conn->error);
         for ($month = 1; $month <= 12; $month++) {
             $targetFm = $monthlyFm['target'][$month]; $actualFm = $monthlyFm['actual'][$month];
             $targetFd = $monthlyFd['target'][$month]; $actualFd = $monthlyFd['actual'][$month];
-            $insert->bind_param('sidddd', $period, $month, $targetFm, $actualFm, $targetFd, $actualFd);
+            $targetNewFm = $monthlyNewFm['target'][$month]; $actualNewFm = $monthlyNewFm['actual'][$month];
+            $targetNewFd = $monthlyNewFd['target'][$month]; $actualNewFd = $monthlyNewFd['actual'][$month];
+            $targetMcm = $monthlyMcm['target'][$month]; $actualMcm = $monthlyMcm['actual'][$month];
+            $insert->bind_param('si' . str_repeat('d', 10), $period, $month, $targetFm, $actualFm, $targetFd, $actualFd, $targetNewFm, $actualNewFm, $targetNewFd, $actualNewFd, $targetMcm, $actualMcm);
             if (!$insert->execute()) throw new Exception('Gagal menyimpan data IB FM: ' . $insert->error);
         }
         $insert->close(); $conn->commit(); $conn->close();
         echo json_encode(['success' => true, 'message' => $hasFoodData
-            ? 'REVENUE EXIST IB FARMA dan IB FOOD berhasil dimuat ke baris IB FM dan IB FD pada sheet IB.'
-            : 'Data IB berhasil dimuat, tetapi sheet IAP kosong sehingga baris IB FD belum memiliki nilai.',
+            ? 'REVENUE EXIST, REVENUE NEW, dan MCM berhasil dimuat ke sheet IB.'
+            : 'Data IB dan MCM berhasil dimuat; sheet IAP kosong sehingga baris IB FD belum memiliki nilai.',
             'rows_inserted' => 12, 'ib_fd_has_data' => $hasFoodData]);
         exit;
     }
