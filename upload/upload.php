@@ -267,24 +267,6 @@ try {
         $spreadsheet = IOFactory::load($file);
         $sheet = null;
         $sourceTitle = '';
-        foreach ($spreadsheet->getWorksheetIterator() as $candidate) {
-            $title = trim((string)$candidate->getCell('A1')->getValue());
-            if (preg_match('/ETHICAL/i', $title) && preg_match('/20\d{2}/', $title)) {
-                $sheet = $candidate;
-                $sourceTitle = $title;
-                break;
-            }
-        }
-        if (!$sheet) {
-            $sheet = $spreadsheet->getActiveSheet();
-            $sourceTitle = trim((string)$sheet->getCell('A1')->getValue());
-        }
-        if (!preg_match('/(20\d{2})/', $sourceTitle, $yearMatch)) {
-            throw new Exception('Tahun data ETHICAL tidak ditemukan pada judul A1 file.');
-        }
-        $sourceYear = (int)$yearMatch[1];
-        if ($sourceYear < 2025) throw new Exception('Tahun data ETHICAL tidak valid.');
-
         $monthAliases = [
             'JAN' => 1, 'JANUARI' => 1, 'FEB' => 2, 'FEBRUARI' => 2,
             'MAR' => 3, 'MARET' => 3, 'APR' => 4, 'APRIL' => 4,
@@ -296,14 +278,6 @@ try {
             'DES' => 12, 'DESEMBER' => 12,
         ];
         $columnLetter = static fn(int $column): string => \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column);
-        $readCell = static function (int $column, int $row) use ($sheet, $columnLetter) {
-            $cell = $sheet->getCell($columnLetter($column) . $row);
-            $value = $cell->getValue();
-            if (is_string($value) && str_starts_with($value, '=')) {
-                try { $value = $cell->getCalculatedValue(); } catch (Throwable $ignored) { $value = null; }
-            }
-            return $value;
-        };
         $number = static function ($value): float {
             if (is_numeric($value)) return (float)$value;
             $value = trim((string)$value);
@@ -324,7 +298,177 @@ try {
             }
             return is_numeric($value) ? (float)$value : 0.0;
         };
+        $productSheets = [];
+        foreach ($spreadsheet->getWorksheetIterator() as $candidate) {
+            if (!preg_match('/^PRODUK\s+/i', trim($candidate->getTitle()))) continue;
+            $monthColumns = [];
+            $highestColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($candidate->getHighestDataColumn());
+            for ($column = 1; $column <= $highestColumn; $column++) {
+                $label = strtoupper(preg_replace('/[^A-Z]/i', '', trim((string)$candidate->getCell($columnLetter($column) . '1')->getValue())));
+                if (isset($monthAliases[$label])) $monthColumns[$monthAliases[$label]] = $column;
+            }
+            if (count($monthColumns) === 12) $productSheets[] = [$candidate, $monthColumns];
+        }
 
+        if ($productSheets) {
+            $sourceFilename = (string)($_FILES['file']['name'] ?? '');
+            if (!preg_match('/(20\d{2})/', $sourceFilename, $yearMatch)) {
+                throw new Exception('Tahun data ETHICAL tidak ditemukan pada nama file raw produk.');
+            }
+            $sourceYear = (int)$yearMatch[1];
+            $sourceTitle = 'TARGET ETHICAL ' . $sourceYear;
+            $npTotalLabels = [];
+            foreach ($productSheets as [$candidate, $_candidateMonths]) {
+                for ($rowNumber = 1; $rowNumber <= $candidate->getHighestDataRow(); $rowNumber++) {
+                    $label = strtoupper(trim(preg_replace('/\s+/', ' ', (string)$candidate->getCell('B' . $rowNumber)->getValue())));
+                    if (preg_match('/^TOTAL NP(?:\s+(?:20\d{2}|\d{2}))?$/', $label)) $npTotalLabels[$label] = true;
+                }
+            }
+            $npTotalLabels = array_keys($npTotalLabels);
+            sort($npTotalLabels, SORT_NATURAL);
+            $rawTotals = array_fill_keys(array_merge(['TOTAL EXISTING', 'TOTAL STREAMLINE'], $npTotalLabels), array_fill(1, 12, ['hna' => 0.0, 'hjp_target' => 0.0, 'hjp_real' => 0.0]));
+            foreach ($productSheets as [$productSheet, $monthColumns]) {
+                for ($month = 1; $month <= 12; $month++) {
+                    $base = $monthColumns[$month];
+                    if (strtoupper(trim((string)$productSheet->getCell($columnLetter($base) . '2')->getValue())) !== 'TARGET'
+                        || strtoupper(trim((string)$productSheet->getCell($columnLetter($base + 3) . '2')->getValue())) !== 'REAL'
+                        || strtoupper(trim((string)$productSheet->getCell($columnLetter($base + 1) . '3')->getValue())) !== 'HNA'
+                        || strtoupper(trim((string)$productSheet->getCell($columnLetter($base + 2) . '3')->getValue())) !== 'HJP'
+                        || strtoupper(trim((string)$productSheet->getCell($columnLetter($base + 4) . '3')->getValue())) !== 'HNA'
+                        || strtoupper(trim((string)$productSheet->getCell($columnLetter($base + 5) . '3')->getValue())) !== 'HJP') {
+                        throw new Exception('Susunan kolom TARGET/REAL UNIT, HNA, HJP tidak sesuai pada sheet ' . $productSheet->getTitle() . ', bulan ' . $month . '.');
+                    }
+                    for ($rowNumber = 1; $rowNumber <= $productSheet->getHighestDataRow(); $rowNumber++) {
+                        $label = strtoupper(trim(preg_replace('/\s+/', ' ', (string)$productSheet->getCell('B' . $rowNumber)->getValue())));
+                        if (!isset($rawTotals[$label])) continue;
+                        foreach (['hna' => $base + 1, 'hjp_target' => $base + 2, 'hjp_real' => $base + 5] as $metric => $column) {
+                            $cell = $productSheet->getCell($columnLetter($column) . $rowNumber);
+                            $value = $cell->getValue();
+                            if (is_string($value) && str_starts_with($value, '=')) {
+                                try { $value = $cell->getCalculatedValue(); } catch (Throwable $ignored) { $value = null; }
+                            }
+                            $rawTotals[$label][$month][$metric] += $number($value);
+                        }
+                    }
+                }
+            }
+
+            // Ubah total empat sheet produk menjadi struktur Ethical ringkas
+            // yang sudah dipakai database/API lama. HNA yang disimpan adalah
+            // HNA TARGET; HJP tetap tersedia untuk fitur dashboard Ethical.
+            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('TARGET ETHICAL');
+            $sheet->setCellValue('A1', $sourceTitle);
+            $summaryRows = [
+                [6, 'EXISTING PRODUCT'], [7, 'DETAIL EXISTING'], [8, 'TOTAL EXISTING PRODUCT'],
+                [9, 'STREAMLINE'], [10, 'DETAIL STREAMLINE'], [11, 'TOTAL STREAMLINE'],
+            ];
+            foreach ($summaryRows as [$row, $label]) $sheet->setCellValue('B' . $row, $label);
+            $summaryMapping = [8 => ['TOTAL EXISTING'], 11 => ['TOTAL STREAMLINE']];
+            $npYearLabels = [];
+            foreach ($npTotalLabels as $label) {
+                preg_match('/^TOTAL NP(?:\s+(20\d{2}|\d{2}))?$/', $label, $yearMatch);
+                $suffix = $yearMatch[1] ?? '';
+                $baseLabel = $suffix === '' ? 'NEW PRODUCT' : 'NEW PRODUCT ' . $suffix;
+                $row = 12 + (count($npYearLabels) * 3);
+                $totalLabel = $suffix === '' ? 'TOTAL NEW PRODUCT' : 'TOTAL NEW PRODUCT ' . $suffix;
+                $summaryRows[] = [$row, $baseLabel];
+                $summaryRows[] = [$row + 1, 'DETAIL NP' . ($suffix === '' ? '' : ' ' . $suffix)];
+                $summaryRows[] = [$row + 2, $totalLabel];
+                $summaryMapping[$row + 2] = [$label];
+                $npYearLabels[$label] = true;
+            }
+            foreach (array_slice($summaryRows, 6) as [$row, $label]) $sheet->setCellValue('B' . $row, $label);
+            for ($month = 1; $month <= 12; $month++) {
+                $base = 14 + (($month - 1) * 6);
+                $sheet->setCellValue($columnLetter($base) . '3', array_search($month, $monthAliases, true));
+                foreach ([0 => 'TARGET', 3 => 'REAL'] as $offset => $type) $sheet->setCellValue($columnLetter($base + $offset) . '4', $type);
+                foreach ([0 => 'UNIT', 1 => 'HNA', 2 => 'HJP', 3 => 'UNIT', 4 => 'HNA', 5 => 'HJP'] as $offset => $label) {
+                    $sheet->setCellValue($columnLetter($base + $offset) . '5', $label);
+                }
+                foreach ($summaryMapping as $row => $labels) {
+                    foreach ($labels as $label) {
+                        $sheet->setCellValue($columnLetter($base + 1) . $row, $rawTotals[$label][$month]['hna']);
+                        $sheet->setCellValue($columnLetter($base + 2) . $row, $rawTotals[$label][$month]['hjp_target']);
+                        $sheet->setCellValue($columnLetter($base + 5) . $row, $rawTotals[$label][$month]['hjp_real']);
+                    }
+                }
+            }
+
+            // Simpan baris produk dari sheet master juga. Sheet EDITED dapat
+            // kehilangan hasil rumus, jadi nilai formula dibaca dari workbook
+            // sumber yang diunggah; tab produk turunan tidak dijumlahkan ulang.
+            $masterSheet = null;
+            $masterMonthColumns = null;
+            foreach ($productSheets as [$candidate, $candidateMonths]) {
+                if (strcasecmp(trim($candidate->getTitle()), 'PRODUK NAS') === 0) {
+                    $masterSheet = $candidate;
+                    $masterMonthColumns = $candidateMonths;
+                    break;
+                }
+            }
+            $rawProductCount = 0;
+            if ($masterSheet && $masterMonthColumns) {
+                $readRawValue = static function (int $column, int $row) use ($masterSheet, $columnLetter) {
+                    $cell = $masterSheet->getCell($columnLetter($column) . $row);
+                    $value = $cell->getValue();
+                    if (is_string($value) && str_starts_with($value, '=')) {
+                        try { $value = $cell->getCalculatedValue(); } catch (Throwable $ignored) { $value = null; }
+                    }
+                    return $value;
+                };
+                $normalizedRow = max(array_column($summaryRows, 0)) + 3;
+                for ($rawRow = 4; $rawRow <= $masterSheet->getHighestDataRow(); $rawRow++) {
+                    $productNo = trim((string)($readRawValue(1, $rawRow) ?? ''));
+                    $productName = trim((string)($readRawValue(2, $rawRow) ?? ''));
+                    $category = strtoupper(trim((string)($readRawValue(3, $rawRow) ?? '')));
+                    if ($productNo === '' || $productName === '' || !preg_match('/^(?:EXISTING|STREAMLINE|NP(?:\s+(?:20\d{2}|\d{2}))?)$/', $category)) continue;
+
+                    $sheet->setCellValue('A' . $normalizedRow, $productNo);
+                    $sheet->setCellValue('B' . $normalizedRow, $productName);
+                    $sheet->setCellValue('C' . $normalizedRow, $number($readRawValue(4, $rawRow)));
+                    foreach (['D', 'E', 'F', 'G'] as $column) $sheet->setCellValue($column . $normalizedRow, 0);
+                    for ($month = 1; $month <= 12; $month++) {
+                        $sourceBase = $masterMonthColumns[$month];
+                        $targetBase = 14 + (($month - 1) * 6);
+                        foreach (range(0, 5) as $offset) {
+                            $sheet->setCellValue($columnLetter($targetBase + $offset) . $normalizedRow,
+                                $number($readRawValue($sourceBase + $offset, $rawRow)));
+                        }
+                    }
+                    $normalizedRow++;
+                    $rawProductCount++;
+                }
+            }
+        } else {
+            foreach ($spreadsheet->getWorksheetIterator() as $candidate) {
+                $title = trim((string)$candidate->getCell('A1')->getValue());
+                if (preg_match('/ETHICAL/i', $title) && preg_match('/20\d{2}/', $title)) {
+                    $sheet = $candidate;
+                    $sourceTitle = $title;
+                    break;
+                }
+            }
+        }
+        if (!$sheet) {
+            $sheet = $spreadsheet->getActiveSheet();
+            $sourceTitle = trim((string)$sheet->getCell('A1')->getValue());
+        }
+        if (!preg_match('/(20\d{2})/', $sourceTitle, $yearMatch)) {
+            throw new Exception('Tahun data ETHICAL tidak ditemukan pada judul A1 file.');
+        }
+        $sourceYear = (int)$yearMatch[1];
+        if ($sourceYear < 2025) throw new Exception('Tahun data ETHICAL tidak valid.');
+
+        $readCell = static function (int $column, int $row) use ($sheet, $columnLetter) {
+            $cell = $sheet->getCell($columnLetter($column) . $row);
+            $value = $cell->getValue();
+            if (is_string($value) && str_starts_with($value, '=')) {
+                try { $value = $cell->getCalculatedValue(); } catch (Throwable $ignored) { $value = null; }
+            }
+            return $value;
+        };
         $monthColumns = [];
         $highestColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
         for ($column = 1; $column <= $highestColumn; $column++) {
@@ -429,7 +573,7 @@ try {
             'success' => true,
             'message' => 'Data ETHICAL tahun ' . $sourceYear . ' berhasil disimpan ke database.',
             'report_year' => $sourceYear,
-            'products' => count($dataRows),
+            'products' => isset($rawProductCount) && $rawProductCount > 0 ? $rawProductCount : count($dataRows),
             'rows_inserted' => $inserted,
         ]);
         exit;

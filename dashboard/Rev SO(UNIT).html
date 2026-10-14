@@ -162,7 +162,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="report-templates.js?v=report-template-edp-v4-20261014"></script>
+<script src="report-templates.js?v=ethical-hna-target-v4-20261014"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -829,6 +829,8 @@
     unitSourceSheet["!cols"] = [{ wch: 13 }, { wch: 17 }, { wch: 36 }];
     XLSX.utils.book_append_sheet(workbook, unitSourceSheet, "UNIT");
     workbookSheetNames.filter((name) => !["LAPORAN", "UNIT"].includes(name)).forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), name));
+    try { await replaceIBTemplateSheet(workbook, selectedPeriod); }
+    catch (error) { toast(error.message || "Template sheet IB gagal dimuat."); return; }
     try { await replaceUnitTemplateSheet(workbook, selectedPeriod); }
     catch (error) { toast(error.message || "Template sheet UNIT gagal dimuat."); return; }
     try { await replaceEdpTemplateSheet(workbook, selectedPeriod); } catch (error) { console.warn(error); }

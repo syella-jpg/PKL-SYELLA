@@ -192,7 +192,7 @@
 </main>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="../dashboard/report-templates.js?v=report-template-v1-20261013"></script>
+<script src="../dashboard/report-templates.js?v=ethical-hna-target-v4-20261014"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -665,14 +665,28 @@
     try {
       const isUnitRevenue = sectionSelect.value === "UNIT & Revenue";
       const isRevenueSO = sectionSelect.value === "Revenue Konimex Selling Out";
-      const isEthical = sectionSelect.value.toUpperCase() === "ETHICAL";
+      let isEthical = sectionSelect.value.toUpperCase() === "ETHICAL";
       const isTargetSection = sectionSelect.value.toUpperCase() === "TARGET REVENUE";
-      const isEdpMnjRevenue = sectionSelect.value === "REVENUE VERSI EDP MNJ" || isUnitRevenue;
+      let isEdpMnjRevenue = sectionSelect.value === "REVENUE VERSI EDP MNJ" || isUnitRevenue;
       const isEdpMnjTarget = sectionSelect.value === "REVENUE VERSI EDP MNJ Target";
+      let ethicalData = null;
+      if (isEthical) {
+        ethicalData = await readEthicalHjpData(chosen);
+      } else if (isEdpMnjRevenue) {
+        const candidateWorkbook = XLSX.read(await chosen.arrayBuffer(), { type: "array", cellDates: false });
+        const hasRawEthicalSheets = candidateWorkbook.SheetNames.some((name) => /^PRODUK\s+(?:NAS|PID|PE_1|PE_2)$/i.test(name.trim()));
+        if (hasRawEthicalSheets) {
+          ethicalData = await readEthicalHjpData(chosen);
+          if (ethicalData && Array.isArray(ethicalData.hnaExisting) && Array.isArray(ethicalData.hnaNew)) {
+            isEthical = true;
+            isEdpMnjRevenue = false;
+            sectionSelect.value = "ETHICAL";
+          }
+        }
+      }
       if (LOCAL_FILE_MODE && !isRevenueSO && !isEthical && !isEdpMnjRevenue && !isEdpMnjTarget && !isTargetSection) {
         throw new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out dan Target Revenue.");
       }
-      const ethicalData = isEthical ? await readEthicalHjpData(chosen) : null;
       const selectedYear = Number(periodSelect.value.slice(0, 4));
       const edpTarget = isEdpMnjTarget ? await processEdpTarget(chosen, selectedYear) : null;
       const processed = edpTarget
