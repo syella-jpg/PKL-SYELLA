@@ -75,6 +75,7 @@ $stmt->close();
 // workbook. Pick the latest available month up to the requested period.
 $edpRecords = [];
 $edpSourcePeriod = null;
+$previousEdpRecords = [];
 $edpColumns = ['rev_jan', 'rev_feb', 'rev_mar', 'rev_apr', 'rev_mei', 'rev_jun', 'rev_jul', 'rev_agt', 'rev_sep', 'rev_okt', 'rev_nov', 'rev_des'];
 $candidateMonths = array_merge(range($periodMonth, 1), $periodMonth < 12 ? range($periodMonth + 1, 12) : []);
 $edpQuery = $conn->prepare('SELECT report_period, gb, product_name, kategori, rev_jan, rev_feb, rev_mar, rev_apr, rev_mei, rev_jun, rev_jul, rev_agt, rev_sep, rev_okt, rev_nov, rev_des FROM revenue_edp_mnj WHERE report_period = ? ORDER BY id ASC');
@@ -110,6 +111,38 @@ if (!$edpRecords) {
             }
         }
         $legacyEdpQuery->close();
+    }
+}
+// Data tahun sebelumnya juga dipakai untuk mengisi blok REVENUE tahun lalu
+// pada sheet EDP, misalnya upload Desember 2025 saat laporan 2026 diunduh.
+$previousEdpStart = ($periodYear - 1) . '-01';
+$previousEdpEnd = ($periodYear - 1) . '-12';
+$previousEdpQuery = $conn->prepare('SELECT report_period, gb, product_name, kategori, rev_jan, rev_feb, rev_mar, rev_apr, rev_mei, rev_jun, rev_jul, rev_agt, rev_sep, rev_okt, rev_nov, rev_des FROM revenue_edp_mnj WHERE report_period >= ? AND report_period <= ? ORDER BY report_period DESC, id ASC');
+if ($previousEdpQuery) {
+    $previousEdpQuery->bind_param('ss', $previousEdpStart, $previousEdpEnd);
+    $previousEdpQuery->execute();
+    $previousEdpResult = $previousEdpQuery->get_result();
+    $previousEdpPeriod = null;
+    while ($previousEdpResult && ($record = $previousEdpResult->fetch_assoc())) {
+        if ($previousEdpPeriod === null) $previousEdpPeriod = $record['report_period'];
+        if ($record['report_period'] !== $previousEdpPeriod) break;
+        $previousEdpRecords[] = $record;
+    }
+    $previousEdpQuery->close();
+}
+if (!$previousEdpRecords) {
+    $previousLegacyQuery = $conn->prepare('SELECT report_period, gb, product_name, kategori, rev_jan, rev_feb, rev_mar, rev_apr, rev_mei, rev_jun, rev_jul, rev_agt, rev_sep, rev_okt, rev_nov, rev_des FROM revenue_selling_out WHERE report_period >= ? AND report_period <= ? ORDER BY report_period DESC, id ASC');
+    if ($previousLegacyQuery) {
+        $previousLegacyQuery->bind_param('ss', $previousEdpStart, $previousEdpEnd);
+        $previousLegacyQuery->execute();
+        $previousLegacyResult = $previousLegacyQuery->get_result();
+        $previousLegacyPeriod = null;
+        while ($previousLegacyResult && ($record = $previousLegacyResult->fetch_assoc())) {
+            if ($previousLegacyPeriod === null) $previousLegacyPeriod = $record['report_period'];
+            if ($record['report_period'] !== $previousLegacyPeriod) break;
+            $previousEdpRecords[] = $record;
+        }
+        $previousLegacyQuery->close();
     }
 }
 $conn->close();
@@ -194,6 +227,18 @@ foreach ($workbookSheetNames as $sheetName) {
                 $monthlyByCode[$code] ??= array_fill(0, 12, 0.0);
                 foreach ($edpColumns as $index => $column) $monthlyByCode[$code][$index] += (float)($record[$column] ?? 0);
             }
+            for ($gb = 1; $gb <= 6; $gb++) {
+                $existing = $monthlyByCode['existing' . $gb] ?? null;
+                $new = $monthlyByCode['new' . $gb] ?? null;
+                if ($existing !== null || $new !== null) {
+                    $monthlyByCode['gb' . $gb] = array_map(static fn($a, $b): float => $a + $b, $existing ?? array_fill(0, 12, 0.0), $new ?? array_fill(0, 12, 0.0));
+                }
+            }
+            $ethicalExisting = $monthlyByCode['ethicalExisting'] ?? null;
+            $ethicalNew = $monthlyByCode['ethicalNew'] ?? null;
+            if ($ethicalExisting !== null || $ethicalNew !== null) {
+                $monthlyByCode['ethicalTotal'] = array_map(static fn($a, $b): float => $a + $b, $ethicalExisting ?? array_fill(0, 12, 0.0), $ethicalNew ?? array_fill(0, 12, 0.0));
+            }
             $templateRows = [];
             for ($gb = 1; $gb <= 6; $gb++) {
                 $templateRows['existing' . $gb] = ['EXIST GB ' . $gb, 3 + (($gb - 1) * 4)];
@@ -220,8 +265,60 @@ foreach ($workbookSheetNames as $sheetName) {
                 $edpTemplateSheet->setCellValue('P' . $rowNumber, $ytd);
             }
         }
+        if ($previousEdpRecords) {
+            $monthlyByCode = [];
+            foreach ($previousEdpRecords as $record) {
+                $name = strtoupper(trim((string)($record['product_name'] ?? '')));
+                $group = strtoupper(trim((string)($record['gb'] ?? '')));
+                $code = null;
+                if (preg_match('/^TOTAL\s+GB\s*(\d+)$/', $name, $match)) $code = 'gb' . $match[1];
+                elseif (preg_match('/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/', $name, $match)) $code = 'existing' . ($match[1] ?: (preg_match('/^GB\s*(\d+)$/', $group, $gb) ? $gb[1] : ''));
+                elseif (preg_match('/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/', $name, $match)) $code = 'new' . ($match[1] ?: (preg_match('/^GB\s*(\d+)$/', $group, $gb) ? $gb[1] : ''));
+                elseif (preg_match('/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH(?:ICAL)?$/', $name)) $code = 'ethicalExisting';
+                elseif (preg_match('/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH(?:ICAL)?$/', $name)) $code = 'ethicalNew';
+                elseif (preg_match('/^TOTAL\s+ETH(?:ICAL)?$/', $name)) $code = 'ethicalTotal';
+                if (!$code) continue;
+                $monthlyByCode[$code] ??= array_fill(0, 12, 0.0);
+                foreach ($edpColumns as $index => $column) $monthlyByCode[$code][$index] += (float)($record[$column] ?? 0);
+            }
+            for ($gb = 1; $gb <= 6; $gb++) {
+                $existing = $monthlyByCode['existing' . $gb] ?? null;
+                $new = $monthlyByCode['new' . $gb] ?? null;
+                if ($existing !== null || $new !== null) {
+                    $monthlyByCode['gb' . $gb] = array_map(static fn($a, $b): float => $a + $b, $existing ?? array_fill(0, 12, 0.0), $new ?? array_fill(0, 12, 0.0));
+                }
+            }
+            $ethicalExisting = $monthlyByCode['ethicalExisting'] ?? null;
+            $ethicalNew = $monthlyByCode['ethicalNew'] ?? null;
+            if ($ethicalExisting !== null || $ethicalNew !== null) {
+                $monthlyByCode['ethicalTotal'] = array_map(static fn($a, $b): float => $a + $b, $ethicalExisting ?? array_fill(0, 12, 0.0), $ethicalNew ?? array_fill(0, 12, 0.0));
+            }
+            $previousRows = [];
+            for ($gb = 1; $gb <= 6; $gb++) {
+                $base = 120 + (($gb - 1) * 4);
+                $previousRows['existing' . $gb] = $base;
+                $previousRows['new' . $gb] = $base + 1;
+                $previousRows['gb' . $gb] = $base + 2;
+            }
+            $previousRows['ethicalExisting'] = 144;
+            $previousRows['ethicalNew'] = 145;
+            $previousRows['ethicalTotal'] = 146;
+            foreach ($previousRows as $code => $rowNumber) {
+                if (!isset($monthlyByCode[$code])) continue;
+                $values = $monthlyByCode[$code];
+                $ytd = 0.0;
+                for ($monthIndex = 0; $monthIndex < 12; $monthIndex++) {
+                    $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(4 + $monthIndex);
+                    $edpTemplateSheet->setCellValue($column . $rowNumber, $values[$monthIndex]);
+                    if ($monthIndex < $periodMonth) $ytd += $values[$monthIndex];
+                }
+                $edpTemplateSheet->setCellValue('C' . $rowNumber, $ytd);
+                $edpTemplateSheet->setCellValue('P' . $rowNumber, array_sum($values));
+            }
+        }
         // Tampilkan angka revenue dengan pemisah ribuan, tetap sebagai nilai numerik.
         $edpTemplateSheet->getStyle('C3:P29')->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+        $edpTemplateSheet->getStyle('C120:P146')->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
         $edpTemplateSheet->setTitle($sheetName);
         $output->addExternalSheet($edpTemplateSheet);
         continue;

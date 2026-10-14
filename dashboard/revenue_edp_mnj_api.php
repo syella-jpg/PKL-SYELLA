@@ -61,6 +61,26 @@ if (!$conn->query("CREATE TABLE IF NOT EXISTS `revenue_edp_mnj` (
     $conn->close();
     exit;
 }
+// Endpoint ekspor UNIT juga dipakai saat halaman dibuka langsung dari file://.
+// Pastikan tabel QTY tersedia di sini, bukan hanya setelah proses upload.
+if (!$conn->query("CREATE TABLE IF NOT EXISTS `UNIT` (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    report_period CHAR(7) NULL, gb VARCHAR(50) NULL, product_code VARCHAR(100) NULL,
+    principal_product_code VARCHAR(100) NULL, product_name VARCHAR(255) NULL, kategori VARCHAR(100) NULL,
+    unit_jan DECIMAL(15,2) NOT NULL DEFAULT 0, unit_feb DECIMAL(15,2) NOT NULL DEFAULT 0,
+    unit_mar DECIMAL(15,2) NOT NULL DEFAULT 0, unit_apr DECIMAL(15,2) NOT NULL DEFAULT 0,
+    unit_mei DECIMAL(15,2) NOT NULL DEFAULT 0, unit_jun DECIMAL(15,2) NOT NULL DEFAULT 0,
+    unit_jul DECIMAL(15,2) NOT NULL DEFAULT 0, unit_agt DECIMAL(15,2) NOT NULL DEFAULT 0,
+    unit_sep DECIMAL(15,2) NOT NULL DEFAULT 0, unit_okt DECIMAL(15,2) NOT NULL DEFAULT 0,
+    unit_nov DECIMAL(15,2) NOT NULL DEFAULT 0, unit_des DECIMAL(15,2) NOT NULL DEFAULT 0,
+    unit_total DECIMAL(15,2) NOT NULL DEFAULT 0,
+    KEY idx_unit_report_period (report_period)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Tabel UNIT gagal disiapkan: ' . $conn->error]);
+    $conn->close();
+    exit;
+}
 $periodColumn = $conn->query("SHOW COLUMNS FROM `revenue_edp_mnj` LIKE 'report_period'");
 if (!$periodColumn || $periodColumn->num_rows === 0) {
     if (!$conn->query('ALTER TABLE `revenue_edp_mnj` ADD COLUMN report_period CHAR(7) NULL')) {
