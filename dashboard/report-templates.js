@@ -1075,8 +1075,10 @@
       console.warn("Data kategori TARGET REVENUE tidak dimasukkan ke tabel TARGET SELL OUT:", error);
     }
 
-    // Write the uploaded prior-year target into its existing table cells too.
-    for (const targetYear of [reportYear, reportYear - 1].filter((year) => year === 2025)) {
+    // Each download contains target data for its selected year and the
+    // preceding year. Match both data sets to their corresponding template
+    // blocks so annual uploads roll forward without changing the table layout.
+    for (const targetYear of [reportYear, reportYear - 1]) {
       const grid = global.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
       const normalize = (value) => String(value == null ? "" : value).trim().toUpperCase().replace(/\s+/g, " ");
       const sectionIndex = grid.findIndex((row) => row.some((value) => normalize(value) === "TARGET SELL OUT " + targetYear));
@@ -1148,11 +1150,19 @@
           }
         }
       }
+      if (!monthlyByGb && targetYear === 2025) {
+        monthlyByGb = new Map();
+        for (let gb = 1; gb <= 6; gb++) {
+          const existing = processedTarget2025.find((record) => record.code === "existing" + gb).months;
+          const newProduct = processedTarget2025.find((record) => record.code === "new" + gb).months;
+          monthlyByGb.set(gb, Array.from({ length: 12 }, (_, month) => ({
+            existing: existing[month], newProduct: newProduct[month], total: existing[month] + newProduct[month]
+          })));
+        }
+      }
+      if (!monthlyByGb) continue;
       for (let gb = 1; gb <= 6; gb++) {
-        const monthly = monthlyByGb?.get(gb) || processedTarget2025.find((record) => record.code === "existing" + gb).months.map((value, month) => {
-          const newValue = processedTarget2025.find((record) => record.code === "new" + gb).months[month];
-          return { existing: value, newProduct: newValue, total: value + newValue };
-        });
+        const monthly = monthlyByGb.get(gb);
         const firstRow = headerIndex + 1 + (gb - 1) * 4;
         const output = [
           monthly.map((value) => value.existing),
