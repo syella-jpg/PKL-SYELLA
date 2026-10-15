@@ -227,6 +227,19 @@ try {
                 }
             }
         }
+        if (!$conn->query("CREATE TABLE IF NOT EXISTS `ib_monthly_values` (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            report_period CHAR(7) NOT NULL,
+            month_number TINYINT UNSIGNED NOT NULL,
+            metric_code VARCHAR(32) NOT NULL,
+            business_unit VARCHAR(16) NOT NULL,
+            value_type VARCHAR(8) NOT NULL,
+            amount DECIMAL(20,2) NULL,
+            UNIQUE KEY unique_ib_value (report_period, month_number, metric_code, business_unit, value_type),
+            KEY idx_ib_period_metric (report_period, metric_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")) {
+            throw new Exception('Gagal menyiapkan tabel ib_monthly_values: ' . $conn->error);
+        }
     }
 
     if ($divisi === 'Revenue Konimex Selling In') {
@@ -338,6 +351,9 @@ try {
                 target_mcm = COALESCE(VALUES(target_mcm), target_mcm),
                 actual_mcm = COALESCE(VALUES(actual_mcm), actual_mcm)');
         if (!$insert) throw new Exception('Gagal menyiapkan penyimpanan IB FM/IB FD: ' . $conn->error);
+        $insertCanonical = $conn->prepare('INSERT INTO `ib_monthly_values` (report_period, month_number, metric_code, business_unit, value_type, amount) VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE amount = COALESCE(VALUES(amount), amount)');
+        if (!$insertCanonical) throw new Exception('Gagal menyiapkan penyimpanan tabel IB baru: ' . $conn->error);
         for ($month = 1; $month <= 12; $month++) {
             $targetFm = $monthlyFm['target'][$month]; $actualFm = $monthlyFm['actual'][$month];
             $targetFd = $monthlyFd['target'][$month]; $actualFd = $monthlyFd['actual'][$month];
@@ -346,8 +362,19 @@ try {
             $targetMcm = $monthlyMcm['target'][$month]; $actualMcm = $monthlyMcm['actual'][$month];
             $insert->bind_param('si' . str_repeat('d', 10), $period, $month, $targetFm, $actualFm, $targetFd, $actualFd, $targetNewFm, $actualNewFm, $targetNewFd, $actualNewFd, $targetMcm, $actualMcm);
             if (!$insert->execute()) throw new Exception('Gagal menyimpan data IB FM: ' . $insert->error);
+            $canonicalValues = [
+                ['revenue_exist', 'IB_FM', 'TARGET', $targetFm], ['revenue_exist', 'IB_FM', 'ACTUAL', $actualFm],
+                ['revenue_exist', 'IB_FD', 'TARGET', $targetFd], ['revenue_exist', 'IB_FD', 'ACTUAL', $actualFd],
+                ['revenue_new', 'IB_FM', 'TARGET', $targetNewFm], ['revenue_new', 'IB_FM', 'ACTUAL', $actualNewFm],
+                ['revenue_new', 'IB_FD', 'TARGET', $targetNewFd], ['revenue_new', 'IB_FD', 'ACTUAL', $actualNewFd],
+                ['mcm', 'GROUP', 'TARGET', $targetMcm], ['mcm', 'GROUP', 'ACTUAL', $actualMcm],
+            ];
+            foreach ($canonicalValues as [$metric, $unit, $valueType, $amount]) {
+                $insertCanonical->bind_param('sisssd', $period, $month, $metric, $unit, $valueType, $amount);
+                if (!$insertCanonical->execute()) throw new Exception('Gagal menyimpan ke ib_monthly_values: ' . $insertCanonical->error);
+            }
         }
-        $insert->close(); $conn->commit(); $conn->close();
+        $insert->close(); $insertCanonical->close(); $conn->commit(); $conn->close();
         echo json_encode(['success' => true, 'message' => $hasFoodData
             ? 'REVENUE EXIST, REVENUE NEW, dan MCM berhasil dimuat ke sheet IB.'
             : 'Data IB dan MCM berhasil dimuat; sheet IAP kosong sehingga baris IB FD belum memiliki nilai.',
