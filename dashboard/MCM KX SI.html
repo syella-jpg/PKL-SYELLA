@@ -347,7 +347,7 @@
     const workbook = XLSX.utils.book_new();
     const reportRows = [["Kategori"].concat(c.series.map((s) => s.name))];
     c.labels.forEach((lb, i) => reportRows.push([lb].concat(c.series.map((s) => s.values[i]))));
-    const names = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE VERSI EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    const names = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
     names.forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(name === "BOD KX Sell In" ? reportRows : []), name));
     try { await replaceEdpTemplateSheet(workbook, st.period); } catch (error) { console.warn(error); }
     try {

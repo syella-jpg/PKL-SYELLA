@@ -59,6 +59,7 @@ try {
         'Revenue Konimex Selling Out' => 'revenue_selling_out',
         'REVENUE VERSI EDP MNJ' => 'revenue_edp_mnj',
         'Revenue Konimex Selling In' => 'revenue_selling_in',
+        'MTM' => 'mtm_monthly_values',
         'ETHICAL' => 'ETHICAL',
     ];
     if (!isset($reportTables[$divisi])) {
@@ -69,6 +70,7 @@ try {
     $replaceExistingPeriod = $divisi === 'REVENUE VERSI EDP MNJ'
         || $divisi === 'ETHICAL'
         || $divisi === 'IB'
+        || $divisi === 'MTM'
         || ($divisi === 'Revenue Konimex Selling Out' && (($_POST['replace_existing'] ?? '') === '1'));
 
     // Periksa periode lebih dahulu agar periode yang sudah tersimpan tetap
@@ -142,6 +144,19 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
             throw new Exception('Gagal menyiapkan tabel UNIT: ' . $conn->error);
         }
+    }
+
+    if ($divisi === 'MTM' && !$conn->query("CREATE TABLE IF NOT EXISTS `mtm_monthly_values` (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        report_period CHAR(7) NOT NULL,
+        metric_code VARCHAR(24) NOT NULL,
+        value_type VARCHAR(8) NOT NULL,
+        month_number TINYINT UNSIGNED NOT NULL,
+        amount DECIMAL(20,2) NULL,
+        UNIQUE KEY uq_mtm_period_metric_type_month (report_period, metric_code, value_type, month_number),
+        KEY idx_mtm_period_metric (report_period, metric_code)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")) {
+        throw new Exception('Gagal menyiapkan tabel MTM: ' . $conn->error);
     }
 
     if ($divisi === 'ETHICAL') {
@@ -252,7 +267,7 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
             throw new Exception('Gagal menyiapkan tabel Selling In: ' . $conn->error);
         }
-    } elseif ($divisi !== 'ETHICAL') {
+    } elseif ($divisi !== 'ETHICAL' && $divisi !== 'MTM') {
         $columnCheck = $conn->query("SHOW COLUMNS FROM `{$tableName}` LIKE 'report_period'");
         if (!$columnCheck || $columnCheck->num_rows === 0) {
             if (!$conn->query("ALTER TABLE `{$tableName}` ADD COLUMN report_period CHAR(7) NULL")) {
@@ -309,6 +324,127 @@ try {
     }
 
     $file = $_FILES['file']['tmp_name'];
+
+    if ($divisi === 'MTM') {
+        $spreadsheet = IOFactory::load($file);
+        $monthAliases = [
+            'JAN' => 1, 'JANUARI' => 1, 'FEB' => 2, 'FEBRUARI' => 2,
+            'MAR' => 3, 'MARET' => 3, 'APR' => 4, 'APRIL' => 4,
+            'MAY' => 5, 'MEI' => 5, 'JUN' => 6, 'JUNI' => 6,
+            'JUL' => 7, 'JULI' => 7, 'AUG' => 8, 'AGS' => 8, 'AGU' => 8, 'AGUSTUS' => 8,
+            'SEP' => 9, 'SEPTEMBER' => 9, 'OCT' => 10, 'OKT' => 10, 'OKTOBER' => 10,
+            'NOV' => 11, 'NOVEMBER' => 11, 'DEC' => 12, 'DES' => 12, 'DESEMBER' => 12,
+        ];
+        $normalize = static function ($value): string {
+            $text = str_replace("\xC2\xA0", ' ', (string)$value);
+            return strtoupper(trim(preg_replace('/\\s+/u', ' ', $text)));
+        };
+        $mtmData = [];
+        foreach ($spreadsheet->getWorksheetIterator() as $sourceSheet) {
+            $monthColumns = [];
+            $highestColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sourceSheet->getHighestDataColumn());
+            $highestRow = $sourceSheet->getHighestDataRow();
+            $grid = [];
+            for ($row = 1; $row <= $highestRow; $row++) {
+                $grid[$row] = [];
+                for ($column = 1; $column <= $highestColumn; $column++) {
+                    $coordinate = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column) . $row;
+                    $cell = $sourceSheet->getCell($coordinate);
+                    $grid[$row][$column] = $normalize($cell->getValue());
+                    if (isset($monthAliases[$grid[$row][$column]])) $monthColumns[$row][$monthAliases[$grid[$row][$column]]] = $column;
+                }
+            }
+            $monthHeaderRows = [];
+            foreach ($monthColumns as $row => $columns) {
+                if (count($columns) === 12) $monthHeaderRows[] = (int)$row;
+            }
+
+            $rowText = static fn(array $cells): string => trim(implode(' ', array_filter($cells, static fn($value): bool => $value !== '')));
+            $objectiveRow = null;
+            foreach ($grid as $row => $cells) {
+                if (str_contains($rowText($cells), 'INCREASE REVENUE')) { $objectiveRow = (int)$row; break; }
+            }
+            if ($objectiveRow === null) continue;
+            if (!$monthHeaderRows) continue;
+            usort($monthHeaderRows, static fn(int $left, int $right): int => abs($left - $objectiveRow) <=> abs($right - $objectiveRow));
+            $headerRow = $monthHeaderRows[0];
+
+            $isMetricLabel = static function (string $text, string $metric): bool {
+                if ($metric === 'REVENUE') {
+                    return (str_contains($text, 'KPI REVENUE') && (str_contains($text, 'RP') || str_contains($text, 'RUPIAH')))
+                        || str_contains($text, 'REVENUE (RP)');
+                }
+                if ($metric === 'EXISTING') return str_contains($text, 'REVENUE EXISTING');
+                return str_contains($text, 'REVENUE NEW PRODUCT');
+            };
+            $anchors = [];
+            $unitRow = $highestRow + 1;
+            foreach ($grid as $row => $cells) {
+                if ($row <= $objectiveRow) continue;
+                if (str_contains($rowText($cells), 'REVENUE (UNIT)')) { $unitRow = (int)$row; break; }
+            }
+            foreach (['REVENUE', 'EXISTING', 'NEW_PRODUCT'] as $metric) {
+                foreach ($grid as $row => $cells) {
+                    if ($row < $objectiveRow || $row >= $unitRow) continue;
+                    if ($isMetricLabel($rowText($cells), $metric)) { $anchors[$metric] = (int)$row; break; }
+                }
+            }
+            if (count($anchors) !== 3) continue;
+            asort($anchors);
+            $orderedMetrics = array_keys($anchors);
+            foreach ($orderedMetrics as $metricIndex => $metric) {
+                $startRow = $anchors[$metric];
+                $endRow = $orderedMetrics[$metricIndex + 1] ?? null;
+                $endRow = $endRow === null ? $unitRow : $anchors[$endRow];
+                $typeRows = [];
+                for ($row = $startRow; $row < $endRow; $row++) {
+                    $labels = $rowText($grid[$row] ?? []);
+                    if (preg_match('/\bTARGET\b/', $labels)) $typeRows['TARGET'] = $row;
+                    if (preg_match('/\b(?:AKTUAL|ACTUAL)\b/', $labels)) $typeRows['ACTUAL'] = $row;
+                }
+                if (!isset($typeRows['TARGET'], $typeRows['ACTUAL'])) continue;
+                foreach ($typeRows as $valueType => $row) {
+                    $amounts = [];
+                    foreach ($monthColumns[$headerRow] as $monthNumber => $column) {
+                        $coordinate = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column) . $row;
+                        $cell = $sourceSheet->getCell($coordinate);
+                        $value = $cell->getCalculatedValue();
+                        $amounts[$monthNumber] = is_numeric($value) ? (float)$value : null;
+                    }
+                    $mtmData[$metric][$valueType] = $amounts;
+                }
+            }
+            if (isset($mtmData['REVENUE']['TARGET'], $mtmData['REVENUE']['ACTUAL'], $mtmData['EXISTING']['TARGET'], $mtmData['EXISTING']['ACTUAL'], $mtmData['NEW_PRODUCT']['TARGET'], $mtmData['NEW_PRODUCT']['ACTUAL'])) break;
+            $mtmData = [];
+        }
+        if (!$mtmData) throw new Exception('Bagian finansial MTM belum dikenali. Pastikan file memuat KPI Revenue (Rp), Revenue Existing, Revenue New Product, header Januari–Desember, serta baris Target dan Aktual di bawah Increase Revenue.');
+
+        $conn->begin_transaction();
+        $delete = $conn->prepare('DELETE FROM mtm_monthly_values WHERE report_period = ?');
+        if (!$delete) throw new Exception('Gagal menyiapkan penggantian data MTM: ' . $conn->error);
+        $delete->bind_param('s', $period);
+        if (!$delete->execute()) throw new Exception('Data MTM lama gagal diganti: ' . $delete->error);
+        $delete->close();
+
+        $insert = $conn->prepare('INSERT INTO mtm_monthly_values (report_period, metric_code, value_type, month_number, amount) VALUES (?, ?, ?, ?, ?)');
+        if (!$insert) throw new Exception('Gagal menyiapkan penyimpanan data MTM: ' . $conn->error);
+        $inserted = 0;
+        foreach ($mtmData as $metric => $types) {
+            foreach ($types as $valueType => $amounts) {
+                foreach ($amounts as $monthNumber => $amount) {
+                    $month = (int)$monthNumber;
+                    $insert->bind_param('sssid', $period, $metric, $valueType, $month, $amount);
+                    if (!$insert->execute()) throw new Exception('Gagal menyimpan data MTM ' . $metric . ' bulan ' . $month . ': ' . $insert->error);
+                    $inserted++;
+                }
+            }
+        }
+        $insert->close();
+        $conn->commit();
+        $conn->close();
+        echo json_encode(['success' => true, 'message' => 'Data MTM bagian Increase Revenue berhasil disimpan untuk periode ' . $period . '.', 'rows_inserted' => $inserted]);
+        exit;
+    }
 
     if ($divisi === 'IB') {
         // Pengguna dapat mengisi salah satu sheet lebih dahulu; simpan nilai

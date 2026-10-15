@@ -362,7 +362,10 @@
       const flat = grid.flat().map((value) => String(value == null ? "" : value).trim());
       const title = flat.find((value) => /REKAP\s+REVENUE\s+PER\s+PRODUCT\s+TAHUN\s+\d{4}/i.test(value));
       if (title) sourceYear = Number((title.match(/(20\d{2})/) || [])[1]) || sourceYear;
-      const headerRow = grid.findIndex((row) => row.some((value) => monthNames.includes(String(value).trim().toUpperCase().replace(/^NOPEMBER$/, "NOVEMBER"))));
+      const headerRow = grid.findIndex((row) => {
+        const labels = row.map((value) => String(value).trim().toUpperCase().replace(/^NOPEMBER$/, "NOVEMBER"));
+        return monthNames.every((name) => labels.includes(name));
+      });
       if (headerRow < 0) return;
       const headers = grid[headerRow].map((value) => String(value).trim().toUpperCase().replace(/^NOPEMBER$/, "NOVEMBER"));
       const monthColumns = monthNames.map((name) => headers.indexOf(name));
@@ -385,12 +388,35 @@
         rows.push({ code, months, fullYear: months.reduce((sum, value) => sum + value, 0) });
       });
     });
-    if (!rows.some((record) => /^category\d+A$/.test(record.code))) return null;
+    if (!rows.some((record) => /^category[1-6][ABCD]$/.test(record.code))) return null;
     const duplicates = new Set();
     rows.forEach((record) => {
       if (duplicates.has(record.code)) throw new Error("Baris " + record.code + " muncul lebih dari sekali pada Target Revenue.");
       duplicates.add(record.code);
     });
+    const foundGroups = new Set(rows
+      .map((record) => String(record.code || "").match(/^category([1-6])[ABCD]$/))
+      .filter(Boolean)
+      .map((match) => Number(match[1])));
+    const missingGroups = [];
+    for (let gb = 1; gb <= 6; gb++) {
+      if (!foundGroups.has(gb)) missingGroups.push("GB " + gb);
+    }
+    if (missingGroups.length) {
+      throw new Error("Target Revenue tidak memiliki subtotal kategori untuk: " + missingGroups.join(", ") + ".");
+    }
+    // Workbook dapat tidak menampilkan baris subtotal untuk kategori yang
+    // memang tidak memiliki nilai pada GB tertentu. Simpan sebagai nol agar
+    // perhitungan A+B+C dan D tetap eksplisit untuk seluruh GB.
+    for (let gb = 1; gb <= 6; gb++) {
+      for (const category of ["A", "B", "C", "D"]) {
+        const code = "category" + gb + category;
+        if (!duplicates.has(code)) {
+          rows.push({ code, months: Array(12).fill(0), fullYear: 0 });
+          duplicates.add(code);
+        }
+      }
+    }
     return { sourceYear, rows };
   }
 
@@ -665,6 +691,7 @@
     try {
       const isUnitRevenue = sectionSelect.value === "UNIT & Revenue";
       const isRevenueSO = sectionSelect.value === "Revenue Konimex Selling Out";
+      const isMtm = sectionSelect.value === "MTM";
       let isEthical = sectionSelect.value.toUpperCase() === "ETHICAL";
       const isTargetSection = sectionSelect.value.toUpperCase() === "TARGET REVENUE";
       let isEdpMnjRevenue = sectionSelect.value === "REVENUE VERSI EDP MNJ" || isUnitRevenue;
@@ -685,7 +712,7 @@
         }
       }
       const isIbRevenue = sectionSelect.value === "IB";
-      if (LOCAL_FILE_MODE && !isRevenueSO && !isEthical && !isEdpMnjRevenue && !isEdpMnjTarget && !isTargetSection && !isIbRevenue) {
+      if (LOCAL_FILE_MODE && !isRevenueSO && !isMtm && !isEthical && !isEdpMnjRevenue && !isEdpMnjTarget && !isTargetSection && !isIbRevenue) {
         throw new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out, IB, dan Target Revenue.");
       }
       const selectedYear = Number(periodSelect.value.slice(0, 4));
@@ -703,6 +730,7 @@
       }
       const processedRows = processed && processed.rows;
       const period = periodSelect.value;
+      let mtmDownloadNote = "";
       const targetStorageYear = isTarget && Number.isInteger(Number(processed.year))
         ? Number(processed.year)
         : Number(period.slice(0, 4));
@@ -712,7 +740,7 @@
       if (isEdpMnjTarget && targetStorageYear !== selectedYear) {
         throw new Error("Tahun target EDP MNJ pada file (" + targetStorageYear + ") berbeda dari tahun periode yang dipilih (" + selectedYear + ").");
       }
-      if (LOCAL_FILE_MODE && !isTarget && !isEthical && !isUnitRevenue && !isEdpMnjRevenue) {
+      if (LOCAL_FILE_MODE && !isTarget && !isMtm && !isEthical && !isUnitRevenue && !isEdpMnjRevenue) {
         let history = {};
         try { history = JSON.parse(localStorage.getItem(PROCESSED_KEY) || "{}"); } catch (_) { history = {}; }
         history[period] = { period, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
@@ -723,6 +751,28 @@
         }
       }
       if (!isTarget) await send(sectionSelect.value, chosen, period);
+      if (isMtm) {
+        // Setelah API memastikan data tersimpan, susun sheet dari database dan
+        // unduh langsung. Format selalu memakai tahun berjalan atau tahun upload
+        // (jika upload berada di tahun mendatang); tahun sebelumnya masuk blok bawah.
+        const reportYear = Number(period.slice(0, 4));
+        const downloadYear = Math.max(new Date().getFullYear(), reportYear);
+        const downloadPeriod = downloadYear + period.slice(4);
+        try {
+          if (!window.XLSX || typeof window.replaceMtmTemplateSheet !== "function") {
+            throw new Error("Pembuat sheet MTM belum tersedia di halaman ini.");
+          }
+          const workbook = XLSX.utils.book_new();
+          await window.replaceMtmTemplateSheet(workbook, downloadPeriod);
+          XLSX.writeFile(workbook, "MTM - " + downloadPeriod + ".ods", { bookType: "ods", cellStyles: true });
+          mtmDownloadNote = " File MTM periode " + downloadPeriod + " mulai diunduh.";
+        } catch (downloadError) {
+          // Upload sudah tersimpan; kegagalan membuat unduhan tidak boleh
+          // dilaporkan sebagai kegagalan penyimpanan.
+          mtmDownloadNote = " Data sudah tersimpan, tetapi unduhan otomatis gagal: "
+            + (downloadError.message || "kesalahan saat membuat file") + ".";
+        }
+      }
       if (isEthical) {
         // Database menjadi penyimpanan utama; cache lokal hanya membantu
         // halaman unduh yang sedang dibuka di browser yang sama.
@@ -773,6 +823,8 @@
             : "Target Sell Out " + targetStorageYear + " berhasil disimpan dan siap diunduh dari halaman Revenue Konimex Selling Out (RP)."
           : isEthical
             ? "Data Ethical " + (ethicalData.year || "") + " berhasil disimpan ke database ETHICAL. Cache browser diperbarui untuk unduhan di perangkat ini."
+          : isMtm
+            ? "Data MTM bagian Increase Revenue berhasil disimpan ke database untuk periode " + period + "." + mtmDownloadNote
           : LOCAL_FILE_MODE
             ? "Berhasil: \"" + chosen.name + "\" diproses dan disimpan di browser untuk periode " + period + "."
             : isEdpMnjRevenue

@@ -162,7 +162,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="report-templates.js?v=ib-dynamic-years-v17-20261015"></script>
+<script src="report-templates.js?v=edp-target-prior-year-v20-20261015"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -848,7 +848,7 @@
         }
       }
     });
-    const workbookSheetNames = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE VERSI EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    const workbookSheetNames = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
     for (let r = 2; r < data.length; r++) {
       for (let c = 2; c < 14; c++) {
         const address = XLSX.utils.encode_cell({ r, c });
@@ -863,7 +863,10 @@
     catch (error) { toast(error.message || "Template sheet IB gagal dimuat."); return; }
     try { await replaceUnitTemplateSheet(workbook, selectedPeriod); }
     catch (error) { toast(error.message || "Template sheet UNIT gagal dimuat."); return; }
-    try { await replaceEdpTemplateSheet(workbook, selectedPeriod); } catch (error) { console.warn(error); }
+    try { await replaceMtmTemplateSheet(workbook, selectedPeriod); }
+    catch (error) { toast(error.message || "Template sheet MTM gagal dimuat."); return; }
+    try { await replaceEdpTemplateSheet(workbook, selectedPeriod); }
+    catch (error) { toast(error.message || "Target SELL OUT gagal dimasukkan ke sheet REVENUE EDP MNJ."); return; }
     try {
       const reportYear = Number(selectedPeriod.slice(0, 4));
       const hjpData = await getEthicalHjpData(reportYear, reportYear + 1, reportYear - 1);

@@ -34,6 +34,29 @@ try {
     $conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
     if ($conn->connect_error) throw new RuntimeException('Database gagal terhubung: ' . $conn->connect_error);
     $conn->set_charset('utf8mb4');
+    // Unggahan Target Revenue dapat menjadi proses pertama yang memakai tabel
+    // ini pada instalasi baru, jadi siapkan skemanya sebelum GET maupun POST.
+    if (!$conn->query("CREATE TABLE IF NOT EXISTS `target_revenue` (
+        `no` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        `product` VARCHAR(160) NOT NULL,
+        `januari` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `februari` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `maret` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `april` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `mei` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `juni` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `juli` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `agustus` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `september` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `oktober` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `november` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `desember` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `total_tahun` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        `ytd` DECIMAL(20,4) NOT NULL DEFAULT 0,
+        UNIQUE KEY `uniq_target_revenue_product` (`product`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
+        throw new RuntimeException('Tabel target_revenue gagal disiapkan: ' . $conn->error);
+    }
 
     if ($method === 'GET') {
         $year = (string)($_GET['year'] ?? '');

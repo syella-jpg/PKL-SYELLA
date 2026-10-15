@@ -385,7 +385,7 @@
         };
       }
     });
-    const names = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE VERSI EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    const names = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
     const workbook = XLSX.utils.book_new();
     names.forEach((name) => XLSX.utils.book_append_sheet(workbook, name === "BIAYA" ? worksheet : XLSX.utils.aoa_to_sheet([]), name));
     try { await replaceIBTemplateSheet(workbook, st.period); } catch (error) { console.warn(error); toast("Template IB gagal dimuat."); return; }
