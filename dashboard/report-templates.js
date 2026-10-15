@@ -296,13 +296,27 @@
       sheet[address] = copy;
     });
     const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(period || ""));
-    const year = match ? Number(match[1]) : new Date().getFullYear();
+    const exportYear = match ? Number(match[1]) : new Date().getFullYear();
+    const year = exportYear;
     const month = match ? Number(match[2]) : new Date().getMonth() + 1;
     const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const usdRates = { 2024: 15700, 2025: 16100, 2026: 16700 };
+    const setUsdRate = (address, rateYear) => {
+      if (!usdRates[rateYear]) return;
+      sheet[address] = { ...(sheet[address] || {}), t: "n", v: usdRates[rateYear], z: "0" };
+      delete sheet[address].w;
+    };
+    setUsdRate("C20", year);
+    setUsdRate("C58", year - 1);
+    sheet.B1 = { ...(sheet.B1 || {}), t: "s", v: "EXPORT " + year };
+    sheet.B40 = { ...(sheet.B40 || {}), t: "s", v: "EXPORT " + (year - 1) + " PERIODE " + months[month - 1] };
     sheet.D1 = { ...(sheet.D1 || {}), t: "s", v: months[month - 1] };
+    sheet.D41 = { ...(sheet.D41 || {}), t: "s", v: months[month - 1] };
+    sheet.D59 = { ...(sheet.D59 || {}), t: "s", v: "YTD " + months[month - 1] };
     [["C3", year], ["E3", year], ["C21", year], ["E21", year], ["E41", year - 1], ["E59", year - 1]].forEach(([address, value]) => {
       sheet[address] = { ...(sheet[address] || {}), t: "n", v: value };
     });
+    if (workbook.Workbook) workbook.Workbook.CalcPr = { ...(workbook.Workbook.CalcPr || {}), calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true };
     sheet.B112 = { ...(sheet.B112 || {}), t: "s", v: "LAMPIRAN : EXPORT " + (year - 2) };
     const revenueApi = location.protocol === "file:"
       ? "http://127.0.0.1:8000/dashboard/revenue_ibfm_api.php"
@@ -353,6 +367,80 @@
         write(13, newTargetTotal, sumThroughMonth(newTargetTotal, month), sumThroughMonth(newTargetTotal, 12));
         write(10, actualTotal, sumThroughMonth(actualTotal, month), sumThroughMonth(actualTotal, 12));
         write(16, newActualTotal, sumThroughMonth(newActualTotal, month), sumThroughMonth(newActualTotal, 12));
+
+        // Tabel RP (000) tahun berjalan mengikuti baris USD di atasnya.
+        // Simpan formula di setiap sel agar kurs tetap bisa diperbarui di spreadsheet.
+        const convertUsdRowToRupiah = (usdRow, rupiahRow, rateAddress) => {
+          const rateCell = /^([A-Z]+)(\d+)$/.exec(rateAddress);
+          const absoluteRateAddress = "$" + rateCell[1] + "$" + rateCell[2];
+          [4, ...Array.from({ length: 12 }, (_, index) => index + 6), 18].forEach((column) => {
+            const usdAddress = global.XLSX.utils.encode_cell({ r: usdRow - 1, c: column - 1 });
+            const rupiahAddress = global.XLSX.utils.encode_cell({ r: rupiahRow - 1, c: column - 1 });
+            const usdCell = sheet[usdAddress];
+            if (!usdCell || typeof usdCell.v !== "number" || !Number.isFinite(usdCell.v)) {
+              put(rupiahAddress, null);
+              return;
+            }
+            sheet[rupiahAddress] = {
+              ...(sheet[rupiahAddress] || {}),
+              t: "n",
+              f: usdAddress + "*" + absoluteRateAddress + "/1000",
+              v: usdCell.v * (Number(sheet[rateAddress] && sheet[rateAddress].v) || 0) / 1000,
+              z: "#,##0;[Red]-#,##0"
+            };
+            delete sheet[rupiahAddress].w;
+          });
+        };
+        if (year === 2026) {
+          [
+            [4, 22], [5, 23],
+            [7, 25], [8, 26], [9, 27], [10, 28], [11, 29], [12, 30],
+            [13, 31], [14, 32], [15, 33], [16, 34], [17, 35], [18, 36]
+          ].forEach(([usdRow, rupiahRow]) => convertUsdRowToRupiah(usdRow, rupiahRow, "C20"));
+        }
+
+        // Tabel periode tahun sebelumnya berada di bawah tabel USD tahun ini
+        // pada sheet IB yang sama (baris 41–56), tanpa membuat sheet tambahan.
+        if (exportYear >= 2026) {
+          const previousYear = exportYear - 1;
+          const previousResponse = await fetch(revenueApi + "?" + new URLSearchParams({ year: String(previousYear), month: String(month) }), { cache: "no-store" });
+          const previousPayload = await previousResponse.json();
+          const previousData = previousPayload && previousPayload.success && previousPayload.data;
+          if (!previousResponse.ok || !previousData || !previousData.period) {
+            throw new Error((previousPayload && previousPayload.message) || "Data IB periode " + previousYear + " belum tersedia untuk tabel bawah.");
+          }
+          const hasPreviousFoodData = [previousData.targetFd, previousData.actualFd, previousData.newTargetFd, previousData.newActualFd].some((values) => Array.isArray(values)
+            && values.some((value) => value !== null && value !== undefined && Number.isFinite(Number(value))));
+          if (!hasPreviousFoodData) throw new Error("Data IB FD periode " + previousYear + " belum tersedia untuk tabel bawah.");
+          const writePrevious = (row, values, ytd, fullYear) => {
+            put("D" + row, ytd);
+            values.forEach((value, index) => put(String.fromCharCode(70 + index) + row, value));
+            put("R" + row, fullYear);
+          };
+          const previousTargetTotal = addMonthly(previousData.target, previousData.targetFd);
+          const previousActualTotal = addMonthly(previousData.actual, previousData.actualFd);
+          const previousNewTargetTotal = addMonthly(previousData.newTarget, previousData.newTargetFd);
+          const previousNewActualTotal = addMonthly(previousData.newActual, previousData.newActualFd);
+          writePrevious(42, previousData.mcmTarget, sumThroughMonth(previousData.mcmTarget, month), previousData.fullYear && previousData.fullYear.mcmTarget);
+          writePrevious(43, previousData.mcmActual, sumThroughMonth(previousData.mcmActual, month), previousData.fullYear && previousData.fullYear.mcmActual);
+          writePrevious(45, previousTargetTotal, sumThroughMonth(previousTargetTotal, month), sumThroughMonth(previousTargetTotal, 12));
+          writePrevious(46, previousData.target, sumThroughMonth(previousData.target, month), previousData.fullYear && previousData.fullYear.target);
+          writePrevious(47, previousData.targetFd, sumThroughMonth(previousData.targetFd, month), previousData.fullYear && previousData.fullYear.targetFd);
+          writePrevious(48, previousActualTotal, sumThroughMonth(previousActualTotal, month), sumThroughMonth(previousActualTotal, 12));
+          writePrevious(49, previousData.actual, sumThroughMonth(previousData.actual, month), previousData.fullYear && previousData.fullYear.actual);
+          writePrevious(50, previousData.actualFd, sumThroughMonth(previousData.actualFd, month), previousData.fullYear && previousData.fullYear.actualFd);
+          writePrevious(51, previousNewTargetTotal, sumThroughMonth(previousNewTargetTotal, month), sumThroughMonth(previousNewTargetTotal, 12));
+          writePrevious(52, previousData.newTarget, sumThroughMonth(previousData.newTarget, month), previousData.fullYear && previousData.fullYear.newTarget);
+          writePrevious(53, previousData.newTargetFd, sumThroughMonth(previousData.newTargetFd, month), previousData.fullYear && previousData.fullYear.newTargetFd);
+          writePrevious(54, previousNewActualTotal, sumThroughMonth(previousNewActualTotal, month), sumThroughMonth(previousNewActualTotal, 12));
+          writePrevious(55, previousData.newActual, sumThroughMonth(previousData.newActual, month), previousData.fullYear && previousData.fullYear.newActual);
+          writePrevious(56, previousData.newActualFd, sumThroughMonth(previousData.newActualFd, month), previousData.fullYear && previousData.fullYear.newActualFd);
+          [
+            [42, 60], [43, 61],
+            [45, 63], [46, 64], [47, 65], [48, 66], [49, 67], [50, 68],
+            [51, 69], [52, 70], [53, 71], [54, 72], [55, 73], [56, 74]
+          ].forEach(([usdRow, rupiahRow]) => convertUsdRowToRupiah(usdRow, rupiahRow, "C58"));
+        }
       }
     } catch (error) { throw error; }
     const index = workbook.SheetNames.indexOf("IB");

@@ -19,6 +19,20 @@ $conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
 if ($conn->connect_error) { http_response_code(500); echo json_encode(['success'=>false,'message'=>'Database tidak dapat dihubungkan.']); exit; }
 $conn->set_charset('utf8mb4');
 try {
+    // Pastikan kolom untuk IB FD, REVENUE NEW, dan MCM tersedia saat ekspor
+    // membaca data lama yang diunggah sebelum pemetaan ini ditambahkan.
+    $extraColumns = [
+        'target_ib_fd' => 'DECIMAL(20,2) NULL', 'actual_ib_fd' => 'DECIMAL(20,2) NULL',
+        'target_new_ib_fm' => 'DECIMAL(20,2) NULL', 'actual_new_ib_fm' => 'DECIMAL(20,2) NULL',
+        'target_new_ib_fd' => 'DECIMAL(20,2) NULL', 'actual_new_ib_fd' => 'DECIMAL(20,2) NULL',
+        'target_mcm' => 'DECIMAL(20,2) NULL', 'actual_mcm' => 'DECIMAL(20,2) NULL',
+    ];
+    foreach ($extraColumns as $column => $definition) {
+        $check = $conn->query("SHOW COLUMNS FROM `revenue_ibfm` LIKE '{$column}'");
+        if ($check && $check->num_rows === 0 && !$conn->query("ALTER TABLE `revenue_ibfm` ADD COLUMN `{$column}` {$definition}")) {
+            throw new RuntimeException('Gagal menyiapkan kolom data IB.');
+        }
+    }
     $stmt = $conn->prepare("SELECT month_number,target_ib_fm,actual_ib_fm,target_ib_fd,actual_ib_fd,target_new_ib_fm,actual_new_ib_fm,target_new_ib_fd,actual_new_ib_fd,target_mcm,actual_mcm,report_period FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,'-%') AND report_period=(SELECT MAX(report_period) FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,'-%')) ORDER BY month_number");
     if (!$stmt) throw new RuntimeException('Data sheet IB belum tersedia. Unggah file melalui bagian IB terlebih dahulu.');
     $stmt->bind_param('ss',$year,$year); if (!$stmt->execute()) throw new RuntimeException('Data sheet IB gagal dibaca.');
