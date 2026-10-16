@@ -39,7 +39,7 @@ $periodMonth = (int)substr($period, 5, 2);
 $monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $periodMonthName = strtoupper($monthNames[$periodMonth - 1]);
 
-$conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
+$conn = new mysqli(getenv('DB_HOST') ?: '127.0.0.1', getenv('DB_USER') ?: 'root', getenv('DB_PASSWORD') ?: '', getenv('DB_NAME') ?: 'LAPORAN KORPORAT');
 if ($conn->connect_error) {
     http_response_code(500);
     header('Content-Type: text/plain; charset=utf-8');

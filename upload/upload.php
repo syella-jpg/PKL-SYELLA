@@ -45,10 +45,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 header('Content-Type: application/json; charset=utf-8');
 
-$host = '127.0.0.1';
-$user = 'root';
-$password = '';
-$database = 'LAPORAN KORPORAT';
+$host = getenv('DB_HOST') ?: '127.0.0.1';
+$user = getenv('DB_USER') ?: 'root';
+$password = getenv('DB_PASSWORD') ?: '';
+$database = getenv('DB_NAME') ?: 'LAPORAN KORPORAT';
 
 try {
 
