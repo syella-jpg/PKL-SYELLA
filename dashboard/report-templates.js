@@ -175,7 +175,7 @@
     return { year: sourceYear, target, actual, newTarget, newActual, hnaExisting, hnaNew, hnaTotal };
   };
   global.getEthicalHjpData = async function (...years) {
-    const endpoint = location.protocol === "file:"
+    const endpoint = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
       ? "http://127.0.0.1:8000/dashboard/ethical_api.php"
       : new URL("/api/dashboard/ethical_api.php", location.href).href;
     let response;
@@ -209,7 +209,7 @@
     const sourceSheet = sourceBook.Sheets[sourceBook.SheetNames[0]];
     if (!sourceSheet) throw new Error("Sheet MTM tidak ditemukan pada template.");
     const fetchYearMtm = async (sourceYear) => {
-      const endpoint = location.protocol === "file:"
+      const endpoint = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
         ? "http://127.0.0.1:8000/dashboard/mtm_api.php?year=" + sourceYear
         : new URL("/api/dashboard/mtm_api.php?year=" + sourceYear, location.href).href;
       const response = await fetch(endpoint, { cache: "no-store" });
@@ -516,7 +516,7 @@
     });
     if (workbook.Workbook) workbook.Workbook.CalcPr = { ...(workbook.Workbook.CalcPr || {}), calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true };
     sheet.B112 = { ...(sheet.B112 || {}), t: "s", v: "LAMPIRAN : EXPORT " + (year - 2) };
-    const revenueApi = location.protocol === "file:"
+    const revenueApi = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
       ? "http://127.0.0.1:8000/dashboard/revenue_ibfm_api.php"
       : new URL("/api/dashboard/revenue_ibfm_api.php", location.href).href;
     try {
@@ -693,7 +693,7 @@
     const usable = (achievement) => achievement && Array.isArray(achievement.rows)
       && achievement.rows.some((row) => Array.isArray(row.revMonths) && row.revMonths.length === 12);
 
-    const api = location.protocol === "file:"
+    const api = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
       ? "http://127.0.0.1:8000/dashboard/revenue_edp_mnj_api.php"
       : new URL("/api/dashboard/revenue_edp_mnj_api.php", location.href).href;
     const months = Array.from({ length: 12 }, (_, index) => index + 1).sort((a, b) => {
@@ -715,7 +715,7 @@
     }
     // Data UNIT & Revenue yang diunggah sebelum pemisahan tabel mungkin masih
     // tersimpan di revenue_selling_out. Baca DB tersebut sebagai migrasi lama.
-    const legacyApi = location.protocol === "file:"
+    const legacyApi = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
       ? "http://127.0.0.1:8000/dashboard/revenue_so_api.php"
       : new URL("/api/dashboard/revenue_so_api.php", location.href).href;
     for (const month of months) {
@@ -760,7 +760,7 @@
 
     // Isi blok SELL OUT pada sheet UNIT dari QTY yang disimpan saat unggah.
     // Ringkasan hanya TOTAL GB 1-6 dan TOTAL ETHICAL.
-    const api = location.protocol === "file:"
+    const api = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
       ? "http://127.0.0.1:8000/dashboard/unit_api.php"
       : new URL("/api/dashboard/unit_api.php", location.href).href;
     const qtyFields = ["unit_jan", "unit_feb", "unit_mar", "unit_apr", "unit_mei", "unit_jun", "unit_jul", "unit_agt", "unit_sep", "unit_okt", "unit_nov", "unit_des"];
@@ -934,7 +934,7 @@
     // The TARGET REVENUE upload stores monthly category A–D subtotals.
     // Combine raw categories as EXIST = A+B+C, NP = D, TOTAL = EXIST+NP.
     const readTargetCategories = async (targetYear = reportYear) => {
-      const api = location.protocol === "file:"
+      const api = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
         ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
         : new URL("/api/dashboard/revenue_so_targets_api.php", location.href).href;
       try {

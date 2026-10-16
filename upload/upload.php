@@ -1,5 +1,10 @@
 <?php
 
+// Keep PHP notices/warnings out of the JSON response consumed by the browser.
+// They still go to the server log for diagnosis.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
 
@@ -39,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // Reject non-upload requests before touching the database. This also makes a
 // POST-to-GET redirect visible as a clear endpoint error instead of allowing
 // the request to continue through the upload setup.
+header('X-Upload-Handler: id-sequence-v2');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
     header('Allow: POST, OPTIONS');
@@ -89,6 +95,8 @@ try {
     // =========================
 
     require_once __DIR__ . '/../db.php';
+    require_once __DIR__ . '/../db_schema.php';
+    ensureSalesReportTables($conn);
 
     if ($divisi === 'REVENUE VERSI EDP MNJ') {
         $createEdpTable = "CREATE TABLE IF NOT EXISTS `{$tableName}` (
@@ -273,6 +281,30 @@ try {
             if (!$conn->query("ALTER TABLE `{$tableName}` ADD COLUMN report_period CHAR(7) NULL")) {
                 throw new Exception('Gagal menyiapkan kolom periode laporan: ' . $conn->error);
             }
+        }
+    }
+
+    // TiDB cannot add AUTO_INCREMENT to an existing column. Keep legacy IDs
+    // intact and allocate new IDs through a small transactional counter table.
+    $idTables = $divisi === 'REVENUE VERSI EDP MNJ' ? [$tableName, 'UNIT'] : [];
+    if ($idTables) {
+        if (!$conn->query("CREATE TABLE IF NOT EXISTS `app_id_sequences` (
+            table_name VARCHAR(64) NOT NULL PRIMARY KEY,
+            next_id BIGINT UNSIGNED NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
+            throw new Exception('Gagal menyiapkan penghitung ID: ' . $conn->error);
+        }
+        foreach ($idTables as $idTable) {
+            $columnResult = $conn->query("SHOW COLUMNS FROM `{$idTable}` LIKE 'id'");
+            if (!$columnResult || $columnResult->num_rows === 0) {
+                throw new Exception('Tabel ' . $idTable . ' belum memiliki kolom id. Tambahkan kolom id di TiDB terlebih dahulu.');
+            }
+            $seed = $conn->prepare("INSERT IGNORE INTO app_id_sequences (table_name, next_id)
+                SELECT ?, COALESCE(MAX(id), 0) + 1 FROM `{$idTable}`");
+            if (!$seed) throw new Exception('Gagal menyiapkan penghitung ID ' . $idTable . ': ' . $conn->error);
+            $seed->bind_param('s', $idTable);
+            if (!$seed->execute()) throw new Exception('Gagal menginisialisasi ID ' . $idTable . ': ' . $seed->error);
+            $seed->close();
         }
     }
 
@@ -997,7 +1029,7 @@ try {
 
     $sql = "
         INSERT INTO `{$tableName}` (
-            report_period,
+            id, report_period,
             gb,
             product_code,
             principal_product_code,
@@ -1033,7 +1065,7 @@ try {
             rev_total
         )
         VALUES (
-            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
@@ -1049,10 +1081,10 @@ try {
     $unitStmt = null;
     if ($divisi === 'REVENUE VERSI EDP MNJ') {
         $unitStmt = $conn->prepare("INSERT INTO `UNIT` (
-            report_period, gb, product_code, principal_product_code, product_name, kategori,
+            id, report_period, gb, product_code, principal_product_code, product_name, kategori,
             unit_jan, unit_feb, unit_mar, unit_apr, unit_mei, unit_jun, unit_jul, unit_agt,
             unit_sep, unit_okt, unit_nov, unit_des, unit_total
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         if (!$unitStmt) throw new Exception('Gagal menyiapkan query UNIT: ' . $conn->error);
     }
 
@@ -1061,6 +1093,26 @@ try {
     // =========================
 
     $conn->begin_transaction();
+
+    $allocateLegacyId = static function (string $table) use ($conn): int {
+        $update = $conn->prepare('UPDATE app_id_sequences SET next_id = next_id + 1 WHERE table_name = ?');
+        if (!$update) throw new Exception('Gagal menyiapkan alokasi ID ' . $table . ': ' . $conn->error);
+        $update->bind_param('s', $table);
+        if (!$update->execute() || $update->affected_rows !== 1) {
+            $message = $update->error ?: 'penghitung tidak ditemukan';
+            $update->close();
+            throw new Exception('Gagal mengalokasikan ID ' . $table . ': ' . $message);
+        }
+        $update->close();
+        $select = $conn->prepare('SELECT next_id - 1 FROM app_id_sequences WHERE table_name = ?');
+        if (!$select) throw new Exception('Gagal membaca alokasi ID ' . $table . ': ' . $conn->error);
+        $select->bind_param('s', $table);
+        if (!$select->execute()) throw new Exception('Gagal membaca alokasi ID ' . $table . ': ' . $select->error);
+        $select->bind_result($id);
+        $select->fetch();
+        $select->close();
+        return (int)$id;
+    };
 
     if ($existingRows > 0 && $replaceExistingPeriod) {
         $deletePeriod = $conn->prepare("DELETE FROM `{$tableName}` WHERE report_period = ?");
@@ -1146,8 +1198,10 @@ try {
         // BIND DATA
         // =========================
 
+        $rowId = $allocateLegacyId($tableName);
         $stmt->bind_param(
-            'ssssss' . str_repeat('d', 26),
+            'isssss' . str_repeat('d', 26),
+            $rowId,
             $period,
             $gb,
             $productCode,
@@ -1185,6 +1239,7 @@ try {
         );
 
         if (!$stmt->execute()) {
+            http_response_code(500);
             throw new Exception(
                 'Gagal memasukkan baris Excel ke-' .
                 $rowNumber .
@@ -1193,11 +1248,15 @@ try {
             );
         }
         if ($unitStmt) {
-            $unitStmt->bind_param('ssssss' . str_repeat('d', 13),
-                $period, $gb, $productCode, $principalProductCode, $productName, $kategori,
+            $unitId = $allocateLegacyId('UNIT');
+            $unitStmt->bind_param('isssss' . str_repeat('d', 13),
+                $unitId, $period, $gb, $productCode, $principalProductCode, $productName, $kategori,
                 $unitNumbers[0], $unitNumbers[1], $unitNumbers[2], $unitNumbers[3], $unitNumbers[4], $unitNumbers[5], $unitNumbers[6],
                 $unitNumbers[7], $unitNumbers[8], $unitNumbers[9], $unitNumbers[10], $unitNumbers[11], $unitNumbers[12]);
-            if (!$unitStmt->execute()) throw new Exception('Gagal menyimpan UNIT pada baris Excel ke-' . $rowNumber . ': ' . $unitStmt->error);
+            if (!$unitStmt->execute()) {
+                http_response_code(500);
+                throw new Exception('Gagal menyimpan UNIT pada baris Excel ke-' . $rowNumber . ': ' . $unitStmt->error);
+            }
         }
 
         $inserted++;
@@ -1220,6 +1279,10 @@ try {
     ]);
 
 } catch (Throwable $e) {
+
+    if (http_response_code() < 400) {
+        http_response_code(500);
+    }
 
     if (isset($conn) && $conn instanceof mysqli) {
         try {

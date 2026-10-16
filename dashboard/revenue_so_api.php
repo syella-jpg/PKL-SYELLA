@@ -25,6 +25,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../db_schema.php';
+try {
+    ensureSalesReportTables($conn);
+} catch (Throwable $error) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => $error->getMessage()]);
+    $conn->close();
+    exit;
+}
 
 
 

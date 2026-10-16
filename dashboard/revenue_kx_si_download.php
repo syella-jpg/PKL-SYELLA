@@ -40,6 +40,14 @@ $monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', '
 $periodMonthName = strtoupper($monthNames[$periodMonth - 1]);
 
 require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../db_schema.php';
+try {
+    ensureSalesReportTables($conn);
+} catch (Throwable $error) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('Gagal menyiapkan tabel Revenue untuk unduhan: ' . $error->getMessage());
+}
 
 
 $stmt = $conn->prepare('SELECT parameter, achievement FROM revenue_selling_in WHERE report_period = ?');
