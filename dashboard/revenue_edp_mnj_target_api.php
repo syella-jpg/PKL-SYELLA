@@ -1,7 +1,5 @@
 <?php
 
-require_once __DIR__ . '/../config/database.php';
-
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
@@ -30,9 +28,7 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
 try {
-    $conn = app_database_connection();
-    if ($conn->connect_error) throw new RuntimeException('Database gagal terhubung: ' . $conn->connect_error);
-    $conn->set_charset('utf8mb4');
+    require_once __DIR__ . '/../db.php';
     // Siapkan tabel di endpoint ini juga: upload target bisa menjadi proses
     // pertama yang menyentuh tabel, sebelum halaman dashboard membacanya.
     if (!$conn->query("CREATE TABLE IF NOT EXISTS `revenue_edp_mnj_target` (

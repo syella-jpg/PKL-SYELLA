@@ -1,7 +1,5 @@
 <?php
 
-require_once __DIR__ . '/../config/database.php';
-
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
 
@@ -10,12 +8,13 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 // Izinkan halaman lokal file:// mengirim upload ke server PHP di komputer ini.
 // Browser mengirim Origin: null untuk file://. Origin web lain tetap ditolak.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
-$isHttps = $forwardedProto === 'https'
-    || (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
-$requestHost = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
-$sameOrigin = $requestHost !== ''
-    && $origin === (($isHttps ? 'https' : 'http') . '://' . $requestHost);
+$requestScheme = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')));
+$requestAuthority = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+$originHost = strtolower((string)(parse_url($origin, PHP_URL_HOST) ?: ''));
+$originPort = parse_url($origin, PHP_URL_PORT);
+$originAuthority = $originHost . ($originPort ? ':' . $originPort : '');
+$originScheme = strtolower((string)(parse_url($origin, PHP_URL_SCHEME) ?: ''));
+$isSameOrigin = $origin !== '' && $originScheme === $requestScheme && $originAuthority === $requestAuthority;
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
     header('Vary: Origin');
@@ -25,7 +24,7 @@ if ($origin === 'null') {
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
         header('Access-Control-Allow-Private-Network: true');
     }
-} elseif ($origin !== '' && !$sameOrigin && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
+} elseif ($origin !== '' && !$isSameOrigin && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
     http_response_code(403);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => false, 'message' => 'Origin tidak diizinkan.']);
@@ -89,11 +88,7 @@ try {
     // 1. CEK DATABASE / PERIODE
     // =========================
 
-    $conn = app_database_connection();
-    if ($conn->connect_error) {
-        throw new Exception('Database gagal terhubung: ' . $conn->connect_error);
-    }
-    $conn->set_charset('utf8mb4');
+    require_once __DIR__ . '/../db.php';
 
     if ($divisi === 'REVENUE VERSI EDP MNJ') {
         $createEdpTable = "CREATE TABLE IF NOT EXISTS `{$tableName}` (

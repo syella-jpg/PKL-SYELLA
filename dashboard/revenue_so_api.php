@@ -1,7 +1,5 @@
 <?php
 
-require_once __DIR__ . '/../config/database.php';
-
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
@@ -26,17 +24,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 
 header('Content-Type: application/json');
 
-$conn = app_database_connection();
+require_once __DIR__ . '/../db.php';
 
-if ($conn->connect_error) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Database gagal terhubung: ' . $conn->connect_error
-    ]);
-    exit;
-}
 
-$conn->set_charset('utf8mb4');
 
 $period = trim((string)($_GET['period'] ?? ''));
 if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {

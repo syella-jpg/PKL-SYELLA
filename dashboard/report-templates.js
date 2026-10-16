@@ -177,7 +177,7 @@
   global.getEthicalHjpData = async function (...years) {
     const endpoint = location.protocol === "file:"
       ? "http://127.0.0.1:8000/dashboard/ethical_api.php"
-      : new URL("ethical_api.php", location.href).href;
+      : new URL("/api/dashboard/ethical_api.php", location.href).href;
     let response;
     try { response = await fetch(endpoint, { cache: "no-store" }); }
     catch (_) { throw new Error("Data ETHICAL tidak dapat diambil dari database. Pastikan server PHP berjalan."); }
@@ -211,7 +211,7 @@
     const fetchYearMtm = async (sourceYear) => {
       const endpoint = location.protocol === "file:"
         ? "http://127.0.0.1:8000/dashboard/mtm_api.php?year=" + sourceYear
-        : new URL("mtm_api.php?year=" + sourceYear, location.href).href;
+        : new URL("/api/dashboard/mtm_api.php?year=" + sourceYear, location.href).href;
       const response = await fetch(endpoint, { cache: "no-store" });
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload || payload.success !== true) {
@@ -518,7 +518,7 @@
     sheet.B112 = { ...(sheet.B112 || {}), t: "s", v: "LAMPIRAN : EXPORT " + (year - 2) };
     const revenueApi = location.protocol === "file:"
       ? "http://127.0.0.1:8000/dashboard/revenue_ibfm_api.php"
-      : new URL("revenue_ibfm_api.php", location.href).href;
+      : new URL("/api/dashboard/revenue_ibfm_api.php", location.href).href;
     try {
       const response = await fetch(revenueApi + "?" + new URLSearchParams({ year: String(year), month: String(month) }), { cache: "no-store" });
       const payload = await response.json();
@@ -695,7 +695,7 @@
 
     const api = location.protocol === "file:"
       ? "http://127.0.0.1:8000/dashboard/revenue_edp_mnj_api.php"
-      : new URL("revenue_edp_mnj_api.php", location.href).href;
+      : new URL("/api/dashboard/revenue_edp_mnj_api.php", location.href).href;
     const months = Array.from({ length: 12 }, (_, index) => index + 1).sort((a, b) => {
       const aBefore = a <= selectedMonth, bBefore = b <= selectedMonth;
       if (aBefore !== bBefore) return aBefore ? -1 : 1;
@@ -717,7 +717,7 @@
     // tersimpan di revenue_selling_out. Baca DB tersebut sebagai migrasi lama.
     const legacyApi = location.protocol === "file:"
       ? "http://127.0.0.1:8000/dashboard/revenue_so_api.php"
-      : new URL("revenue_so_api.php", location.href).href;
+      : new URL("/api/dashboard/revenue_so_api.php", location.href).href;
     for (const month of months) {
       const sourcePeriod = year + "-" + String(month).padStart(2, "0");
       try {
@@ -762,7 +762,7 @@
     // Ringkasan hanya TOTAL GB 1-6 dan TOTAL ETHICAL.
     const api = location.protocol === "file:"
       ? "http://127.0.0.1:8000/dashboard/unit_api.php"
-      : new URL("unit_api.php", location.href).href;
+      : new URL("/api/dashboard/unit_api.php", location.href).href;
     const qtyFields = ["unit_jan", "unit_feb", "unit_mar", "unit_apr", "unit_mei", "unit_jun", "unit_jul", "unit_agt", "unit_sep", "unit_okt", "unit_nov", "unit_des"];
     const loadUnitYear = async (targetYear, requestedMonth) => {
       const monthsToCheck = Array.from({ length: 12 }, (_, i) => i + 1).sort((a, b) => {
@@ -936,7 +936,7 @@
     const readTargetCategories = async (targetYear = reportYear) => {
       const api = location.protocol === "file:"
         ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
-        : new URL("revenue_so_targets_api.php", location.href).href;
+        : new URL("/api/dashboard/revenue_so_targets_api.php", location.href).href;
       try {
         const response = await fetch(api + "?year=" + encodeURIComponent(targetYear), { cache: "no-store" });
         const result = await response.json();

@@ -2,19 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/index.php": {
-      "runtime": "vercel-php@0.9.0"
+      "runtime": "vercel-php@0.9.0",
+      "maxDuration": 60
     }
   },
   "rewrites": [
-    { "source": "/dashboard/unit_api.php", "destination": "/api/index.php?endpoint=dashboard/unit_api.php" },
-    { "source": "/dashboard/revenue_edp_mnj_api.php", "destination": "/api/index.php?endpoint=dashboard/revenue_edp_mnj_api.php" },
-    { "source": "/dashboard/revenue_so_targets_api.php", "destination": "/api/index.php?endpoint=dashboard/revenue_so_targets_api.php" },
-    { "source": "/dashboard/mtm_api.php", "destination": "/api/index.php?endpoint=dashboard/mtm_api.php" },
-    { "source": "/dashboard/revenue_so_api.php", "destination": "/api/index.php?endpoint=dashboard/revenue_so_api.php" },
-    { "source": "/dashboard/ethical_api.php", "destination": "/api/index.php?endpoint=dashboard/ethical_api.php" },
-    { "source": "/dashboard/revenue_edp_mnj_target_api.php", "destination": "/api/index.php?endpoint=dashboard/revenue_edp_mnj_target_api.php" },
-    { "source": "/dashboard/revenue_ibfm_api.php", "destination": "/api/index.php?endpoint=dashboard/revenue_ibfm_api.php" },
-    { "source": "/dashboard/revenue_kx_si_download.php", "destination": "/api/index.php?endpoint=dashboard/revenue_kx_si_download.php" },
-    { "source": "/upload/upload.php", "destination": "/api/index.php?endpoint=upload/upload.php" }
+    {
+      "source": "/api/upload.php",
+      "destination": "/api/index.php?script=upload/upload.php"
+    },
+    {
+      "source": "/api/dashboard/:endpoint*",
+      "destination": "/api/index.php?script=dashboard/:endpoint*"
+    }
   ]
 }

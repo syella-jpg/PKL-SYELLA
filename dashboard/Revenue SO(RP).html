@@ -209,10 +209,10 @@
   // Atau ambil dari server: GET DATA_URL?report=..&tab=..&period=YYYY-MM  -> mengembalikan objek { cards, chart }
   const DATA_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_so_api.php"
-    : "revenue_so_api.php";
+    : "/api/dashboard/revenue_so_api.php";
   const TARGET_API_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
-    : "revenue_so_targets_api.php";
+    : "/api/dashboard/revenue_so_targets_api.php";
   // Nilai bulanan TARGET SELL OUT 2025 dari file Target 25 real.ods, dalam (000).
   // Dipakai langsung oleh unduhan 2026; tahun lain tetap dibaca dari upload/API.
   const SELL_OUT_TARGET_SOURCE = {
@@ -233,7 +233,7 @@
   };
   const EDP_API_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_edp_mnj_api.php"
-    : "revenue_edp_mnj_api.php";
+    : "/api/dashboard/revenue_edp_mnj_api.php";
   /* ============================================== */
 
   const BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
