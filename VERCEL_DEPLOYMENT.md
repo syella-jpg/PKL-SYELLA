@@ -1,6 +1,6 @@
 # Menjalankan Laporan Korporat di Vercel
 
-Vercel menjalankan halaman HTML secara statis. Endpoint PHP aplikasi sekarang dipublikasikan sebagai Vercel Functions melalui `api/`, sementara file PHP di `dashboard/` dan `upload/` tetap menjadi implementasi bersama untuk pemakaian lokal.
+Vercel menjalankan halaman HTML secara statis. Endpoint PHP aplikasi dirutekan melalui satu Vercel Function di `api/index.php`; ini menghindari proses Composer yang bersamaan untuk setiap endpoint. File PHP di `dashboard/` dan `upload/` tetap menjadi implementasi bersama untuk pemakaian lokal. Dependensi Composer dipasang dari `composer.lock` saat build.
 
 ## Database
 
