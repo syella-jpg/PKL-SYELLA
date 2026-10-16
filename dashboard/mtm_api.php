@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/../config/database.php';
+
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
@@ -37,7 +39,7 @@ if (!preg_match('/^\d{4}$/', $year)) {
     exit;
 }
 
-$conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
+$conn = app_database_connection();
 if ($conn->connect_error) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Database MTM tidak dapat dihubungkan.']);

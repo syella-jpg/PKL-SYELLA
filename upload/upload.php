@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/../config/database.php';
+
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
 
@@ -8,6 +10,12 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 // Izinkan halaman lokal file:// mengirim upload ke server PHP di komputer ini.
 // Browser mengirim Origin: null untuk file://. Origin web lain tetap ditolak.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+$isHttps = $forwardedProto === 'https'
+    || (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
+$requestHost = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+$sameOrigin = $requestHost !== ''
+    && $origin === (($isHttps ? 'https' : 'http') . '://' . $requestHost);
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
     header('Vary: Origin');
@@ -17,7 +25,7 @@ if ($origin === 'null') {
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
         header('Access-Control-Allow-Private-Network: true');
     }
-} elseif ($origin !== '' && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
+} elseif ($origin !== '' && !$sameOrigin && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
     http_response_code(403);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => false, 'message' => 'Origin tidak diizinkan.']);
@@ -45,10 +53,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 header('Content-Type: application/json; charset=utf-8');
 
-$host = '127.0.0.1';
-$user = 'root';
-$password = '';
-$database = 'LAPORAN KORPORAT';
+
 
 try {
 
@@ -84,7 +89,7 @@ try {
     // 1. CEK DATABASE / PERIODE
     // =========================
 
-    $conn = new mysqli($host, $user, $password, $database);
+    $conn = app_database_connection();
     if ($conn->connect_error) {
         throw new Exception('Database gagal terhubung: ' . $conn->connect_error);
     }

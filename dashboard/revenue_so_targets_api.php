@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/../config/database.php';
+
 // Target summaries are shared between the Upload and Dashboard pages through
 // MySQL, including when either page is opened from file://.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -31,7 +33,7 @@ header('Pragma: no-cache');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 try {
-    $conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
+    $conn = app_database_connection();
     if ($conn->connect_error) throw new RuntimeException('Database gagal terhubung: ' . $conn->connect_error);
     $conn->set_charset('utf8mb4');
     // Unggahan Target Revenue dapat menjadi proses pertama yang memakai tabel

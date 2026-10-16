@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../config/database.php';
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null'); header('Vary: Origin');
@@ -15,7 +17,7 @@ $year = trim((string)($_GET['year'] ?? ''));
 $requestedMonth = (int)($_GET['month'] ?? 0);
 if (!preg_match('/^20\d{2}$/', $year)) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Tahun tidak valid.']); exit; }
 if ($requestedMonth < 1 || $requestedMonth > 12) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Bulan YTD harus bernilai 1 sampai 12.']); exit; }
-$conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
+$conn = app_database_connection();
 if ($conn->connect_error) { http_response_code(500); echo json_encode(['success'=>false,'message'=>'Database tidak dapat dihubungkan.']); exit; }
 $conn->set_charset('utf8mb4');
 try {
