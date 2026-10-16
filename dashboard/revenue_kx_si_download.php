@@ -39,13 +39,16 @@ $periodMonth = (int)substr($period, 5, 2);
 $monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $periodMonthName = strtoupper($monthNames[$periodMonth - 1]);
 
-$conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
-if ($conn->connect_error) {
+require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../db_schema.php';
+try {
+    ensureSalesReportTables($conn);
+} catch (Throwable $error) {
     http_response_code(500);
     header('Content-Type: text/plain; charset=utf-8');
-    exit('Database gagal terhubung: ' . $conn->connect_error);
+    exit('Gagal menyiapkan tabel Revenue untuk unduhan: ' . $error->getMessage());
 }
-$conn->set_charset('utf8mb4');
+
 
 $stmt = $conn->prepare('SELECT parameter, achievement FROM revenue_selling_in WHERE report_period = ?');
 if (!$stmt) {

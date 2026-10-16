@@ -37,13 +37,7 @@ if (!preg_match('/^\d{4}$/', $year)) {
     exit;
 }
 
-$conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
-if ($conn->connect_error) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database MTM tidak dapat dihubungkan.']);
-    exit;
-}
-$conn->set_charset('utf8mb4');
+require_once __DIR__ . '/../db.php';
 
 $data = [];
 foreach (['REVENUE', 'EXISTING', 'NEW_PRODUCT'] as $metric) {

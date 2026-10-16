@@ -24,22 +24,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 
 header('Content-Type: application/json');
 
-$host = '127.0.0.1';
-$user = 'root';
-$password = '';
-$database = 'LAPORAN KORPORAT';
-
-$conn = new mysqli($host, $user, $password, $database);
-
-if ($conn->connect_error) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Database gagal terhubung: ' . $conn->connect_error
-    ]);
+require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../db_schema.php';
+try {
+    ensureSalesReportTables($conn);
+} catch (Throwable $error) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => $error->getMessage()]);
+    $conn->close();
     exit;
 }
 
-$conn->set_charset('utf8mb4');
+
 
 $period = trim((string)($_GET['period'] ?? ''));
 if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {

@@ -1,5 +1,10 @@
 <?php
 
+// Keep PHP notices/warnings out of the JSON response consumed by the browser.
+// They still go to the server log for diagnosis.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
 
@@ -8,6 +13,13 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 // Izinkan halaman lokal file:// mengirim upload ke server PHP di komputer ini.
 // Browser mengirim Origin: null untuk file://. Origin web lain tetap ditolak.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$requestScheme = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')));
+$requestAuthority = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+$originHost = strtolower((string)(parse_url($origin, PHP_URL_HOST) ?: ''));
+$originPort = parse_url($origin, PHP_URL_PORT);
+$originAuthority = $originHost . ($originPort ? ':' . $originPort : '');
+$originScheme = strtolower((string)(parse_url($origin, PHP_URL_SCHEME) ?: ''));
+$isSameOrigin = $origin !== '' && $originScheme === $requestScheme && $originAuthority === $requestAuthority;
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
     header('Vary: Origin');
@@ -17,7 +29,7 @@ if ($origin === 'null') {
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
         header('Access-Control-Allow-Private-Network: true');
     }
-} elseif ($origin !== '' && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
+} elseif ($origin !== '' && !$isSameOrigin && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
     http_response_code(403);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => false, 'message' => 'Origin tidak diizinkan.']);
@@ -32,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // Reject non-upload requests before touching the database. This also makes a
 // POST-to-GET redirect visible as a clear endpoint error instead of allowing
 // the request to continue through the upload setup.
+header('X-Upload-Handler: id-sequence-v2');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
     header('Allow: POST, OPTIONS');
@@ -45,10 +58,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 header('Content-Type: application/json; charset=utf-8');
 
-$host = '127.0.0.1';
-$user = 'root';
-$password = '';
-$database = 'LAPORAN KORPORAT';
+
 
 try {
 
@@ -84,11 +94,9 @@ try {
     // 1. CEK DATABASE / PERIODE
     // =========================
 
-    $conn = new mysqli($host, $user, $password, $database);
-    if ($conn->connect_error) {
-        throw new Exception('Database gagal terhubung: ' . $conn->connect_error);
-    }
-    $conn->set_charset('utf8mb4');
+    require_once __DIR__ . '/../db.php';
+    require_once __DIR__ . '/../db_schema.php';
+    ensureSalesReportTables($conn);
 
     if ($divisi === 'REVENUE VERSI EDP MNJ') {
         $createEdpTable = "CREATE TABLE IF NOT EXISTS `{$tableName}` (
@@ -255,6 +263,8 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")) {
             throw new Exception('Gagal menyiapkan tabel ib_monthly_values: ' . $conn->error);
         }
+        ensureLegacyIdAllocator($conn, 'revenue_ibfm');
+        ensureLegacyIdAllocator($conn, 'ib_monthly_values');
     }
 
     if ($divisi === 'Revenue Konimex Selling In') {
@@ -273,6 +283,30 @@ try {
             if (!$conn->query("ALTER TABLE `{$tableName}` ADD COLUMN report_period CHAR(7) NULL")) {
                 throw new Exception('Gagal menyiapkan kolom periode laporan: ' . $conn->error);
             }
+        }
+    }
+
+    // TiDB cannot add AUTO_INCREMENT to an existing column. Keep legacy IDs
+    // intact and allocate new IDs through a small transactional counter table.
+    $idTables = $divisi === 'REVENUE VERSI EDP MNJ' ? [$tableName, 'UNIT'] : [];
+    if ($idTables) {
+        if (!$conn->query("CREATE TABLE IF NOT EXISTS `app_id_sequences` (
+            table_name VARCHAR(64) NOT NULL PRIMARY KEY,
+            next_id BIGINT UNSIGNED NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
+            throw new Exception('Gagal menyiapkan penghitung ID: ' . $conn->error);
+        }
+        foreach ($idTables as $idTable) {
+            $columnResult = $conn->query("SHOW COLUMNS FROM `{$idTable}` LIKE 'id'");
+            if (!$columnResult || $columnResult->num_rows === 0) {
+                throw new Exception('Tabel ' . $idTable . ' belum memiliki kolom id. Tambahkan kolom id di TiDB terlebih dahulu.');
+            }
+            $seed = $conn->prepare("INSERT IGNORE INTO app_id_sequences (table_name, next_id)
+                SELECT ?, COALESCE(MAX(id), 0) + 1 FROM `{$idTable}`");
+            if (!$seed) throw new Exception('Gagal menyiapkan penghitung ID ' . $idTable . ': ' . $conn->error);
+            $seed->bind_param('s', $idTable);
+            if (!$seed->execute()) throw new Exception('Gagal menginisialisasi ID ' . $idTable . ': ' . $seed->error);
+            $seed->close();
         }
     }
 
@@ -474,7 +508,7 @@ try {
         $conn->begin_transaction();
         // Upload sheet IAP saja tidak boleh menghapus nilai IB FM yang sudah
         // tersimpan (dan sebaliknya). Nilai NULL mempertahankan nilai lama.
-        $insert = $conn->prepare('INSERT INTO `revenue_ibfm` (report_period, month_number, target_ib_fm, actual_ib_fm, target_ib_fd, actual_ib_fd, target_new_ib_fm, actual_new_ib_fm, target_new_ib_fd, actual_new_ib_fd, target_mcm, actual_mcm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        $insert = $conn->prepare('INSERT INTO `revenue_ibfm` (id, report_period, month_number, target_ib_fm, actual_ib_fm, target_ib_fd, actual_ib_fd, target_new_ib_fm, actual_new_ib_fm, target_new_ib_fd, actual_new_ib_fd, target_mcm, actual_mcm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 target_ib_fm = COALESCE(VALUES(target_ib_fm), target_ib_fm),
                 actual_ib_fm = COALESCE(VALUES(actual_ib_fm), actual_ib_fm),
@@ -487,7 +521,7 @@ try {
                 target_mcm = COALESCE(VALUES(target_mcm), target_mcm),
                 actual_mcm = COALESCE(VALUES(actual_mcm), actual_mcm)');
         if (!$insert) throw new Exception('Gagal menyiapkan penyimpanan IB FM/IB FD: ' . $conn->error);
-        $insertCanonical = $conn->prepare('INSERT INTO `ib_monthly_values` (report_period, month_number, metric_code, business_unit, value_type, amount) VALUES (?, ?, ?, ?, ?, ?)
+        $insertCanonical = $conn->prepare('INSERT INTO `ib_monthly_values` (id, report_period, month_number, metric_code, business_unit, value_type, amount) VALUES (?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE amount = COALESCE(VALUES(amount), amount)');
         if (!$insertCanonical) throw new Exception('Gagal menyiapkan penyimpanan tabel IB baru: ' . $conn->error);
         for ($month = 1; $month <= 12; $month++) {
@@ -496,7 +530,8 @@ try {
             $targetNewFm = $monthlyNewFm['target'][$month]; $actualNewFm = $monthlyNewFm['actual'][$month];
             $targetNewFd = $monthlyNewFd['target'][$month]; $actualNewFd = $monthlyNewFd['actual'][$month];
             $targetMcm = $monthlyMcm['target'][$month]; $actualMcm = $monthlyMcm['actual'][$month];
-            $insert->bind_param('si' . str_repeat('d', 10), $period, $month, $targetFm, $actualFm, $targetFd, $actualFd, $targetNewFm, $actualNewFm, $targetNewFd, $actualNewFd, $targetMcm, $actualMcm);
+            $rowId = nextLegacyId($conn, 'revenue_ibfm');
+            $insert->bind_param('isi' . str_repeat('d', 10), $rowId, $period, $month, $targetFm, $actualFm, $targetFd, $actualFd, $targetNewFm, $actualNewFm, $targetNewFd, $actualNewFd, $targetMcm, $actualMcm);
             if (!$insert->execute()) throw new Exception('Gagal menyimpan data IB FM: ' . $insert->error);
             $canonicalValues = [
                 ['revenue_exist', 'IB_FM', 'TARGET', $targetFm], ['revenue_exist', 'IB_FM', 'ACTUAL', $actualFm],
@@ -506,7 +541,8 @@ try {
                 ['mcm', 'GROUP', 'TARGET', $targetMcm], ['mcm', 'GROUP', 'ACTUAL', $actualMcm],
             ];
             foreach ($canonicalValues as [$metric, $unit, $valueType, $amount]) {
-                $insertCanonical->bind_param('sisssd', $period, $month, $metric, $unit, $valueType, $amount);
+                $canonicalId = nextLegacyId($conn, 'ib_monthly_values');
+                $insertCanonical->bind_param('isisssd', $canonicalId, $period, $month, $metric, $unit, $valueType, $amount);
                 if (!$insertCanonical->execute()) throw new Exception('Gagal menyimpan ke ib_monthly_values: ' . $insertCanonical->error);
             }
         }
@@ -997,7 +1033,7 @@ try {
 
     $sql = "
         INSERT INTO `{$tableName}` (
-            report_period,
+            id, report_period,
             gb,
             product_code,
             principal_product_code,
@@ -1033,7 +1069,7 @@ try {
             rev_total
         )
         VALUES (
-            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
@@ -1049,10 +1085,10 @@ try {
     $unitStmt = null;
     if ($divisi === 'REVENUE VERSI EDP MNJ') {
         $unitStmt = $conn->prepare("INSERT INTO `UNIT` (
-            report_period, gb, product_code, principal_product_code, product_name, kategori,
+            id, report_period, gb, product_code, principal_product_code, product_name, kategori,
             unit_jan, unit_feb, unit_mar, unit_apr, unit_mei, unit_jun, unit_jul, unit_agt,
             unit_sep, unit_okt, unit_nov, unit_des, unit_total
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         if (!$unitStmt) throw new Exception('Gagal menyiapkan query UNIT: ' . $conn->error);
     }
 
@@ -1061,6 +1097,26 @@ try {
     // =========================
 
     $conn->begin_transaction();
+
+    $allocateLegacyId = static function (string $table) use ($conn): int {
+        $update = $conn->prepare('UPDATE app_id_sequences SET next_id = next_id + 1 WHERE table_name = ?');
+        if (!$update) throw new Exception('Gagal menyiapkan alokasi ID ' . $table . ': ' . $conn->error);
+        $update->bind_param('s', $table);
+        if (!$update->execute() || $update->affected_rows !== 1) {
+            $message = $update->error ?: 'penghitung tidak ditemukan';
+            $update->close();
+            throw new Exception('Gagal mengalokasikan ID ' . $table . ': ' . $message);
+        }
+        $update->close();
+        $select = $conn->prepare('SELECT next_id - 1 FROM app_id_sequences WHERE table_name = ?');
+        if (!$select) throw new Exception('Gagal membaca alokasi ID ' . $table . ': ' . $conn->error);
+        $select->bind_param('s', $table);
+        if (!$select->execute()) throw new Exception('Gagal membaca alokasi ID ' . $table . ': ' . $select->error);
+        $select->bind_result($id);
+        $select->fetch();
+        $select->close();
+        return (int)$id;
+    };
 
     if ($existingRows > 0 && $replaceExistingPeriod) {
         $deletePeriod = $conn->prepare("DELETE FROM `{$tableName}` WHERE report_period = ?");
@@ -1146,8 +1202,10 @@ try {
         // BIND DATA
         // =========================
 
+        $rowId = $allocateLegacyId($tableName);
         $stmt->bind_param(
-            'ssssss' . str_repeat('d', 26),
+            'isssss' . str_repeat('d', 26),
+            $rowId,
             $period,
             $gb,
             $productCode,
@@ -1185,6 +1243,7 @@ try {
         );
 
         if (!$stmt->execute()) {
+            http_response_code(500);
             throw new Exception(
                 'Gagal memasukkan baris Excel ke-' .
                 $rowNumber .
@@ -1193,11 +1252,15 @@ try {
             );
         }
         if ($unitStmt) {
-            $unitStmt->bind_param('ssssss' . str_repeat('d', 13),
-                $period, $gb, $productCode, $principalProductCode, $productName, $kategori,
+            $unitId = $allocateLegacyId('UNIT');
+            $unitStmt->bind_param('isssss' . str_repeat('d', 13),
+                $unitId, $period, $gb, $productCode, $principalProductCode, $productName, $kategori,
                 $unitNumbers[0], $unitNumbers[1], $unitNumbers[2], $unitNumbers[3], $unitNumbers[4], $unitNumbers[5], $unitNumbers[6],
                 $unitNumbers[7], $unitNumbers[8], $unitNumbers[9], $unitNumbers[10], $unitNumbers[11], $unitNumbers[12]);
-            if (!$unitStmt->execute()) throw new Exception('Gagal menyimpan UNIT pada baris Excel ke-' . $rowNumber . ': ' . $unitStmt->error);
+            if (!$unitStmt->execute()) {
+                http_response_code(500);
+                throw new Exception('Gagal menyimpan UNIT pada baris Excel ke-' . $rowNumber . ': ' . $unitStmt->error);
+            }
         }
 
         $inserted++;
@@ -1220,6 +1283,10 @@ try {
     ]);
 
 } catch (Throwable $e) {
+
+    if (http_response_code() < 400) {
+        http_response_code(500);
+    }
 
     if (isset($conn) && $conn instanceof mysqli) {
         try {

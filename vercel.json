@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/index.php": {
+      "runtime": "vercel-php@0.9.0",
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/upload.php",
+      "destination": "/api/index.php?script=upload/upload.php"
+    },
+    {
+      "source": "/api/dashboard/:endpoint*",
+      "destination": "/api/index.php?script=dashboard/:endpoint*"
+    }
+  ]
+}

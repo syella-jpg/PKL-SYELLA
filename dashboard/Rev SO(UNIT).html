@@ -208,15 +208,15 @@
   const DATA = {};
   const TARGET_KEY = "konimex_revenue_so_targets_processed";
   // Atau ambil dari server: GET DATA_URL?report=..&tab=..&period=YYYY-MM  -> mengembalikan objek { cards, chart }
-  const DATA_URL = location.protocol === "file:"
+  const DATA_URL = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
     ? "http://127.0.0.1:8000/dashboard/revenue_so_api.php"
-    : "revenue_so_api.php";
-  const TARGET_API_URL = location.protocol === "file:"
+    : "/api/dashboard/revenue_so_api.php";
+  const TARGET_API_URL = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
     ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
-    : "revenue_so_targets_api.php";
-  const EDP_API_URL = location.protocol === "file:"
+    : "/api/dashboard/revenue_so_targets_api.php";
+  const EDP_API_URL = (location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")
     ? "http://127.0.0.1:8000/dashboard/revenue_edp_mnj_api.php"
-    : "revenue_edp_mnj_api.php";
+    : "/api/dashboard/revenue_edp_mnj_api.php";
   /* ============================================== */
 
   const BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
