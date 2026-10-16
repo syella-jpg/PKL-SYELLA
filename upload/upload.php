@@ -264,6 +264,7 @@ try {
             throw new Exception('Gagal menyiapkan tabel ib_monthly_values: ' . $conn->error);
         }
         ensureLegacyIdAllocator($conn, 'revenue_ibfm');
+        ensureLegacyIdAllocator($conn, 'ib_monthly_values');
     }
 
     if ($divisi === 'Revenue Konimex Selling In') {
@@ -520,7 +521,7 @@ try {
                 target_mcm = COALESCE(VALUES(target_mcm), target_mcm),
                 actual_mcm = COALESCE(VALUES(actual_mcm), actual_mcm)');
         if (!$insert) throw new Exception('Gagal menyiapkan penyimpanan IB FM/IB FD: ' . $conn->error);
-        $insertCanonical = $conn->prepare('INSERT INTO `ib_monthly_values` (report_period, month_number, metric_code, business_unit, value_type, amount) VALUES (?, ?, ?, ?, ?, ?)
+        $insertCanonical = $conn->prepare('INSERT INTO `ib_monthly_values` (id, report_period, month_number, metric_code, business_unit, value_type, amount) VALUES (?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE amount = COALESCE(VALUES(amount), amount)');
         if (!$insertCanonical) throw new Exception('Gagal menyiapkan penyimpanan tabel IB baru: ' . $conn->error);
         for ($month = 1; $month <= 12; $month++) {
@@ -540,7 +541,8 @@ try {
                 ['mcm', 'GROUP', 'TARGET', $targetMcm], ['mcm', 'GROUP', 'ACTUAL', $actualMcm],
             ];
             foreach ($canonicalValues as [$metric, $unit, $valueType, $amount]) {
-                $insertCanonical->bind_param('sisssd', $period, $month, $metric, $unit, $valueType, $amount);
+                $canonicalId = nextLegacyId($conn, 'ib_monthly_values');
+                $insertCanonical->bind_param('isisssd', $canonicalId, $period, $month, $metric, $unit, $valueType, $amount);
                 if (!$insertCanonical->execute()) throw new Exception('Gagal menyimpan ke ib_monthly_values: ' . $insertCanonical->error);
             }
         }
