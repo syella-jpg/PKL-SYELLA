@@ -8,6 +8,13 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 // Izinkan halaman lokal file:// mengirim upload ke server PHP di komputer ini.
 // Browser mengirim Origin: null untuk file://. Origin web lain tetap ditolak.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$requestScheme = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')));
+$requestAuthority = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+$originHost = strtolower((string)(parse_url($origin, PHP_URL_HOST) ?: ''));
+$originPort = parse_url($origin, PHP_URL_PORT);
+$originAuthority = $originHost . ($originPort ? ':' . $originPort : '');
+$originScheme = strtolower((string)(parse_url($origin, PHP_URL_SCHEME) ?: ''));
+$isSameOrigin = $origin !== '' && $originScheme === $requestScheme && $originAuthority === $requestAuthority;
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
     header('Vary: Origin');
@@ -17,7 +24,7 @@ if ($origin === 'null') {
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
         header('Access-Control-Allow-Private-Network: true');
     }
-} elseif ($origin !== '' && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
+} elseif ($origin !== '' && !$isSameOrigin && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
     http_response_code(403);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => false, 'message' => 'Origin tidak diizinkan.']);
