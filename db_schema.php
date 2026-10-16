@@ -55,3 +55,48 @@ function ensureSalesReportTables(mysqli $conn): void
         }
     }
 }
+
+/** TiDB cannot retrofit AUTO_INCREMENT on some legacy tables; allocate IDs safely. */
+function ensureLegacyIdAllocator(mysqli $conn, string $table): void
+{
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+        throw new InvalidArgumentException('Nama tabel ID tidak valid.');
+    }
+    if (!$conn->query("CREATE TABLE IF NOT EXISTS `app_id_sequences` (
+        table_name VARCHAR(64) NOT NULL PRIMARY KEY,
+        next_id BIGINT UNSIGNED NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
+        throw new RuntimeException('Gagal menyiapkan penghitung ID: ' . $conn->error);
+    }
+    $column = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE 'id'");
+    if (!$column || $column->num_rows === 0) {
+        throw new RuntimeException('Tabel ' . $table . ' belum memiliki kolom id.');
+    }
+    $seed = $conn->prepare("INSERT IGNORE INTO app_id_sequences (table_name, next_id)
+        SELECT ?, COALESCE(MAX(id), 0) + 1 FROM `{$table}`");
+    if (!$seed) throw new RuntimeException('Gagal menyiapkan penghitung ID ' . $table . ': ' . $conn->error);
+    $seed->bind_param('s', $table);
+    if (!$seed->execute()) throw new RuntimeException('Gagal menginisialisasi ID ' . $table . ': ' . $seed->error);
+    $seed->close();
+}
+
+function nextLegacyId(mysqli $conn, string $table): int
+{
+    $update = $conn->prepare('UPDATE app_id_sequences SET next_id = next_id + 1 WHERE table_name = ?');
+    if (!$update) throw new RuntimeException('Gagal menyiapkan alokasi ID ' . $table . ': ' . $conn->error);
+    $update->bind_param('s', $table);
+    if (!$update->execute() || $update->affected_rows !== 1) {
+        $error = $update->error ?: 'penghitung ID tidak ditemukan';
+        $update->close();
+        throw new RuntimeException('Gagal mengalokasikan ID ' . $table . ': ' . $error);
+    }
+    $update->close();
+    $select = $conn->prepare('SELECT next_id - 1 FROM app_id_sequences WHERE table_name = ?');
+    if (!$select) throw new RuntimeException('Gagal membaca ID ' . $table . ': ' . $conn->error);
+    $select->bind_param('s', $table);
+    if (!$select->execute()) throw new RuntimeException('Gagal membaca ID ' . $table . ': ' . $select->error);
+    $select->bind_result($id);
+    $select->fetch();
+    $select->close();
+    return (int)$id;
+}

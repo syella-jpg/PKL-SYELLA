@@ -263,6 +263,7 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")) {
             throw new Exception('Gagal menyiapkan tabel ib_monthly_values: ' . $conn->error);
         }
+        ensureLegacyIdAllocator($conn, 'revenue_ibfm');
     }
 
     if ($divisi === 'Revenue Konimex Selling In') {
@@ -506,7 +507,7 @@ try {
         $conn->begin_transaction();
         // Upload sheet IAP saja tidak boleh menghapus nilai IB FM yang sudah
         // tersimpan (dan sebaliknya). Nilai NULL mempertahankan nilai lama.
-        $insert = $conn->prepare('INSERT INTO `revenue_ibfm` (report_period, month_number, target_ib_fm, actual_ib_fm, target_ib_fd, actual_ib_fd, target_new_ib_fm, actual_new_ib_fm, target_new_ib_fd, actual_new_ib_fd, target_mcm, actual_mcm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        $insert = $conn->prepare('INSERT INTO `revenue_ibfm` (id, report_period, month_number, target_ib_fm, actual_ib_fm, target_ib_fd, actual_ib_fd, target_new_ib_fm, actual_new_ib_fm, target_new_ib_fd, actual_new_ib_fd, target_mcm, actual_mcm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 target_ib_fm = COALESCE(VALUES(target_ib_fm), target_ib_fm),
                 actual_ib_fm = COALESCE(VALUES(actual_ib_fm), actual_ib_fm),
@@ -528,7 +529,8 @@ try {
             $targetNewFm = $monthlyNewFm['target'][$month]; $actualNewFm = $monthlyNewFm['actual'][$month];
             $targetNewFd = $monthlyNewFd['target'][$month]; $actualNewFd = $monthlyNewFd['actual'][$month];
             $targetMcm = $monthlyMcm['target'][$month]; $actualMcm = $monthlyMcm['actual'][$month];
-            $insert->bind_param('si' . str_repeat('d', 10), $period, $month, $targetFm, $actualFm, $targetFd, $actualFd, $targetNewFm, $actualNewFm, $targetNewFd, $actualNewFd, $targetMcm, $actualMcm);
+            $rowId = nextLegacyId($conn, 'revenue_ibfm');
+            $insert->bind_param('isi' . str_repeat('d', 10), $rowId, $period, $month, $targetFm, $actualFm, $targetFd, $actualFd, $targetNewFm, $actualNewFm, $targetNewFd, $actualNewFd, $targetMcm, $actualMcm);
             if (!$insert->execute()) throw new Exception('Gagal menyimpan data IB FM: ' . $insert->error);
             $canonicalValues = [
                 ['revenue_exist', 'IB_FM', 'TARGET', $targetFm], ['revenue_exist', 'IB_FM', 'ACTUAL', $actualFm],
