@@ -45,10 +45,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 header('Content-Type: application/json; charset=utf-8');
 
-$host = '127.0.0.1';
-$user = 'root';
-$password = '';
-$database = 'LAPORAN KORPORAT';
+$isVercel = getenv('VERCEL') === '1';
+
+if (!$isVercel) {
+    $host = '127.0.0.1';
+    $user = 'root';
+    $password = '';
+    $database = 'LAPORAN KORPORAT';
+}
 
 try {
 
@@ -84,11 +88,17 @@ try {
     // 1. CEK DATABASE / PERIODE
     // =========================
 
+    if ($isVercel) {
+    require_once __DIR__ . '/../db.php';
+} else {
     $conn = new mysqli($host, $user, $password, $database);
+
     if ($conn->connect_error) {
         throw new Exception('Database gagal terhubung: ' . $conn->connect_error);
     }
+
     $conn->set_charset('utf8mb4');
+}
 
     if ($divisi === 'REVENUE VERSI EDP MNJ') {
         $createEdpTable = "CREATE TABLE IF NOT EXISTS `{$tableName}` (
