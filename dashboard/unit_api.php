@@ -24,21 +24,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 
 header('Content-Type: application/json; charset=utf-8');
 
-$conn = new mysqli(getenv('DB_HOST') ?: '127.0.0.1', getenv('DB_USER') ?: 'root', getenv('DB_PASSWORD') ?: '', getenv('DB_NAME') ?: 'LAPORAN KORPORAT');
-if ($conn->connect_error) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database gagal terhubung: ' . $conn->connect_error]);
-    exit;
-}
-$conn->set_charset('utf8mb4');
-
-$period = trim((string)($_GET['period'] ?? ''));
-if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Periode harus berformat YYYY-MM.']);
-    $conn->close();
-    exit;
-}
+require_once __DIR__ . '/../db.php';
 
 $sql = 'SELECT id, report_period, gb, product_code, principal_product_code, product_name, kategori,
     unit_jan, unit_feb, unit_mar, unit_apr, unit_mei, unit_jun, unit_jul, unit_agt,

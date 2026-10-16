@@ -28,9 +28,7 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
 try {
-    $conn = new mysqli(getenv('DB_HOST') ?: '127.0.0.1', getenv('DB_USER') ?: 'root', getenv('DB_PASSWORD') ?: '', getenv('DB_NAME') ?: 'LAPORAN KORPORAT');
-    if ($conn->connect_error) throw new RuntimeException('Database gagal terhubung: ' . $conn->connect_error);
-    $conn->set_charset('utf8mb4');
+    require_once __DIR__ . '/../db.php';
     // Siapkan tabel di endpoint ini juga: upload target bisa menjadi proses
     // pertama yang menyentuh tabel, sebelum halaman dashboard membacanya.
     if (!$conn->query("CREATE TABLE IF NOT EXISTS `revenue_edp_mnj_target` (

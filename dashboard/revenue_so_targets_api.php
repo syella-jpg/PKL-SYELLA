@@ -31,9 +31,8 @@ header('Pragma: no-cache');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 try {
-    $conn = new mysqli(getenv('DB_HOST') ?: '127.0.0.1', getenv('DB_USER') ?: 'root', getenv('DB_PASSWORD') ?: '', getenv('DB_NAME') ?: 'LAPORAN KORPORAT');
-    if ($conn->connect_error) throw new RuntimeException('Database gagal terhubung: ' . $conn->connect_error);
-    $conn->set_charset('utf8mb4');
+    require_once __DIR__ . '/../db.php';
+    
     // Unggahan Target Revenue dapat menjadi proses pertama yang memakai tabel
     // ini pada instalasi baru, jadi siapkan skemanya sebelum GET maupun POST.
     if (!$conn->query("CREATE TABLE IF NOT EXISTS `target_revenue` (

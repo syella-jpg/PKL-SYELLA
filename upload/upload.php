@@ -52,10 +52,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 header('Content-Type: application/json; charset=utf-8');
 
-$host = getenv('DB_HOST') ?: '127.0.0.1';
-$user = getenv('DB_USER') ?: 'root';
-$password = getenv('DB_PASSWORD') ?: '';
-$database = getenv('DB_NAME') ?: 'LAPORAN KORPORAT';
+
 
 try {
 
@@ -91,11 +88,7 @@ try {
     // 1. CEK DATABASE / PERIODE
     // =========================
 
-    $conn = new mysqli($host, $user, $password, $database);
-    if ($conn->connect_error) {
-        throw new Exception('Database gagal terhubung: ' . $conn->connect_error);
-    }
-    $conn->set_charset('utf8mb4');
+    require_once __DIR__ . '/../db.php';
 
     if ($divisi === 'REVENUE VERSI EDP MNJ') {
         $createEdpTable = "CREATE TABLE IF NOT EXISTS `{$tableName}` (
