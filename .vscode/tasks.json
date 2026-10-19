@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start PHP local server",
+      "type": "shell",
+      "command": "bash scripts/start-local.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Buka http://",
+          "endsPattern": "Development Server .* started"
+        }
+      }
+    }
+  ]
+}

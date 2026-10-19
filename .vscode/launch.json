@@ -8,7 +8,9 @@
             "type": "msedge",
             "request": "launch",
             "name": "Open page.html",
-            "file": "/home/user/Laporan Korporat/menu/page.html"
+            "url": "http://127.0.0.1:8000/menu/page.html",
+            "webRoot": "${workspaceFolder}",
+            "preLaunchTask": "Start PHP local server"
         }
     ]
 }
