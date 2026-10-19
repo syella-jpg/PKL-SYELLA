@@ -12,6 +12,86 @@
     {
       "source": "/api/status",
       "destination": "/api/status.php"
+    },
+    {
+      "source": "/dashboard/unit_api",
+      "destination": "/api/report.php?endpoint=unit_api"
+    },
+    {
+      "source": "/dashboard/unit_api.php",
+      "destination": "/api/report.php?endpoint=unit_api"
+    },
+    {
+      "source": "/dashboard/ethical_api",
+      "destination": "/api/report.php?endpoint=ethical_api"
+    },
+    {
+      "source": "/dashboard/ethical_api.php",
+      "destination": "/api/report.php?endpoint=ethical_api"
+    },
+    {
+      "source": "/dashboard/mtm_api",
+      "destination": "/api/report.php?endpoint=mtm_api"
+    },
+    {
+      "source": "/dashboard/mtm_api.php",
+      "destination": "/api/report.php?endpoint=mtm_api"
+    },
+    {
+      "source": "/dashboard/revenue_so_api",
+      "destination": "/api/report.php?endpoint=revenue_so_api"
+    },
+    {
+      "source": "/dashboard/revenue_so_api.php",
+      "destination": "/api/report.php?endpoint=revenue_so_api"
+    },
+    {
+      "source": "/dashboard/revenue_so_targets_api",
+      "destination": "/api/report.php?endpoint=revenue_so_targets_api"
+    },
+    {
+      "source": "/dashboard/revenue_so_targets_api.php",
+      "destination": "/api/report.php?endpoint=revenue_so_targets_api"
+    },
+    {
+      "source": "/dashboard/revenue_edp_mnj_api",
+      "destination": "/api/report.php?endpoint=revenue_edp_mnj_api"
+    },
+    {
+      "source": "/dashboard/revenue_edp_mnj_api.php",
+      "destination": "/api/report.php?endpoint=revenue_edp_mnj_api"
+    },
+    {
+      "source": "/dashboard/revenue_edp_mnj_target_api",
+      "destination": "/api/report.php?endpoint=revenue_edp_mnj_target_api"
+    },
+    {
+      "source": "/dashboard/revenue_edp_mnj_target_api.php",
+      "destination": "/api/report.php?endpoint=revenue_edp_mnj_target_api"
+    },
+    {
+      "source": "/dashboard/revenue_ibfm_api",
+      "destination": "/api/report.php?endpoint=revenue_ibfm_api"
+    },
+    {
+      "source": "/dashboard/revenue_ibfm_api.php",
+      "destination": "/api/report.php?endpoint=revenue_ibfm_api"
+    },
+    {
+      "source": "/dashboard/revenue_kx_si_download",
+      "destination": "/api/report.php?endpoint=revenue_kx_si_download"
+    },
+    {
+      "source": "/dashboard/revenue_kx_si_download.php",
+      "destination": "/api/report.php?endpoint=revenue_kx_si_download"
+    },
+    {
+      "source": "/upload/upload",
+      "destination": "/api/report.php?endpoint=upload"
+    },
+    {
+      "source": "/upload/upload.php",
+      "destination": "/api/report.php?endpoint=upload"
     }
   ]
 }

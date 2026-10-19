@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/database.php';
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
@@ -24,12 +25,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 
 header('Content-Type: application/json');
 
-$host = '127.0.0.1';
-$user = 'root';
-$password = '';
-$database = 'LAPORAN KORPORAT';
-
-$conn = new mysqli($host, $user, $password, $database);
+$conn = openReportConnection();
 
 if ($conn->connect_error) {
     echo json_encode([

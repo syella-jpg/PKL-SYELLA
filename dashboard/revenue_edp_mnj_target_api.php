@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/database.php';
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
@@ -28,7 +29,7 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
 try {
-    $conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
+    $conn = openReportConnection();
     if ($conn->connect_error) throw new RuntimeException('Database gagal terhubung: ' . $conn->connect_error);
     $conn->set_charset('utf8mb4');
     // Siapkan tabel di endpoint ini juga: upload target bisa menjadi proses

@@ -5,12 +5,12 @@
     : new URL("./", document.currentScript.src).href;
   async function fetchReportApi(url, options) {
     let response;
-    try { response = await fetch(url, options); }
+    try { response = await fetch(location.hostname.endsWith(".vercel.app") ? url.replace(/\.php(?=\?|$)/, "") : url, options); }
     catch (_) {
-      throw new Error("Server PHP tidak dapat dihubungi. Jalankan ./scripts/start-local.sh, lalu buka http://127.0.0.1:8000/menu/page.html.");
+      throw new Error("Server API tidak dapat dihubungi. Periksa koneksi dan deployment backend.");
     }
     if (response.headers.get("content-type")?.includes("application/json") !== true) {
-      throw new Error("API laporan harus dijalankan lewat PHP. Buka http://127.0.0.1:8000/menu/page.html setelah menjalankan ./scripts/start-local.sh.");
+      throw new Error("API laporan tidak mengembalikan JSON. Periksa route API dan log deployment.");
     }
     return response;
   }

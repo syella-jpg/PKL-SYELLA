@@ -199,7 +199,7 @@
   // tersimpan di database. Bagian lain mempertahankan alur lokal sebelumnya.
   const LOCAL_FILE_MODE = location.protocol === "file:";
 
-  const UPLOAD_URL = LOCAL_FILE_MODE ? "http://127.0.0.1:8000/upload/upload.php" : "upload.php";
+  const UPLOAD_URL = LOCAL_FILE_MODE ? "http://127.0.0.1:8000/upload/upload.php" : (location.hostname.endsWith(".vercel.app") ? "upload" : "upload.php");
 
   const ALLOWED = ["xlsx", "ods"];
   const MAX_MB = 50;
@@ -209,10 +209,10 @@
   const ETHICAL_HJP_KEY = "konimex_ethical_hjp";
   const TARGET_API_URL = LOCAL_FILE_MODE
     ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
-    : "../dashboard/revenue_so_targets_api.php";
+    : (location.hostname.endsWith(".vercel.app") ? "../dashboard/revenue_so_targets_api" : "../dashboard/revenue_so_targets_api.php");
   const EDP_MNJ_TARGET_API_URL = LOCAL_FILE_MODE
     ? "http://127.0.0.1:8000/dashboard/revenue_edp_mnj_target_api.php"
-    : "../dashboard/revenue_edp_mnj_target_api.php";
+    : (location.hostname.endsWith(".vercel.app") ? "../dashboard/revenue_edp_mnj_target_api" : "../dashboard/revenue_edp_mnj_target_api.php");
 
   // Nama pengguna di header (opsional)
   const USER_NAME = "Administrator";

@@ -215,7 +215,7 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const DOWNLOAD_URL = location.protocol === "file:"
     ? "http://127.0.0.1:8000/dashboard/revenue_kx_si_download.php"
-    : "revenue_kx_si_download.php";
+    : (location.hostname.endsWith(".vercel.app") ? "revenue_kx_si_download" : "revenue_kx_si_download.php");
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth() + 1;

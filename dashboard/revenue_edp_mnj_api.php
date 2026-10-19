@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/database.php';
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
@@ -24,7 +25,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 
 header('Content-Type: application/json; charset=utf-8');
 
-$conn = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
+$conn = openReportConnection();
 if ($conn->connect_error) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Database gagal terhubung: ' . $conn->connect_error]);

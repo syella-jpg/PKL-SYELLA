@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/database.php';
 
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
@@ -45,15 +46,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 header('Content-Type: application/json; charset=utf-8');
 
-$isVercel = getenv('VERCEL') === '1';
-
-if (!$isVercel) {
-    $host = '127.0.0.1';
-    $user = 'root';
-    $password = '';
-    $database = 'LAPORAN KORPORAT';
-}
-
 try {
 
     // Tentukan tabel hanya dari pilihan divisi yang diizinkan.
@@ -88,17 +80,7 @@ try {
     // 1. CEK DATABASE / PERIODE
     // =========================
 
-    if ($isVercel) {
-    require_once __DIR__ . '/../db.php';
-} else {
-    $conn = new mysqli($host, $user, $password, $database);
-
-    if ($conn->connect_error) {
-        throw new Exception('Database gagal terhubung: ' . $conn->connect_error);
-    }
-
-    $conn->set_charset('utf8mb4');
-}
+    $conn = openReportConnection();
 
     if ($divisi === 'REVENUE VERSI EDP MNJ') {
         $createEdpTable = "CREATE TABLE IF NOT EXISTS `{$tableName}` (

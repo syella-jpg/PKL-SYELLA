@@ -1,5 +1,20 @@
 <?php
 
+/** Keep the existing local workflow; cloud deployments always require TLS. */
+function openReportConnection(): mysqli
+{
+    try {
+        if (getenv('VERCEL') === '1' || getenv('DB_HOST') !== false) {
+            return openTidbConnection();
+        }
+        $connection = new mysqli('127.0.0.1', 'root', '', 'LAPORAN KORPORAT');
+        $connection->set_charset('utf8mb4');
+        return $connection;
+    } catch (Throwable $error) {
+        throw new RuntimeException('Koneksi database gagal. Periksa konfigurasi server dan akses TiDB.');
+    }
+}
+
 /** Open a verified TLS connection using server-side environment variables. */
 function openTidbConnection(): mysqli
 {
