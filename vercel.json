@@ -6,6 +6,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/db-check",
+      "destination": "/api/db-check.php"
+    },
+    {
       "source": "/api/status",
       "destination": "/api/status.php"
     }
