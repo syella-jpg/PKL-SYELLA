@@ -546,7 +546,7 @@ foreach ($workbookSheetNames as $sheetName) {
                 elseif (preg_match('/^TOTAL\s+NEW\s+PRODUCT\s+GB\s+ET$/', $name)) $code = 'ethicalNew';
                 elseif (preg_match('/^TOTAL\s+GB\s+ET$/', $name)) $code = 'ethicalTotal';
                 elseif (preg_match('/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/', $name)) $code = 'ethicalExisting';
-                elseif (preg_match('/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH$/', $name)) $code = 'ethicalNew';
+                elseif (preg_match('/^(?:TOTAL\s+)?(?:NP|NEW(?:\s+PRODUCT)?)\s+ETH$/', $name)) $code = 'ethicalNew';
                 elseif (preg_match('/^TOTAL\s+ETH$/', $name)) $code = 'ethicalTotal';
                 if (!$code) continue;
                 $monthlyByCode[$code] ??= array_fill(0, 12, 0.0);
@@ -600,7 +600,7 @@ foreach ($workbookSheetNames as $sheetName) {
                 elseif (preg_match('/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/', $name, $match)) $code = 'existing' . ($match[1] ?: (preg_match('/^GB\s*(\d+)$/', $group, $gb) ? $gb[1] : ''));
                 elseif (preg_match('/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/', $name, $match)) $code = 'new' . ($match[1] ?: (preg_match('/^GB\s*(\d+)$/', $group, $gb) ? $gb[1] : ''));
                 elseif (preg_match('/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH(?:ICAL)?$/', $name)) $code = 'ethicalExisting';
-                elseif (preg_match('/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH(?:ICAL)?$/', $name)) $code = 'ethicalNew';
+                elseif (preg_match('/^(?:TOTAL\s+)?(?:NP|NEW(?:\s+PRODUCT)?)\s+ETH(?:ICAL)?$/', $name)) $code = 'ethicalNew';
                 elseif (preg_match('/^TOTAL\s+ETH(?:ICAL)?$/', $name)) $code = 'ethicalTotal';
                 if (!$code) continue;
                 $monthlyByCode[$code] ??= array_fill(0, 12, 0.0);

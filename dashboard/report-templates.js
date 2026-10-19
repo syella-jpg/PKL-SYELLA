@@ -382,6 +382,27 @@
           if (!previousYear) setValue(summaryRows.targetCum + 1, 2, "TARGET KUM S/D " + periodLabel);
           const value = valuesBySection[section].summary.targetCum;
           if (data) setCellNumber(summaryRows.targetCum, 2, value); else setCellBlank(summaryRows.targetCum, 2);
+          if (previousYear && ["EXISTING", "NEW PRODUCT"].includes(section)) {
+            let totalColumn = -1;
+            for (let row = previousPeriodHeader; row < start && totalColumn < 0; row++) {
+              for (let column = 0; column <= range.e.c; column++) {
+                if (cellText(row, column) === "TOTAL FY") { totalColumn = column; break; }
+              }
+            }
+            if (totalColumn < 0) throw new Error("Kolom TOTAL FY MTM tahun sebelumnya tidak ditemukan.");
+            const row = summaryRows.targetCum;
+            const first = global.XLSX.utils.encode_cell({ r: row, c: monthColumns.get(0) });
+            const last = global.XLSX.utils.encode_cell({ r: row, c: monthColumns.get(11) });
+            const address = global.XLSX.utils.encode_cell({ r: row, c: totalColumn });
+            sourceSheet[address] = {
+              ...(sourceSheet[address] || {}), t: "n", f: "SUM(" + first + ":" + last + ")",
+              v: Array.from(monthColumns.values()).reduce((total, column) => {
+                const cell = global.XLSX.utils.encode_cell({ r: row, c: column });
+                return total + (Number(sourceSheet[cell]?.v) || 0);
+              }, 0), z: "#,##0"
+            };
+            delete sourceSheet[address].w;
+          }
         }
         if (summaryRows.targetTotal !== undefined) {
           const value = valuesBySection[section].summary.targetTotal;
@@ -684,7 +705,7 @@
           if (/^TOTAL\s+NEW\s+PRODUCT\s+GB\s+ET$/.test(cell)) { code = "ethicalNew"; break; }
           if (/^TOTAL\s+GB\s+ET$/.test(cell)) { code = "ethicalTotal"; break; }
           if (/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/.test(cell)) { code = "ethicalExisting"; break; }
-          if (/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH$/.test(cell)) { code = "ethicalNew"; break; }
+          if (/^(?:TOTAL\s+)?(?:NP|NEW(?:\s+PRODUCT)?)\s+ETH$/.test(cell)) { code = "ethicalNew"; break; }
           if (/^TOTAL\s+ETH$/.test(cell)) { code = "ethicalTotal"; break; }
         }
         // Detail dan subtotal sama-sama punya kolom GB. Hanya gunakan GB
@@ -827,6 +848,191 @@
     const index = workbook.SheetNames.indexOf("UNIT");
     if (index < 0) global.XLSX.utils.book_append_sheet(workbook, sheet, "UNIT");
     else workbook.Sheets.UNIT = sheet;
+  };
+
+  global.fillReportMtmPriorTarget = function (workbook, period, yearOffset = -1, priorActual = false) {
+    const utils = global.XLSX.utils;
+    const source = workbook.Sheets.MTM;
+    const report = workbook.Sheets.LAPORAN;
+    if (!source || !report) throw new Error("Sheet MTM atau LAPORAN tidak ditemukan.");
+    const normalize = (value) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    const grid = utils.sheet_to_json(source, { header: 1, defval: "", raw: true });
+    const reportGrid = utils.sheet_to_json(report, { header: 1, defval: "", raw: true });
+    const mtmRow = reportGrid.findIndex((row) => normalize(row[1]) === "MTM") + 1;
+    const year = Number(String(period).slice(0, 4)) + yearOffset;
+    const header = grid.findIndex((row) => row.some((value) => normalize(value) === String(year))
+      && row.some((value) => normalize(value) === "PERIODE"));
+    const totalColumn = header >= 0 ? grid[header].findIndex((value) => normalize(value) === "TOTAL FY") : -1;
+    if (!mtmRow || header < 0 || (!priorActual && yearOffset === -1 && totalColumn < 0)) throw new Error("Tabel MTM " + year + " atau kolom TOTAL FY tidak ditemukan.");
+    const write = (column, row, formula, value) => {
+      const address = column + row;
+      report[address] = { ...report[address], t: "n", f: formula, z: "#,##0;[Red]-#,##0" };
+      if (typeof value === "number" && Number.isFinite(value)) report[address].v = value;
+      else delete report[address].v;
+      delete report[address].w;
+    };
+    const columns = priorActual ? ["E", "F"] : yearOffset === -1 ? ["C", "D"] : ["G", "H"];
+    ["EXISTING", "NEW PRODUCT"].forEach((label, index) => {
+      const start = grid.findIndex((row, r) => r > header && row.some((value) => normalize(value) === label));
+      let targetRow = -1;
+      let fullRow = -1;
+      for (let row = start; start >= 0 && row < grid.length; row++) {
+        const labels = grid[row].map(normalize);
+        if (row > start && labels.some((value) => ["REVENUE", "EXISTING", "NEW PRODUCT"].includes(value))) break;
+        if (labels.includes(priorActual ? "AKTUAL TOTAL" : "TARGET TOTAL")) fullRow = row;
+        if (labels.some((value) => priorActual ? value.startsWith("AKTUAL KUM S/D") : yearOffset === -1 ? value === "TARGET KUMULATIF" : value.startsWith("TARGET KUM S/D"))) { targetRow = row; break; }
+      }
+      if (targetRow < 0) throw new Error("TARGET KUMULATIF MTM " + year + " " + label + " tidak ditemukan.");
+      if ((priorActual || yearOffset === 0) && fullRow < 0) throw new Error((priorActual ? "AKTUAL TOTAL" : "TARGET TOTAL") + " MTM " + label + " tidak ditemukan.");
+      // Ringkasan YTD pada sheet MTM berada di kolom C.
+      for (const [column, sourceColumn] of [[columns[0], !priorActual && yearOffset === -1 ? totalColumn : 2], [columns[1], 2]]) {
+        const address = utils.encode_cell({ r: (priorActual || yearOffset === 0) && column === columns[0] ? fullRow : targetRow, c: sourceColumn });
+        const value = source[address]?.v;
+        write(column, mtmRow + index + 1, "MTM!" + address + "/1000",
+          typeof value === "number" ? value / 1000 : undefined);
+      }
+    });
+    for (const column of columns) {
+      const values = [1, 2].map((offset) => report[column + (mtmRow + offset)]?.v);
+      write(column, mtmRow, "SUM(" + column + (mtmRow + 1) + ":" + column + (mtmRow + 2) + ")",
+        values.every((value) => typeof value === "number") ? values[0] + values[1] : undefined);
+    }
+  };
+
+  global.fillReportEthicalTargets = function (workbook, period) {
+    const utils = global.XLSX.utils;
+    const source = workbook.Sheets.ETHICAL;
+    const report = workbook.Sheets.LAPORAN;
+    const normalize = (value) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    if (!source || !report) throw new Error("Sheet ETHICAL atau LAPORAN tidak ditemukan.");
+    const grid = utils.sheet_to_json(source, { header: 1, defval: "", raw: true });
+    const reportGrid = utils.sheet_to_json(report, { header: 1, defval: "", raw: true });
+    const ethical = reportGrid.findIndex((row) => normalize(row[1]) === "ETHICAL") + 1;
+    const fullRow = grid.findIndex((row, index) => index > 3 && row.some((value) => /^20\d{2}$/.test(normalize(value))));
+    const ytdRow = grid.findIndex((row) => row.some((value) => normalize(value).startsWith("KUMULATIF S/D")));
+    if (!ethical || fullRow < 0 || ytdRow < 0) throw new Error("Baris ringkasan target ETHICAL tidak ditemukan.");
+    const write = (column, row, formula, value) => {
+      const address = column + row;
+      report[address] = { ...report[address], t: "n", f: formula, z: "#,##0;[Red]-#,##0" };
+      if (typeof value === "number" && Number.isFinite(value)) report[address].v = value;
+      else delete report[address].v;
+      delete report[address].w;
+    };
+    const year = Number(String(period).slice(0, 4));
+    for (const [targetYear, columns] of [[year - 1, ["C", "D"]], [year, ["G", "H"]]]) {
+      let startColumn = -1;
+      for (const row of grid) {
+        const column = row.findIndex((value) => normalize(value).startsWith("TARGET AWAL")
+          && normalize(value).endsWith(String(targetYear)));
+        if (column >= 0) { startColumn = column; break; }
+      }
+      if (startColumn < 0) throw new Error("Kolom target ETHICAL " + targetYear + " tidak ditemukan.");
+      for (const [column, sourceRow] of [[columns[0], fullRow], [columns[1], ytdRow]]) {
+        [0, 1].forEach((offset) => {
+          const address = utils.encode_cell({ r: sourceRow, c: startColumn + offset });
+          write(column, ethical + offset + 1, "ETHICAL!" + address, source[address]?.v);
+        });
+        const values = [1, 2].map((offset) => report[column + (ethical + offset)]?.v);
+        write(column, ethical, "SUM(" + column + (ethical + 1) + ":" + column + (ethical + 2) + ")",
+          values.every((value) => typeof value === "number") ? values[0] + values[1] : undefined);
+      }
+    }
+  };
+
+  global.fillReportCurrentTarget = function (workbook, period, yearOffset = 0, priorActual = false) {
+    const utils = global.XLSX.utils;
+    const source = workbook.Sheets[TEMPLATE_NAME];
+    const report = workbook.Sheets.LAPORAN;
+    const normalize = (value) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    const grid = utils.sheet_to_json(source, { header: 1, defval: "", raw: true });
+    const title = (priorActual ? "REVENUE TAHUN " : "TARGET SELL OUT ") + (Number(String(period).slice(0, 4)) + yearOffset);
+    const section = grid.findIndex((row) => row.some((value) => normalize(value) === title));
+    const header = grid.findIndex((row, index) => section >= 0 && index >= section && index < section + 6
+      && row.some((value) => normalize(value) === "JANUARI")
+      && row.some((value) => normalize(value) === "DESEMBER"));
+    if (header < 0) throw new Error("Tabel " + title + " tidak ditemukan.");
+    const headers = grid[header].map(normalize);
+    const totalColumn = headers.indexOf("TOTAL");
+    const ytdColumn = headers.findIndex((value) => /^YTD(?:\s|$)/.test(value));
+    if (totalColumn < 0 || ytdColumn < 0) throw new Error("Kolom TOTAL/YTD " + title + " tidak ditemukan.");
+    const sourceRows = new Map();
+    for (let row = header + 1; row < grid.length; row++) {
+      if (grid[row].some((value) => /^(?:REVENUE|BIAYA|MCM|TARGET SELL OUT)\s+(?:TAHUN\s+)?20\d{2}/.test(normalize(value)))) break;
+      const label = normalize(grid[row][1] || grid[row][0]);
+      if (label) sourceRows.set(label, row);
+    }
+    const rows = utils.sheet_to_json(report, { header: 1, defval: "", raw: true });
+    const findRow = (label) => {
+      const row = rows.findIndex((values) => normalize(values[1]) === label) + 1;
+      if (!row) throw new Error("Baris " + label + " tidak ditemukan pada LAPORAN.");
+      return row;
+    };
+    const columns = priorActual ? ["E", "F"] : yearOffset === -1 ? ["C", "D"] : ["G", "H"];
+    for (const [column, sourceColumn] of [[columns[0], totalColumn], [columns[1], ytdColumn]]) {
+      const write = (row, formula, value) => {
+        const address = column + row;
+        const cell = { ...report[address], t: "n", f: formula, z: "#,##0;[Red]-#,##0" };
+        if (typeof value === "number" && Number.isFinite(value)) cell.v = value;
+        else delete cell.v;
+        delete cell.w;
+        report[address] = cell;
+      };
+      const sum = (row, details) => {
+        const values = details.map((detail) => report[column + detail]?.v);
+        write(row, "SUM(" + details.map((detail) => column + detail).join(",") + ")",
+          values.every((value) => typeof value === "number") ? values.reduce((a, b) => a + b, 0) : undefined);
+      };
+      const gbRows = new Map();
+      for (let gb = 1; gb <= 6; gb++) {
+        const row = findRow("GB " + gb);
+        ["EXIST GB ", "NP GB "].forEach((prefix, index) => {
+          const label = prefix + gb;
+          if (!sourceRows.has(label)) throw new Error("Baris " + label + " tidak ditemukan pada " + title + ".");
+          const address = utils.encode_cell({ r: sourceRows.get(label), c: sourceColumn });
+          write(row + index + 1, "'REVENUE EDP MNJ'!" + address, source[address]?.v);
+        });
+        sum(row, [row + 1, row + 2]);
+        gbRows.set(gb, row);
+      }
+      for (const [label, members] of [["PHARMA", [1, 4]], ["HCE", [2, 3]], ["FOOD", [5, 6]], ["CORPORATE", [1, 2, 3, 4, 5, 6]]]) {
+        const row = findRow(label);
+        sum(row + 1, members.map((gb) => gbRows.get(gb) + 1));
+        sum(row + 2, members.map((gb) => gbRows.get(gb) + 2));
+        sum(row, [row + 1, row + 2]);
+      }
+      if (priorActual) {
+        const ethical = findRow("ETHICAL");
+        ["EXIST ETHICAL", "NP ETHICAL"].forEach((label, index) => {
+          if (!sourceRows.has(label)) throw new Error("Baris " + label + " tidak ditemukan pada " + title + ".");
+          const address = utils.encode_cell({ r: sourceRows.get(label), c: sourceColumn });
+          write(ethical + index + 1, "'REVENUE EDP MNJ'!" + address, source[address]?.v);
+        });
+        sum(ethical, [ethical + 1, ethical + 2]);
+        {
+          const international = findRow("INTERNATIONAL BUSINESS");
+          const ib = workbook.Sheets.IB;
+          if (!ib) throw new Error("Sheet IB tidak ditemukan.");
+          // Full Year memakai YTD AKTUAL TOTAL; YTD memakai YTD AKTUAL IB FD tahun sebelumnya.
+          const addresses = column === "E" ? ["D66", "D72"] : ["D68", "D74"];
+          addresses.forEach((address, index) => {
+            write(international + index + 1, "IB!" + address, ib[address]?.v);
+          });
+          sum(international, [international + 1, international + 2]);
+        }
+      } else {
+        const international = findRow("INTERNATIONAL BUSINESS");
+        const ib = workbook.Sheets.IB;
+        if (!ib) throw new Error("Sheet IB tidak ditemukan.");
+        // Blok RP (000): TARGET TOTAL EXIST/NEW, TOTAL FY di R dan YTD di D.
+        const ibColumn = column === columns[0] ? "R" : "D";
+        const ibRows = yearOffset === -1 ? [63, 69] : [25, 31];
+        ibRows.forEach((sourceRow, index) => {
+          const address = ibColumn + sourceRow;
+          write(international + index + 1, "IB!" + address, ib[address]?.v);
+        });
+        sum(international, [international + 1, international + 2]);
+      }
+    }
   };
 
   // Achievement LAPORAN mengambil YTD REVENUE EDP dan IB tahun laporan.

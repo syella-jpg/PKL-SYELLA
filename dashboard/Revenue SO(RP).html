@@ -424,7 +424,7 @@
       [/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/i, (m, gb) => "existing" + (m[1] || gb || "")],
       [/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/i, (m, gb) => "new" + (m[1] || gb || "")],
       [/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/i, () => "ethicalExisting"],
-      [/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH$/i, () => "ethicalNew"],
+      [/^(?:TOTAL\s+)?(?:NP|NEW(?:\s+PRODUCT)?)\s+ETH$/i, () => "ethicalNew"],
       [/^TOTAL\s+ETH$/i, () => "ethicalTotal"]
     ];
     const buildRevenue = (records, fromBrowser) => {
@@ -525,7 +525,7 @@
       [/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/i, (m) => ({ code: "existing" + (m[1] || ""), label: "TOTAL EXISTING GB" + (m[1] ? " " + m[1] : "") })],
       [/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/i, (m) => ({ code: "new" + (m[1] || ""), label: "TOTAL NEW PRODUCT GB" + (m[1] ? " " + m[1] : "") })],
       [/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/i, () => ({ code: "ethicalExisting", label: "EXIST ETH" })],
-      [/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH$/i, () => ({ code: "ethicalNew", label: "NP ETH" })],
+      [/^(?:TOTAL\s+)?(?:NP|NEW(?:\s+PRODUCT)?)\s+ETH$/i, () => ({ code: "ethicalNew", label: "NP ETH" })],
       [/^TOTAL\s+ETH$/i, () => ({ code: "ethicalTotal", label: "TOTAL ETH" })]
     ];
     const rows = payload.data.map((record) => {
@@ -863,17 +863,26 @@
     catch (error) { toast(error.message || "Template sheet IB gagal dimuat."); return; }
     try { await replaceUnitTemplateSheet(workbook, selectedPeriod); }
     catch (error) { toast(error.message || "Template sheet UNIT gagal dimuat."); return; }
-    try { await replaceMtmTemplateSheet(workbook, selectedPeriod); }
+    try {
+      await replaceMtmTemplateSheet(workbook, selectedPeriod);
+      fillReportMtmPriorTarget(workbook, selectedPeriod);
+      fillReportMtmPriorTarget(workbook, selectedPeriod, 0);
+      fillReportMtmPriorTarget(workbook, selectedPeriod, -1, true);
+    }
     catch (error) { toast(error.message || "Template sheet MTM gagal dimuat."); return; }
     try {
       await replaceEdpTemplateSheet(workbook, selectedPeriod);
       fillReportAchievement(workbook, selectedPeriod);
+      fillReportCurrentTarget(workbook, selectedPeriod);
+      fillReportCurrentTarget(workbook, selectedPeriod, -1);
+      fillReportCurrentTarget(workbook, selectedPeriod, -1, true);
     }
     catch (error) { toast(error.message || "Target SELL OUT gagal dimasukkan ke sheet REVENUE EDP MNJ."); return; }
     try {
       const reportYear = Number(selectedPeriod.slice(0, 4));
       const hjpData = await getEthicalHjpData(reportYear, reportYear + 1, reportYear - 1);
       await replaceEthicalTemplateSheet(workbook, selectedPeriod, hjpData);
+      fillReportEthicalTargets(workbook, selectedPeriod);
     }
     catch (error) { toast(error.message || "Template Ethical gagal dimuat."); return; }
     const filename = (st.report + " - " + selectedPeriod + ".ods").replace(/[\\/:*?"<>|]/g, "");

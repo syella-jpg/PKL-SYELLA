@@ -408,7 +408,7 @@
       [/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/i, (m, gb) => "existing" + (m[1] || gb || "")],
       [/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/i, (m, gb) => "new" + (m[1] || gb || "")],
       [/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/i, () => "ethicalExisting"],
-      [/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH$/i, () => "ethicalNew"],
+      [/^(?:TOTAL\s+)?(?:NP|NEW(?:\s+PRODUCT)?)\s+ETH$/i, () => "ethicalNew"],
       [/^TOTAL\s+ETH$/i, () => "ethicalTotal"]
     ];
     const buildRevenue = (records, fromBrowser) => {
@@ -511,7 +511,7 @@
       [/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/i, (m) => ({ code: "existing" + (m[1] || ""), label: "TOTAL EXISTING GB" + (m[1] ? " " + m[1] : "") })],
       [/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/i, (m) => ({ code: "new" + (m[1] || ""), label: "TOTAL NEW PRODUCT GB" + (m[1] ? " " + m[1] : "") })],
       [/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/i, () => ({ code: "ethicalExisting", label: "EXIST ETH" })],
-      [/^(?:TOTAL\s+)?(?:NP|NEW\s+PRODUCT)\s+ETH$/i, () => ({ code: "ethicalNew", label: "NP ETH" })],
+      [/^(?:TOTAL\s+)?(?:NP|NEW(?:\s+PRODUCT)?)\s+ETH$/i, () => ({ code: "ethicalNew", label: "NP ETH" })],
       [/^TOTAL\s+ETH$/i, () => ({ code: "ethicalTotal", label: "TOTAL ETH" })]
     ];
     const rows = payload.data.map((record) => {
