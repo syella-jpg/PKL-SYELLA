@@ -829,6 +829,94 @@
     else workbook.Sheets.UNIT = sheet;
   };
 
+  // Achievement LAPORAN mengambil YTD REVENUE EDP dan IB tahun laporan.
+  global.fillReportAchievement = function (workbook, period) {
+    const source = workbook.Sheets[TEMPLATE_NAME];
+    const report = workbook.Sheets.LAPORAN;
+    if (!source || !report) throw new Error("Sheet sumber Achievement tidak tersedia.");
+    const utils = global.XLSX.utils;
+    const normalize = (value) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    const grid = utils.sheet_to_json(source, { header: 1, defval: "", raw: true });
+    const section = grid.findIndex((row) => row.some((value) => normalize(value) === "REVENUE TAHUN " + String(period).slice(0, 4)));
+    const header = grid.findIndex((row, index) => index >= section && index <= section + 5
+      && row.some((value) => normalize(value) === "JANUARI")
+      && row.some((value) => normalize(value) === "DESEMBER"));
+    if (section < 0 || header < 0) throw new Error("Tabel REVENUE tahun laporan tidak ditemukan.");
+    const detectedYtd = grid[header].findIndex((value) => normalize(value).startsWith("YTD "));
+    const ytdColumn = detectedYtd >= 0 ? detectedYtd : 2;
+    const sourceRows = new Map();
+    for (let row = header + 1; row < grid.length; row++) {
+      const label = normalize(grid[row][1] || grid[row][0]);
+      if (/^(?:BIAYA|MCM|TARGET|REVENUE) TAHUN \d{4}/.test(label)) break;
+      if (label) sourceRows.set(label, row);
+    }
+    const reportGrid = utils.sheet_to_json(report, { header: 1, defval: "", raw: true });
+    const findRow = (label) => reportGrid.findIndex((row) => normalize(row[1]) === label) + 1;
+    const write = (row, formula, value) => {
+      const address = "I" + row;
+      report[address] = { ...report[address], t: "n", f: formula, v: value, z: "#,##0;[Red]-#,##0" };
+      delete report[address].w;
+    };
+    const link = (row, label) => {
+      if (!sourceRows.has(label)) throw new Error("Baris " + label + " tidak ditemukan pada REVENUE tahun laporan.");
+      const address = utils.encode_cell({ r: sourceRows.get(label), c: ytdColumn });
+      write(row, "'REVENUE EDP MNJ'!" + address, Number(source[address]?.v) || 0);
+    };
+    const sum = (row, rows) => write(row, "SUM(" + rows.map((r) => "I" + r).join(",") + ")",
+      rows.reduce((total, r) => total + (Number(report["I" + r]?.v) || 0), 0));
+    const gbRows = new Map();
+    for (let gb = 1; gb <= 6; gb++) {
+      const row = findRow("GB " + gb);
+      if (!row) throw new Error("Baris GB " + gb + " tidak ditemukan pada LAPORAN.");
+      link(row + 1, "EXIST GB " + gb);
+      link(row + 2, "NP GB " + gb);
+      sum(row, [row + 1, row + 2]);
+      gbRows.set(gb, row);
+    }
+    for (const [name, members] of [["PHARMA", [1, 4]], ["HCE", [2, 3]], ["FOOD", [5, 6]]]) {
+      const row = findRow(name);
+      sum(row + 1, members.map((gb) => gbRows.get(gb) + 1));
+      sum(row + 2, members.map((gb) => gbRows.get(gb) + 2));
+      sum(row, [row + 1, row + 2]);
+    }
+    const ethical = findRow("ETHICAL");
+    link(ethical + 1, "EXIST ETHICAL");
+    link(ethical + 2, "NP ETHICAL");
+    sum(ethical, [ethical + 1, ethical + 2]);
+    const international = findRow("INTERNATIONAL BUSINESS");
+    const ib = workbook.Sheets.IB;
+    if (!international || !ib) throw new Error("Sheet IB atau baris INTERNATIONAL BUSINESS tidak ditemukan.");
+    // Tabel RP (000): D = YTD, 28 = AKTUAL TOTAL EXIST, 34 = AKTUAL TOTAL NEW.
+    [[international + 1, "D28"], [international + 2, "D34"]].forEach(([row, address]) => {
+      const value = ib[address]?.v;
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new Error("YTD AKTUAL TOTAL IB pada " + address + " belum tersedia.");
+      }
+      write(row, "IB!" + address, value);
+    });
+    sum(international, [international + 1, international + 2]);
+    const mtmRow = findRow("MTM");
+    const mtm = workbook.Sheets.MTM;
+    if (!mtmRow || !mtm) throw new Error("Sheet atau baris MTM tidak ditemukan.");
+    const mtmGrid = utils.sheet_to_json(mtm, { header: 1, defval: "", raw: true });
+    ["EXISTING", "NEW PRODUCT"].forEach((label, index) => {
+      // Ambil kemunculan pertama: blok tahun berjalan, sebelum tahun sebelumnya.
+      const start = mtmGrid.findIndex((row) => row.some((value) => normalize(value) === label));
+      let actualRow = -1;
+      for (let row = start; start >= 0 && row < mtmGrid.length; row++) {
+        const labels = mtmGrid[row].map(normalize);
+        if (row > start && labels.some((value) => ["REVENUE", "EXISTING", "NEW PRODUCT"].includes(value))) break;
+        if (labels.some((value) => value.startsWith("AKTUAL KUM S/D"))) { actualRow = row; break; }
+      }
+      if (actualRow < 0) throw new Error("Baris AKTUAL KUM S/D MTM " + label + " tidak ditemukan.");
+      // Pengisian sheet MTM menempatkan ringkasan YTD di kolom C.
+      const address = utils.encode_cell({ r: actualRow, c: 2 });
+      const value = mtm[address]?.v;
+      write(mtmRow + index + 1, "MTM!" + address + "/1000", (Number(value) || 0) / 1000);
+    });
+    sum(mtmRow, [mtmRow + 1, mtmRow + 2]);
+  };
+
   global.replaceEdpTemplateSheet = async function (workbook, period, revenueAchievement) {
     if (!global.XLSX) throw new Error("Komponen spreadsheet belum dimuat.");
     const templateWorkbook = global.XLSX.read(await readTemplate(), {

@@ -865,7 +865,10 @@
     catch (error) { toast(error.message || "Template sheet UNIT gagal dimuat."); return; }
     try { await replaceMtmTemplateSheet(workbook, selectedPeriod); }
     catch (error) { toast(error.message || "Template sheet MTM gagal dimuat."); return; }
-    try { await replaceEdpTemplateSheet(workbook, selectedPeriod); }
+    try {
+      await replaceEdpTemplateSheet(workbook, selectedPeriod);
+      fillReportAchievement(workbook, selectedPeriod);
+    }
     catch (error) { toast(error.message || "Target SELL OUT gagal dimasukkan ke sheet REVENUE EDP MNJ."); return; }
     try {
       const reportYear = Number(selectedPeriod.slice(0, 4));

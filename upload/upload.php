@@ -1227,6 +1227,10 @@ try {
 
 } catch (Throwable $e) {
 
+    if (http_response_code() < 400) {
+        http_response_code(500);
+    }
+
     if (isset($conn) && $conn instanceof mysqli) {
         try {
             $conn->rollback();
