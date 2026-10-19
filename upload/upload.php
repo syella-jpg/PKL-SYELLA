@@ -6,9 +6,23 @@ require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-// Izinkan halaman lokal file:// mengirim upload ke server PHP di komputer ini.
-// Browser mengirim Origin: null untuk file://. Origin web lain tetap ditolak.
+// Accept this application's host and the exact domains assigned by Vercel.
+// PHP's internal HTTP_HOST may differ from the public deployment domain.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = ['http://127.0.0.1:8000', 'http://localhost:8000'];
+$requestHost = $_SERVER['HTTP_HOST'] ?? '';
+if ($requestHost !== '') {
+    $allowedOrigins[] = 'https://' . strtolower($requestHost);
+    if (getenv('VERCEL') !== '1') {
+        $allowedOrigins[] = 'http://' . strtolower($requestHost);
+    }
+}
+foreach (['VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_PROJECT_PRODUCTION_URL'] as $key) {
+    $domain = getenv($key);
+    if (is_string($domain) && $domain !== '') {
+        $allowedOrigins[] = 'https://' . strtolower($domain);
+    }
+}
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
     header('Vary: Origin');
@@ -18,7 +32,7 @@ if ($origin === 'null') {
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
         header('Access-Control-Allow-Private-Network: true');
     }
-} elseif ($origin !== '' && $origin !== 'http://127.0.0.1:8000' && $origin !== 'http://localhost:8000') {
+} elseif ($origin !== '' && !in_array(strtolower($origin), $allowedOrigins, true)) {
     http_response_code(403);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => false, 'message' => 'Origin tidak diizinkan.']);
