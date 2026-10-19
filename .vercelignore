@@ -1,0 +1,3 @@
+# Install dependencies from composer.lock during the Vercel PHP build.
+# Do not upload local Composer files that are regenerated during installation.
+vendor/
