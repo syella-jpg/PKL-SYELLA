@@ -159,7 +159,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="report-templates.js?v=ib-dynamic-years-v17-20261015"></script>
+<script src="report-templates.js?v=ib-upload-rate-20261020"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -174,7 +174,7 @@
   // isi alamat file-nya di sini (kosong = menampilkan pesan "belum tersedia").
   const CURRENT = REPORTS[1];
   const PAGES = {
-    "TM BOD": "",
+    "TM BOD": "TM%20BOD.html",
     "MCM Konimex Sell In (RP)": "MCM%20KX%20SI.html",
     "Revenue Konimex Selling Out (RP)": "Revenue%20SO(RP).html",
     "Revenue Konimex Selling In (RP)": "Revenue%20KX%20SI.html",
@@ -211,7 +211,9 @@
   const COLORS = ["#004586", "#ff420e", "#ffd320"];
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const st = { sec: "Dashboard", report: CURRENT, tab: TABS[0], period: "2026-06" };
+  const today = new Date();
+  const currentYear = today.getFullYear(), currentMonth = today.getMonth() + 1;
+  const st = { sec: "Dashboard", report: CURRENT, tab: TABS[0], period: currentYear + "-" + String(currentMonth).padStart(2, "0") };
   let token = 0, cur = null;
 
   function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2200); }
@@ -235,8 +237,9 @@
     b.onclick = () => { st.tab = t; render(); };
     $("tabs").appendChild(b);
   });
-  BULAN.forEach((m, i) => {
-    const o = document.createElement("option"); o.value = "2026-" + String(i + 1).padStart(2, "0"); o.textContent = m + " 2026";
+  for (let year = currentYear; year >= 2025; year--) BULAN.forEach((m, i) => {
+    if (year === currentYear && i + 1 > currentMonth) return;
+    const o = document.createElement("option"); o.value = year + "-" + String(i + 1).padStart(2, "0"); o.textContent = m + " " + year;
     $("period").appendChild(o);
   });
   $("period").value = st.period;
@@ -271,7 +274,7 @@
   /* ---------- Kartu KPI ---------- */
   function renderCards() {
     const T = st.tab.toUpperCase(), M = monthName().toUpperCase();
-    const labels = ["% Achievement 2026 " + T, "Growth YTD " + M + " " + T, "% Achievement 2026 Total Existing", "Growth YTD Existing"];
+    const labels = ["% Achievement " + st.period.slice(0, 4) + " " + T, "Growth YTD " + M + " " + T, "% Achievement " + st.period.slice(0, 4) + " Total Existing", "Growth YTD Existing"];
     $("cards").innerHTML = labels.map((l, i) =>
       '<div class="kpi"><p>' + esc(l) + "</p><b>" + esc(cur && cur.cards && cur.cards[i] != null ? cur.cards[i] : "-") + "</b></div>").join("");
   }

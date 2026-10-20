@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/ib_exchange_rates.php';
 
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
@@ -235,6 +236,8 @@ try {
         throw new Exception('Gagal menyiapkan tabel IB FM: ' . $conn->error);
     }
     if ($divisi === 'IB') {
+        $ibExchangeRate = validateIbExchangeRate($_POST['usd_rate'] ?? null);
+        ensureIbExchangeRates($conn);
         foreach ([
             'target_ib_fd' => 'DECIMAL(20,2) NULL', 'actual_ib_fd' => 'DECIMAL(20,2) NULL',
             'target_new_ib_fm' => 'DECIMAL(20,2) NULL', 'actual_new_ib_fm' => 'DECIMAL(20,2) NULL',
@@ -516,11 +519,17 @@ try {
                 if (!$insertCanonical->execute()) throw new Exception('Gagal menyimpan ke ib_monthly_values: ' . $insertCanonical->error);
             }
         }
+        $rateYear = (int)substr($period, 0, 4);
+        $rateInsert = $conn->prepare('INSERT INTO ib_exchange_rates (report_year, usd_rate) VALUES (?, ?) ON DUPLICATE KEY UPDATE usd_rate = VALUES(usd_rate)');
+        if (!$rateInsert) throw new Exception('Gagal menyiapkan penyimpanan kurs IB.');
+        $rateInsert->bind_param('id', $rateYear, $ibExchangeRate);
+        if (!$rateInsert->execute()) throw new Exception('Kurs IB gagal disimpan.');
+        $rateInsert->close();
         $insert->close(); $insertCanonical->close(); $conn->commit(); $conn->close();
         echo json_encode(['success' => true, 'message' => $hasFoodData
             ? 'REVENUE EXIST, REVENUE NEW, dan MCM berhasil dimuat ke sheet IB.'
             : 'Data IB dan MCM berhasil dimuat; sheet IAP kosong sehingga baris IB FD belum memiliki nilai.',
-            'rows_inserted' => 12, 'ib_fd_has_data' => $hasFoodData]);
+            'rows_inserted' => 12, 'ib_fd_has_data' => $hasFoodData, 'usd_rate' => $ibExchangeRate]);
         exit;
     }
 

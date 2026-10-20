@@ -51,7 +51,7 @@
   .tabs button.on { background: #fff; }
 
   .body { padding: 10px 20px 48px; }
-  .cards { user-select: none; -webkit-user-select: none; display: flex; gap: 22px; overflow-x: auto; padding: 8px 8px 22px; }
+  .cards { user-select: none; -webkit-user-select: none; display: grid; grid-template-columns: repeat(6, minmax(150px, 1fr)); gap: 14px; overflow-x: auto; padding: 8px 8px 22px; }
   .kpi { flex: 0 0 205px; min-height: 125px; background: #fff; border-radius: 28px; padding: 18px 12px 16px 12px; box-shadow: 0 4px 8px rgba(0,0,0,.22); }
   .kpi p { font-size: 13px; line-height: 1.2; min-height: 32px; }
   .kpi b { display: block; margin-top: 12px; font-size: 25px; font-weight: 500; }
@@ -73,7 +73,18 @@
   /* ===== Analisis & catatan ===== */
   .analysis { margin: 44px 8px 0; max-width: 760px; background: #f6f5ff; border-radius: 22px; padding: 22px; }
   .analysis h3, .notes h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
-  textarea { width: 100%; min-height: 130px; resize: vertical; border: 1.5px solid #cfcaf5; border-radius: 12px; padding: 12px 14px; font-family: inherit; font-size: 13px; background: #fff; }
+  .note-toolbar { display:flex; flex-wrap:wrap; gap:3px; padding:7px; border:1px solid #cfcaf5; border-bottom:0; border-radius:12px 12px 0 0; background:#fafafa; }
+  .note-toolbar button { min-width:32px; height:30px; border:0; border-radius:5px; background:transparent; color:#333; cursor:pointer; font-size:16px; }
+  .note-toolbar button:hover, .note-toolbar button[aria-pressed="true"] { background:#e7e2ff; color:#4531aa; }
+  .note-toolbar button:focus-visible { outline:2px solid #6751da; }
+  .note-editor { width:100%; min-height:130px; border:1px solid #cfcaf5; border-radius:0 0 12px 12px; padding:12px 14px; font-size:13px; line-height:1.6; background:#fff; overflow-wrap:anywhere; }
+  .note-editor:focus { outline:2px solid #9b8cff; outline-offset:-2px; }
+  .note-editor:empty::before { content:attr(data-placeholder); color:#888; pointer-events:none; }
+  .note-editor ul, .note-editor ol, .note-content ul, .note-content ol { padding-left:24px; }
+  .note-editor blockquote, .note-content blockquote { border-left:3px solid #9b8cff; margin:8px 0; padding-left:12px; color:#555; }
+  .note-content { font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+  .note-content p { margin:0 0 8px; }
+
   .acts { display: flex; justify-content: flex-end; gap: 12px; margin-top: 14px; }
   .btn { height: 36px; padding: 0 26px; border-radius: 10px; font-size: 13px; font-weight: 600; }
   .btn.cancel { border: 1.5px solid #9ca3af; background: #fff; color: #374151; }
@@ -146,7 +157,18 @@
 
     <section class="analysis">
       <h3>Analisis</h3>
-      <textarea id="note" placeholder="Tulis analisis atau catatan untuk laporan ini..." aria-label="Analisis"></textarea>
+      <div class="note-toolbar" id="noteToolbar" role="toolbar" aria-label="Format catatan">
+        <button type="button" data-command="bold" aria-label="Tebal" title="Tebal (Ctrl+B)"><b>B</b></button>
+        <button type="button" data-command="italic" aria-label="Miring" title="Miring (Ctrl+I)"><i>I</i></button>
+        <button type="button" data-command="strikeThrough" aria-label="Coret" title="Coret"><s>S</s></button>
+        <button type="button" data-command="underline" aria-label="Garis bawah" title="Garis bawah (Ctrl+U)"><u>U</u></button>
+        <button type="button" data-command="insertUnorderedList" aria-label="Daftar poin" title="Daftar poin">•≡</button>
+        <button type="button" data-command="insertOrderedList" aria-label="Daftar nomor" title="Daftar nomor">1≡</button>
+        <button type="button" data-command="formatBlock" aria-label="Kutipan" title="Kutipan">❝</button>
+        <button type="button" data-command="undo" aria-label="Urungkan" title="Undo">↶</button>
+        <button type="button" data-command="redo" aria-label="Ulangi" title="Redo">↷</button>
+      </div>
+      <div id="note" class="note-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Analisis" data-placeholder="Tulis analisis atau catatan untuk laporan ini..."></div>
       <div class="acts">
         <button class="btn cancel" id="cancel" type="button">Batal</button>
         <button class="btn save" id="save" type="button">Simpan</button>
@@ -163,7 +185,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="report-templates.js?v=corporate-target-units-20261020-3"></script>
+<script src="report-templates.js?v=ib-upload-rate-20261020"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -178,7 +200,7 @@
   // isi alamat file-nya di sini (kosong = menampilkan pesan "belum tersedia").
   const CURRENT = REPORTS[0];
   const PAGES = {
-    "TM BOD": "",
+    "TM BOD": "TM%20BOD.html",
     "MCM Konimex Sell In (RP)": "MCM%20KX%20SI.html",
     "Revenue Konimex Selling Out (RP)": "Revenue%20SO(RP).html",
     "Revenue Konimex Selling In (RP)": "Revenue%20KX%20SI.html",
@@ -325,11 +347,25 @@
   window.setDashboardData = (report, tab, obj) => { (DATA[report] = DATA[report] || {})[tab] = obj; render(); };
 
   /* ---------- Kartu KPI ---------- */
-  function renderCards() {
-    const T = st.tab.toUpperCase(), M = monthName().toUpperCase();
-    const labels = ["% Achievement 2026 " + T, "Growth YTD " + M + " " + T, "% Achievement 2026 Total Existing", "Growth YTD Existing"];
-    $("cards").innerHTML = labels.map((l, i) =>
-      '<div class="kpi"><p>' + esc(l) + "</p><b>" + esc(cur && cur.cards && cur.cards[i] != null ? cur.cards[i] : "-") + "</b></div>").join("");
+  function renderCards(sheet = null) {
+    const T = st.tab.toUpperCase(), M = monthName().toUpperCase(), year = st.period.slice(0, 4);
+    const labels = [
+      "% Achievement " + year + " " + T,
+      "Growth YTD " + M + " " + T,
+      "% Achievement " + year + " Total Existing",
+      "Growth YTD " + M + " Total Existing",
+      "% Achievement " + year + " Total New Product",
+      "Growth YTD " + M + " Total New Product"
+    ];
+    const rows = sheet ? XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true }) : [];
+    const row = rows.findIndex((values) => String(values[1] || "").trim().toUpperCase() === T) + 1;
+    const cells = row ? ["J" + row, "L" + row, "J" + (row + 1), "L" + (row + 1), "J" + (row + 2), "L" + (row + 2)] : [];
+    $("cards").innerHTML = labels.map((label, index) => {
+      const value = sheet?.[cells[index]]?.v;
+      const text = typeof value === "number" && Number.isFinite(value)
+        ? (value * 100).toLocaleString("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%" : "—";
+      return '<div class="kpi"><p>' + esc(label) + '</p><b>' + esc(text) + '</b></div>';
+    }).join("");
   }
 
   /* ---------- Chart ---------- */
@@ -390,8 +426,10 @@
     };
     const year = Number(period.slice(0, 4)), month = BULAN[Number(period.slice(5, 7)) - 1].toUpperCase();
     const normalizeHeader = (value) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
-    const headings = (rows[0] || []).map(normalizeHeader);
-    const subheadings = (rows[1] || []).map(normalizeHeader);
+    const headerRow = rows.findIndex((values) => values.some((value) => normalizeHeader(value) === "PARAMETER")
+      && values.some((value) => normalizeHeader(value) === "TARGET " + year));
+    const headings = (rows[headerRow] || []).map(normalizeHeader);
+    const subheadings = (rows[headerRow + 1] || []).map(normalizeHeader);
     const ytdColumn = (matches) => {
       const start = headings.findIndex(matches);
       if (start < 0) throw new Error("Header kolom YTD LAPORAN tidak ditemukan.");
@@ -485,6 +523,7 @@
     try {
       const book = await getChartWorkbook(period);
       if (chartToken !== reportChartToken) return;
+      renderCards(book.Sheets.LAPORAN);
       $("chart").innerHTML = reportBarChart(book.Sheets.LAPORAN, tab, period);
     } catch (error) {
       if (chartToken === reportChartToken) $("chart").innerHTML = '<div class="empty">' + esc(error.message || "Data chart belum tersedia.") + '</div>';
@@ -520,11 +559,54 @@
   const nkey = () => st.report + "|" + st.tab;
   let memNotes = {};
 
+  function cleanNoteHtml(html) {
+    const parsed = new DOMParser().parseFromString(String(html), "text/html");
+    const allowed = new Set(["B", "STRONG", "I", "EM", "S", "STRIKE", "U", "UL", "OL", "LI", "BLOCKQUOTE", "P", "DIV", "BR"]);
+    const clean = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.textContent);
+      const fragment = document.createDocumentFragment();
+      if (node.nodeType !== Node.ELEMENT_NODE || ["SCRIPT", "STYLE", "IFRAME", "OBJECT"].includes(node.tagName)) return fragment;
+      const result = allowed.has(node.tagName) ? document.createElement(node.tagName.toLowerCase()) : fragment;
+      for (const child of node.childNodes) result.appendChild(clean(child));
+      return result;
+    };
+    const container = document.createElement("div");
+    for (const child of parsed.body.childNodes) container.appendChild(clean(child));
+    return container.innerHTML;
+  }
+  $("noteToolbar").querySelectorAll("button").forEach((button) => {
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.onclick = () => {
+      $("note").focus();
+      const command = button.dataset.command;
+      document.execCommand("styleWithCSS", false, false);
+      const block = String(document.queryCommandValue("formatBlock")).toLowerCase();
+      document.execCommand(command, false, command === "formatBlock" ? (block === "blockquote" ? "div" : "blockquote") : null);
+      updateNoteToolbar();
+    };
+  });
+  function updateNoteToolbar() {
+    const selection = window.getSelection();
+    if (!selection?.anchorNode || !$("note").contains(selection.anchorNode)) return;
+    $("noteToolbar").querySelectorAll("button").forEach((button) => {
+      const command = button.dataset.command;
+      if (["undo", "redo"].includes(command)) return;
+      button.setAttribute("aria-pressed", String(command === "formatBlock"
+        ? String(document.queryCommandValue(command)).toLowerCase() === "blockquote"
+        : document.queryCommandState(command)));
+    });
+  }
+  document.addEventListener("selectionchange", updateNoteToolbar);
+  $("note").addEventListener("paste", (event) => {
+    event.preventDefault();
+    document.execCommand("insertText", false, event.clipboardData.getData("text/plain"));
+  });
+
   function renderNotes() {
     const all = Object.assign({}, memNotes, loadNotes());
     const list = all[nkey()] || [];
     $("notes").innerHTML = list.length ? list.map((n) =>
-      '<article class="note"><p>' + esc(n.text) + "</p><footer><span>Dibuat: " + esc(n.date) + '</span><button data-id="' + n.id + '">Hapus</button></footer></article>').join("")
+      '<article class="note"><div class="note-content">' + (n.html ? cleanNoteHtml(n.html) : '<p>' + esc(n.text) + '</p>') + "</div><footer><span>Dibuat: " + esc(n.date) + '</span><button data-id="' + esc(n.id) + '">Hapus</button></footer></article>').join("")
       : '<p class="none">Belum ada catatan untuk laporan ini.</p>';
     $("notes").querySelectorAll("button").forEach((b) => b.onclick = () => {
       const o = Object.assign({}, memNotes, loadNotes());
@@ -532,15 +614,16 @@
       memNotes = o; saveNotes(o); renderNotes();
     });
   }
-  $("cancel").onclick = () => { $("note").value = ""; toast("Dibatalkan"); };
+  $("cancel").onclick = () => { $("note").innerHTML = ""; toast("Dibatalkan"); };
   $("save").onclick = () => {
-    const text = $("note").value.trim();
+    const text = $("note").innerText.trim();
+    const html = cleanNoteHtml($("note").innerHTML);
     if (!text) { toast("Tulis analisis terlebih dahulu."); $("note").focus(); return; }
     const date = new Date().toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
     const o = Object.assign({}, memNotes, loadNotes());
-    (o[nkey()] = o[nkey()] || []).unshift({ id: Date.now(), text, date });
+    (o[nkey()] = o[nkey()] || []).unshift({ id: Date.now(), text, html, date });
     memNotes = o; saveNotes(o);
-    $("note").value = ""; renderNotes(); toast("Catatan tersimpan");
+    $("note").innerHTML = ""; renderNotes(); toast("Catatan tersimpan");
   };
 
   /* ---------- Unduh hasil olahan sebagai OpenDocument Spreadsheet ---------- */
@@ -1013,6 +1096,8 @@
     fillReportAchievementPercentages(workbook);
     fillReportGrowth(workbook);
     formatReportSheetReferences(workbook);
+    addReportTitle(workbook, selectedPeriod);
+    appendMcmReportTable(workbook, selectedPeriod);
     return workbook;
   }
   $("dl").onclick = async () => {

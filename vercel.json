@@ -6,6 +6,14 @@
   },
   "rewrites": [
     {
+      "source": "/dashboard/tm_bod_download",
+      "destination": "/api/report.php?endpoint=tm_bod_download"
+    },
+    {
+      "source": "/dashboard/tm_bod_download.php",
+      "destination": "/api/report.php?endpoint=tm_bod_download"
+    },
+    {
       "source": "/api/db-check",
       "destination": "/api/db-check.php"
     },

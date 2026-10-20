@@ -1,0 +1,67 @@
+(() => {
+  const $ = id => document.getElementById(id);
+  const storageKey = 'tm-bod-analysis-v1';
+  let template, drafts = {};
+  try {
+    const stored = JSON.parse(localStorage.getItem(storageKey));
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) drafts = stored;
+  } catch (_) {}
+  function showQuarter() {
+    $('analysis').value = typeof drafts[$('quarter').value] === 'string' ? drafts[$('quarter').value] : '';
+    $('status').textContent = '';
+  }
+  function save() {
+    drafts[$('quarter').value] = $('analysis').value;
+    try { localStorage.setItem(storageKey, JSON.stringify(drafts)); $('status').textContent = 'Tersimpan'; }
+    catch (_) { $('status').textContent = 'Draf belum tersimpan. Unduh untuk menyimpan analisis.'; }
+  }
+  $('analysis').addEventListener('input', save);
+  $('quarter').addEventListener('change', showQuarter);
+  $('more').onclick = () => {
+    const open = $('options').hidden;
+    $('options').hidden = !open; $('more').setAttribute('aria-expanded', String(open));
+  };
+  document.addEventListener('click', event => {
+    if (!$('options').contains(event.target) && !$('more').contains(event.target)) {
+      $('options').hidden = true; $('more').setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { $('options').hidden = true; $('more').setAttribute('aria-expanded', 'false'); }
+  });
+  $('reset').onclick = () => {
+    if (!confirm('Kosongkan analisis untuk ' + $('quarter').value + '?')) return;
+    $('analysis').value = ''; save(); $('options').hidden = true; $('more').setAttribute('aria-expanded', 'false');
+  };
+  $('download').onclick = async () => {
+    const quarter = $('quarter').value;
+    const analysis = $('analysis').value;
+    $('download').disabled = true; $('status').textContent = 'Menyiapkan unduhan…';
+    try {
+      const slides = structuredClone(template);
+      slides[0].fields[0] = 'TM BOD — ' + quarter;
+      slides[0].fields[1] = quarter;
+      slides[1].fields[1] = analysis;
+      const base = location.protocol === 'file:' ? 'http://127.0.0.1:8000/dashboard/' : './';
+      const response = await fetch(base + 'tm_bod_download.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slides }) });
+      if (!response.ok) {
+        let message = 'Unduhan gagal. Pastikan server aplikasi berjalan.';
+        try { message = (await response.json()).message || message; } catch (_) {}
+        throw new Error(message);
+      }
+      if (!response.headers.get('content-type')?.includes('application/vnd.oasis.opendocument.presentation')) throw new Error('Server tidak mengembalikan presentasi. Buka melalui server aplikasi.');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a'); link.href = url; link.download = `TM-BOD-${quarter}.odp`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+      $('status').textContent = 'Unduhan selesai.';
+    } catch (error) { $('status').textContent = error.message; }
+    finally { $('download').disabled = false; }
+  };
+  $('burger').onclick = () => { location.href = '../menu/page.html'; };
+  document.querySelector('[data-sec="Dashboard"]').onclick = () => { location.href = '../menu/page.html'; };
+  document.querySelector('[data-sec="TM BOD"]').onclick = () => { $('side').classList.remove('open'); };
+  showQuarter();
+  fetch('assets/tm-bod/slides.json').then(response => {
+    if (!response.ok) throw new Error('Template gagal dimuat.'); return response.json();
+  }).then(data => { template = data; $('download').disabled = false; })
+    .catch(() => { $('status').textContent = 'Template gagal dimuat. Buka halaman melalui server aplikasi.'; });
+})();

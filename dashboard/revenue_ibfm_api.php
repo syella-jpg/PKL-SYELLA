@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/ib_exchange_rates.php';
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null'); header('Vary: Origin');
@@ -51,6 +52,15 @@ try {
     $data['fullYear']['newTarget']=$sum($data['newTarget']); $data['fullYear']['newActual']=$sum($data['newActual']);
     $data['fullYear']['newTargetFd']=$sum($data['newTargetFd']); $data['fullYear']['newActualFd']=$sum($data['newActualFd']);
     $data['fullYear']['mcmTarget']=$sum($data['mcmTarget']); $data['fullYear']['mcmActual']=$sum($data['mcmActual']);
+    ensureIbExchangeRates($conn);
+    $rateStatement = $conn->prepare('SELECT usd_rate FROM ib_exchange_rates WHERE report_year = ?');
+    if (!$rateStatement) throw new RuntimeException('Kurs IB gagal dibaca.');
+    $rateYear = (int)$year;
+    $rateStatement->bind_param('i', $rateYear);
+    $rateStatement->execute();
+    $rateRow = $rateStatement->get_result()->fetch_assoc();
+    $data['usdRate'] = $rateRow ? (float)$rateRow['usd_rate'] : null;
+    $rateStatement->close();
     echo json_encode(['success'=>true,'data'=>$data],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE); $stmt->close();
 } catch(Throwable $e){ http_response_code(500); echo json_encode(['success'=>false,'message'=>$e->getMessage()],JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE); }
 $conn->close();

@@ -545,7 +545,8 @@
     [["C3", year], ["E3", year], ["C21", year], ["E21", year], ["E41", year - 1], ["E59", year - 1]].forEach(([address, value]) => {
       sheet[address] = { ...(sheet[address] || {}), t: "n", v: value };
     });
-    if (workbook.Workbook) workbook.Workbook.CalcPr = { ...(workbook.Workbook.CalcPr || {}), calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true };
+    workbook.Workbook = workbook.Workbook || {};
+    workbook.Workbook.CalcPr = { ...(workbook.Workbook.CalcPr || {}), calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true };
     sheet.B112 = { ...(sheet.B112 || {}), t: "s", v: "LAMPIRAN : EXPORT " + (year - 2) };
     const revenueApi = new URL("revenue_ibfm_api.php", apiBase).href;
     try {
@@ -554,6 +555,10 @@
       const data = payload && payload.success && payload.data;
       if (!response.ok || !data || !data.period) {
         throw new Error((payload && payload.message) || "Data IB belum tersedia untuk periode " + year + ". Unggah raw data melalui bagian IB.");
+      }
+      if (Number(data.usdRate) > 0 && Number.isFinite(Number(data.usdRate))) {
+        usdRates[year] = Number(data.usdRate);
+        setUsdRate("C20", year);
       }
       const hasFoodData = [data.targetFd, data.actualFd, data.newTargetFd, data.newActualFd].some((values) => Array.isArray(values)
         && values.some((value) => value !== null && value !== undefined && Number.isFinite(Number(value))));
@@ -610,15 +615,15 @@
             }
             sheet[rupiahAddress] = {
               ...(sheet[rupiahAddress] || {}),
-              t: "n",
-              f: usdAddress + "*" + absoluteRateAddress + "/1000",
-              v: usdCell.v * (Number(sheet[rateAddress] && sheet[rateAddress].v) || 0) / 1000,
+              t: Number(sheet[rateAddress]?.v) > 0 ? "n" : "s",
+              f: `IF(${absoluteRateAddress}="","",${usdAddress}*${absoluteRateAddress}/1000)`,
+              v: Number(sheet[rateAddress]?.v) > 0 ? usdCell.v * Number(sheet[rateAddress].v) / 1000 : "",
               z: "#,##0;[Red]-#,##0"
             };
             delete sheet[rupiahAddress].w;
           });
         };
-        if (year === 2026) {
+        {
           [
             [4, 22], [5, 23],
             [7, 25], [8, 26], [9, 27], [10, 28], [11, 29], [12, 30],
@@ -635,6 +640,10 @@
           const previousData = previousPayload && previousPayload.success && previousPayload.data;
           if (!previousResponse.ok || !previousData || !previousData.period) {
             throw new Error((previousPayload && previousPayload.message) || "Data IB periode " + previousYear + " belum tersedia untuk tabel bawah.");
+          }
+          if (Number(previousData.usdRate) > 0 && Number.isFinite(Number(previousData.usdRate))) {
+            usdRates[previousYear] = Number(previousData.usdRate);
+            setUsdRate("C58", previousYear);
           }
           const hasPreviousFoodData = [previousData.targetFd, previousData.actualFd, previousData.newTargetFd, previousData.newActualFd].some((values) => Array.isArray(values)
             && values.some((value) => value !== null && value !== undefined && Number.isFinite(Number(value))));
@@ -877,6 +886,104 @@
       }));
     }
     return result;
+  };
+
+  global.appendMcmReportTable = function (workbook, period) {
+    const sheet = workbook.Sheets.LAPORAN;
+    if (!sheet) throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const utils = global.XLSX.utils;
+    const title = "MCM KONIMEX (SELLING OUT) – RP. (000)";
+    if (Object.values(sheet).some((cell) => cell && cell.v === title)) return;
+    const range = utils.decode_range(sheet["!ref"] || "A1:N1");
+    const first = range.e.r + 3;
+    const year = Number(String(period).slice(0, 4));
+    const months = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGS", "SEP", "OKT", "NOV", "DES"];
+    const ytd = "YTD " + months[Number(String(period).slice(5, 7)) - 1];
+    const border = Object.fromEntries(["top", "bottom", "left", "right"].map((edge) => [edge, { style: "thin", color: { rgb: "000000" } }]));
+    const putRow = (row, values, fill = "FFFFFF", header = false) => {
+      for (let column = 0; column < 12; column++) {
+        sheet[utils.encode_cell({ r: row, c: column })] = {
+          t: "s", v: values[column] ?? "",
+          s: { font: { name: "Arial", sz: header ? 10 : 11, bold: header, color: { rgb: "000000" } },
+            fill: { fgColor: { rgb: fill } }, border,
+            alignment: { horizontal: header ? "center" : "left", vertical: "center", wrapText: true } }
+        };
+      }
+    };
+    sheet[utils.encode_cell({ r: first, c: 0 })] = { t: "s", v: title,
+      s: { font: { name: "Arial", sz: 16, bold: true }, alignment: { horizontal: "left", vertical: "center" } } };
+    const merges = sheet["!merges"] || (sheet["!merges"] = []);
+    merges.push({ s: { r: first, c: 0 }, e: { r: first, c: 11 } });
+    putRow(first + 1, ["No", "Parameter", "Ach Last Year (" + (year - 1) + ")", "", "Target " + year, "", "Achievement", "% Achievement", "", "Growth", "Contribution", ""], "8FC9F4", true);
+    putRow(first + 2, ["", "", "Full Year", ytd, "Full Year", ytd, ytd, ytd, String(year), ytd, "vs Divisi", "vs Corporate"], "8FC9F4", true);
+    for (const column of [0, 1]) merges.push({ s: { r: first + 1, c: column }, e: { r: first + 2, c: column } });
+    for (const column of [2, 4, 7, 10]) merges.push({ s: { r: first + 1, c: column }, e: { r: first + 1, c: column + 1 } });
+    let row = first + 3;
+    const add = (label, fill = "FFFFFF", bold = false) => {
+      putRow(row, ["", label], fill);
+      const labelCell = sheet[utils.encode_cell({ r: row, c: 1 })];
+      labelCell.s.font = { ...labelCell.s.font, bold, italic: true };
+      row++;
+    };
+    add("KORPORAT LOKAL (incl. Bi. Non Produk)", "FFF5A3", true);
+    add("KORPORAT LOKAL (Excl. Bi. Non Produk)", "DDE8CF", true);
+    add("");
+    for (const [division, groups] of [["PHARMA", [1, 4]], ["HCE", [2, 3]], ["FOOD", [5, 6]]]) {
+      add(division, "FFF7DF", true);
+      add("Total Existing (ABC)", "FFF7DF");
+      add("Total New Product (D)", "FFF7DF");
+      for (const gb of groups) {
+        add("GB " + gb, "FFFFFF", true);
+        add("Total Existing (ABC)");
+        add("Total New Product (D)");
+      }
+      add("");
+    }
+    add("ETHICAL", "FFF7DF", true);
+    add("");
+    add("BERUANG", "FFF5A3", true);
+    sheet["!rows"] = sheet["!rows"] || [];
+    sheet["!rows"][first] = { hpt: 28 };
+    sheet["!rows"][first + 1] = { hpt: 24 };
+    sheet["!rows"][first + 2] = { hpt: 24 };
+    sheet["!ref"] = utils.encode_range({ s: range.s, e: { r: row - 1, c: Math.max(range.e.c, 11) } });
+  };
+
+  global.addReportTitle = function (workbook, period) {
+    const sheet = workbook.Sheets.LAPORAN;
+    if (!sheet) throw new Error("Sheet LAPORAN tidak ditemukan.");
+    if (sheet.A1?.v === "CORPORATE PERFORMANCE REPORT") return;
+    const utils = global.XLSX.utils, offset = 6;
+    const months = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGS", "SEP", "OKT", "NOV", "DES"];
+    const shifted = {};
+    for (const [address, oldCell] of Object.entries(sheet)) {
+      if (address.startsWith("!")) continue;
+      const point = utils.decode_cell(address);
+      const cell = { ...oldCell };
+      if (typeof cell.f === "string") {
+        // Geser referensi LAPORAN; referensi sheet sumber tetap pada sel asalnya.
+        cell.f = cell.f.replace(/((?:'(?:[^']|'')+'|[A-Za-z_][A-Za-z0-9_ ]*)!)?(\$?[A-Z]{1,3})(\$?)(\d+)/g,
+          (reference, prefix, column, absolute, row) => prefix && prefix !== "LAPORAN!" && prefix !== "'LAPORAN'!"
+            ? reference : (prefix || "") + column + absolute + (Number(row) + offset));
+      }
+      shifted[utils.encode_cell({ r: point.r + offset, c: point.c })] = cell;
+      delete sheet[address];
+    }
+    Object.assign(sheet, shifted);
+    const range = utils.decode_range(sheet["!ref"] || "A1:N1");
+    sheet["!ref"] = utils.encode_range({ s: { r: 0, c: 0 }, e: { r: range.e.r + offset, c: Math.max(13, range.e.c) } });
+    sheet["!merges"] = (sheet["!merges"] || []).map((merge) => ({
+      s: { r: merge.s.r + offset, c: merge.s.c }, e: { r: merge.e.r + offset, c: merge.e.c }
+    }));
+    const year = String(period).slice(0, 4), month = months[Number(String(period).slice(5, 7)) - 1];
+    for (const [row, text, size] of [[0, "CORPORATE PERFORMANCE REPORT", 20], [1, "YTD " + month, 16], [2, year, 16], [4, "REVENUE KONIMEX (SELLING OUT) - RP (000)", 16]]) {
+      sheet[utils.encode_cell({ r: row, c: 0 })] = { t: "s", v: text, s: {
+        font: { name: "Arial", bold: true, sz: size, color: { rgb: "000000" } },
+        alignment: { horizontal: "left", vertical: "center" }
+      } };
+      sheet["!merges"].push({ s: { r: row, c: 0 }, e: { r: row, c: 13 } });
+    }
+    sheet["!rows"] = [{ hpt: 30 }, { hpt: 24 }, { hpt: 24 }, { hpt: 8 }, { hpt: 28 }, { hpt: 10 }, ...(sheet["!rows"] || [])];
   };
 
   global.fillReportCorporateTotals = function (workbook) {
@@ -1210,10 +1317,8 @@
     // Tabel RP (000): D = YTD, 28 = AKTUAL TOTAL EXIST, 34 = AKTUAL TOTAL NEW.
     [[international + 1, "D28"], [international + 2, "D34"]].forEach(([row, address]) => {
       const value = ib[address]?.v;
-      if (typeof value !== "number" || !Number.isFinite(value)) {
-        throw new Error("YTD AKTUAL TOTAL IB pada " + address + " belum tersedia.");
-      }
-      write(row, "IB!" + address, value);
+      write(row, "IB!" + address, typeof value === "number" && Number.isFinite(value) ? value : "");
+      if (typeof value !== "number" || !Number.isFinite(value)) report["I" + row].t = "s";
     });
     sum(international, [international + 1, international + 2]);
     const mtmRow = findRow("MTM");

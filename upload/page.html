@@ -160,6 +160,12 @@
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </div>
 
+    <div id="ibRateWrap" hidden>
+      <label class="label" for="ibRate">Kurs IB (1 USD = Rupiah)</label>
+      <input id="ibRate" name="usd_rate" type="number" min="0.000001" max="1000000000" step="0.000001" inputmode="decimal" placeholder="Contoh: 16700" style="width:100%;padding:12px;border:1px solid #cfcaf5;border-radius:10px" aria-describedby="ibRateHelp" disabled>
+      <p id="ibRateHelp" style="font-size:12px;color:#666;margin:6px 0 18px">Tanpa pemisah ribuan. Kurs disimpan untuk tahun periode yang dipilih dan dipakai pada unduhan IB.</p>
+    </div>
+
     <span class="label" id="fileLabel">File Dokumen</span>
     <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
       <input type="file" id="file" accept=".xlsx,.ods" hidden>
@@ -192,7 +198,7 @@
 </main>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="../dashboard/report-templates.js?v=edp-category-import-20261020-2"></script>
+<script src="../dashboard/report-templates.js?v=ib-upload-rate-20261020"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -239,8 +245,17 @@
     $("bagianWrap").classList.remove("open");
     sectionSelect.setAttribute("aria-expanded", "false");
   }
+  function updateIbRateField() {
+    const isIb = sectionSelect.value.trim().toUpperCase() === "IB";
+    $("ibRateWrap").hidden = !isIb;
+    $("ibRate").disabled = !isIb;
+    $("ibRate").required = isIb;
+  }
+  sectionSelect.addEventListener("input", updateIbRateField);
+  sectionSelect.addEventListener("change", updateIbRateField);
   function chooseSection(name) {
     sectionSelect.value = name;
+    updateIbRateField();
     closeSectionOptions();
     $("bagianWrap").classList.remove("err");
     sectionSelect.focus();
@@ -652,6 +667,7 @@
       // multipart sebagai $_FILES['file'], termasuk browser tertentu.
       fd.append("file", file, file.name);
       fd.append("period", period);
+      if (divisi === "IB") fd.append("usd_rate", $("ibRate").value);
       const xhr = new XMLHttpRequest();
       const endpoint = new URL(UPLOAD_URL, location.href);
       // Kirim periode juga di URL. Jika server melakukan redirect POST menjadi
@@ -687,6 +703,7 @@
     if (!validSection) { $("bagianWrap").classList.add("err"); setMsg("Ketik lalu pilih bagian laporan yang tersedia.", "error"); sectionSelect.focus(); return; }
     if (!periodSelect.value) { setMsg("Pilih periode laporan terlebih dahulu.", "error"); periodSelect.focus(); return; }
     if (!chosen) { drop.classList.add("err"); setMsg("Pilih file dokumen terlebih dahulu.", "error"); return; }
+    if (sectionSelect.value === "IB" && !$("ibRate").reportValidity()) return;
     setBusy(true);
     try {
       const isUnitRevenue = sectionSelect.value === "UNIT & Revenue";
@@ -851,6 +868,8 @@
               : "Berhasil: \"" + chosen.name + "\" terkirim pada bagian " + sectionSelect.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
       clearFile();
       sectionSelect.value = "";
+      $("ibRate").value = "";
+      updateIbRateField();
     } catch (err) {
       setMsg(err.message || "Upload gagal. Coba lagi.", "error");
     } finally {
