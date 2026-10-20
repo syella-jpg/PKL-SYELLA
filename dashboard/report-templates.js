@@ -850,6 +850,121 @@
     else workbook.Sheets.UNIT = sheet;
   };
 
+  // SheetJS memakai ! secara internal dan mengubahnya menjadi titik saat ekspor ODS.
+  // Kutip nama sheet sesuai nama sebenarnya agar referensi Calc tetap konsisten.
+  // Subtotal raw dipetakan berdasarkan label, bukan urutan baris kategori.
+  global.aggregateTargetCategories = function (rows) {
+    const groups = new Map();
+    for (const record of rows || []) {
+      const match = String(record.code || "").match(/^category([1-6])([ABCD])$/);
+      if (!match) continue;
+      if (!Array.isArray(record.months) || record.months.length !== 12) throw new Error("Kolom Jan–Des tidak lengkap: " + record.code);
+      const gb = Number(match[1]), category = match[2];
+      const group = groups.get(gb) || {};
+      if (group[category]) throw new Error("Kategori target ganda: " + record.code);
+      group[category] = record.months.map((value) => Number(value) || 0);
+      groups.set(gb, group);
+    }
+    if (!groups.size) return null;
+    const result = new Map();
+    for (let gb = 1; gb <= 6; gb++) {
+      const group = groups.get(gb);
+      if (!group) throw new Error("Kategori target GB " + gb + " tidak ditemukan.");
+      result.set(gb, Array.from({ length: 12 }, (_, month) => {
+        const existing = ["A", "B", "C"].reduce((sum, category) => sum + (group[category]?.[month] || 0), 0);
+        const newProduct = group.D?.[month] || 0;
+        return { existing, newProduct, total: existing + newProduct };
+      }));
+    }
+    return result;
+  };
+
+  global.fillReportCorporateTotals = function (workbook) {
+    const report = workbook.Sheets.LAPORAN;
+    if (!report) throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const rows = global.XLSX.utils.sheet_to_json(report, { header: 1, defval: "", raw: true });
+    const findRow = (name) => rows.findIndex((row) => String(row[1] ?? "").trim().toUpperCase() === name) + 1;
+    const corporate = findRow("CORPORATE");
+    const members = ["PHARMA", "HCE", "FOOD", "INTERNATIONAL BUSINESS", "ETHICAL"].map(findRow);
+    if (!corporate || members.some((row) => !row)) throw new Error("Baris penyusun CORPORATE tidak lengkap.");
+    for (const column of ["C", "D", "E", "F", "G", "H", "I"]) {
+      const sum = (row, details) => {
+        const address = column + row;
+        const values = details.map((detail) => report[column + detail]?.v);
+        const numbers = values.filter((value) => typeof value === "number" && Number.isFinite(value));
+        report[address] = {
+          ...report[address], f: "SUM(" + details.map((detail) => column + detail).join(",") + ")",
+          t: "n", z: "#,##0;[Red]-#,##0"
+        };
+        // Sama seperti SUM di Excel: rincian kosong tidak membatalkan total yang tersedia.
+        if (numbers.length) report[address].v = numbers.reduce((total, value) => total + value, 0);
+        else delete report[address].v;
+        delete report[address].w;
+      };
+      sum(corporate + 1, members.map((row) => row + 1));
+      sum(corporate + 2, members.map((row) => row + 2));
+      sum(corporate, [corporate + 1, corporate + 2]);
+    }
+  };
+
+  global.fillReportGrowth = function (workbook) {
+    const report = workbook.Sheets.LAPORAN;
+    if (!report) throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const range = global.XLSX.utils.decode_range(report["!ref"] || "A1:N1");
+    for (let row = 3; row <= range.e.r + 1; row++) {
+      if (!String(report["B" + row]?.v ?? "").trim()) continue;
+      const actual = report["I" + row]?.v;
+      const previousYtd = report["F" + row]?.v;
+      const valid = typeof actual === "number" && Number.isFinite(actual)
+        && typeof previousYtd === "number" && Number.isFinite(previousYtd) && previousYtd !== 0;
+      const address = "L" + row;
+      report[address] = {
+        ...report[address], f: `I${row}/F${row}-1`,
+        t: valid ? "n" : "s", v: valid ? actual / previousYtd - 1 : "", z: "0.0%"
+      };
+      delete report[address].w;
+    }
+  };
+
+  global.fillReportAchievementPercentages = function (workbook) {
+    const report = workbook.Sheets.LAPORAN;
+    if (!report) throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const utils = global.XLSX.utils;
+    const range = utils.decode_range(report["!ref"] || "A1:N1");
+    for (let row = 3; row <= range.e.r + 1; row++) {
+      if (!String(report["B" + row]?.v ?? "").trim()) continue;
+      for (const [column, targetColumn] of [["J", "H"], ["K", "G"]]) {
+        const address = column + row;
+        const actual = report["I" + row]?.v;
+        const target = report[targetColumn + row]?.v;
+        const valid = typeof actual === "number" && Number.isFinite(actual)
+          && typeof target === "number" && Number.isFinite(target) && target !== 0;
+        const scale = 1000;
+        report[address] = {
+          ...report[address],
+          f: `I${row}/${targetColumn}${row}` + (scale === 1 ? "" : "/1000"),
+          t: valid ? "n" : "s", v: valid ? actual / target / scale : "", z: "0.0%"
+        };
+        delete report[address].w;
+      }
+    }
+  };
+
+  global.formatReportSheetReferences = function (workbook) {
+    const report = workbook.Sheets.LAPORAN;
+    if (!report) return;
+    Object.entries(report).forEach(([address, cell]) => {
+      if (address.startsWith("!") || typeof cell?.f !== "string") return;
+      cell.f = cell.f.replace(/(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_ ]*))!(?=\$?[A-Z]+\$?\d+)/g,
+        (reference, quoted, plain) => {
+          const name = quoted ? quoted.replace(/''/g, "'") : plain;
+          const actual = workbook.SheetNames.find((sheetName) => sheetName.toUpperCase() === name.toUpperCase());
+          if (!actual) throw new Error("Sheet pada rumus LAPORAN tidak ditemukan: " + name);
+          return "'" + actual.replace(/'/g, "''") + "'!";
+        });
+    });
+  };
+
   global.fillReportMtmPriorTarget = function (workbook, period, yearOffset = -1, priorActual = false) {
     const utils = global.XLSX.utils;
     const source = workbook.Sheets.MTM;
@@ -1121,6 +1236,14 @@
       write(mtmRow + index + 1, "MTM!" + address + "/1000", (Number(value) || 0) / 1000);
     });
     sum(mtmRow, [mtmRow + 1, mtmRow + 2]);
+    const corporate = findRow("CORPORATE");
+    const corporateMembers = ["PHARMA", "HCE", "FOOD", "INTERNATIONAL BUSINESS", "ETHICAL"].map(findRow);
+    if (!corporate || corporateMembers.some((row) => !row)) {
+      throw new Error("Baris penyusun Achievement CORPORATE tidak lengkap.");
+    }
+    sum(corporate + 1, corporateMembers.map((row) => row + 1));
+    sum(corporate + 2, corporateMembers.map((row) => row + 2));
+    sum(corporate, [corporate + 1, corporate + 2]);
   };
 
   global.replaceEdpTemplateSheet = async function (workbook, period, revenueAchievement) {
@@ -1230,11 +1353,32 @@
     // The TARGET REVENUE upload stores monthly category A–D subtotals.
     // Combine raw categories as EXIST = A+B+C, NP = D, TOTAL = EXIST+NP.
     const readTargetCategories = async (targetYear = reportYear) => {
+      // Upload melalui pilihan EDP MNJ disimpan sebagai EXIST/NP per bulan.
+      const edpApi = new URL("revenue_edp_mnj_target_api.php", apiBase).href;
+      try {
+        const response = await fetchReportApi(edpApi + "?year=" + encodeURIComponent(targetYear), { cache: "no-store" });
+        const result = await response.json();
+        if (response.ok && result?.success && Array.isArray(result.data) && result.data.length) {
+          const records = new Map();
+          for (const row of result.data) {
+            const match = String(row.product || "").match(/^(EXIST|NP) GB ([1-6])$/);
+            const month = Number(row.bulan);
+            if (!match || !Number.isInteger(month) || month < 1 || month > 12) continue;
+            const code = (match[1] === "EXIST" ? "existing" : "new") + match[2];
+            if (!records.has(code)) records.set(code, { code, months: Array(12).fill(0) });
+            records.get(code).months[month - 1] = Number(row.target) || 0;
+          }
+          if (records.size === 12) return Array.from(records.values());
+        }
+      } catch (_) { /* Workbook kategori tetap didukung oleh sumber di bawah. */ }
       const api = new URL("revenue_so_targets_api.php", apiBase).href;
       try {
         const response = await fetchReportApi(api + "?year=" + encodeURIComponent(targetYear), { cache: "no-store" });
         const result = await response.json();
-        if (response.ok && result && result.success && result.data && Array.isArray(result.data.rows)) return result.data.rows;
+        if (response.ok && result && result.success) {
+          // Database yang sudah dikosongkan tidak boleh diisi kembali dari cache browser lama.
+          return result.data && Array.isArray(result.data.rows) ? result.data.rows : null;
+        }
       } catch (_) { /* Try the upload's same-browser cache below. */ }
       try {
         const saved = JSON.parse(localStorage.getItem("konimex_revenue_so_sellout_targets_processed") || "{}")[String(targetYear)];
@@ -1242,133 +1386,6 @@
       } catch (_) { /* No cached target is available. */ }
       return null;
     };
-    try {
-      let categoryRows = await readTargetCategories();
-      if ((!categoryRows || !categoryRows.length) && reportYear === 2025) categoryRows = processedTarget2025;
-      if (categoryRows) {
-        const categories = new Map();
-        const processedRows = new Map();
-        categoryRows.forEach((record) => {
-          const match = String(record.code || "").match(/^category([1-6])([ABCD])$/);
-          if (!match) {
-            const finalRow = String(record.code || "").match(/^(existing|new)([1-6])$/);
-            if (finalRow) {
-              const key = finalRow[2];
-              const group = processedRows.get(key) || {};
-              const values = Array.isArray(record.months) ? record.months : [];
-              group[finalRow[1]] = Array.from({ length: 12 }, (_, index) => Number(values[index]) || 0);
-              processedRows.set(key, group);
-            }
-            return;
-          }
-          const gb = Number(match[1]);
-          const category = match[2];
-          const values = Array.isArray(record.months) ? record.months : [];
-          const normalized = Array.from({ length: 12 }, (_, index) => Number(values[index]) || 0);
-          const group = categories.get(gb) || {};
-          if (group[category]) throw new Error("Data Target Revenue memiliki kategori ganda pada GB " + gb + " Kategori " + category + ".");
-          group[category] = normalized;
-          categories.set(gb, group);
-        });
-        const monthlyByGb = new Map();
-        const hasAllCategoryGroups = Array.from({ length: 6 }, (_, index) => {
-          const group = categories.get(index + 1);
-          return Boolean(group && ["A", "B", "C", "D"].every((category) => group[category]));
-        }).every(Boolean);
-        const hasAllProcessedGroups = Array.from({ length: 6 }, (_, index) => {
-          const group = processedRows.get(String(index + 1));
-          return Boolean(group && group.existing && group.new
-            && group.existing.length === 12 && group.new.length === 12);
-        }).every(Boolean);
-        if (hasAllCategoryGroups) {
-          for (let gb = 1; gb <= 6; gb++) {
-            const group = categories.get(gb);
-            monthlyByGb.set(gb, Array.from({ length: 12 }, (_, month) => {
-              const existing = ["A", "B", "C"].reduce((sum, category) => sum + group[category][month], 0);
-              const newProduct = group.D[month];
-              return { existing, newProduct, total: existing + newProduct };
-            }));
-          }
-        } else if (reportYear === 2025) {
-          // Use the uploaded, already-processed 2025 workbook values exactly.
-          // Partial/stale rows in the shared upload table must not blank or
-          // replace this sheet's complete EXIST/NP monthly data.
-          for (let gb = 1; gb <= 6; gb++) {
-            const existing = processedTarget2025.find((record) => record.code === "existing" + gb).months;
-            const newProduct = processedTarget2025.find((record) => record.code === "new" + gb).months;
-            monthlyByGb.set(gb, Array.from({ length: 12 }, (_, month) => ({
-              existing: existing[month], newProduct: newProduct[month], total: existing[month] + newProduct[month]
-            })));
-          }
-        } else if (hasAllProcessedGroups) {
-          for (let gb = 1; gb <= 6; gb++) {
-            const group = processedRows.get(String(gb));
-            monthlyByGb.set(gb, Array.from({ length: 12 }, (_, month) => {
-              const existing = group.existing[month];
-              const newProduct = group.new[month];
-              return { existing, newProduct, total: existing + newProduct };
-            }));
-          }
-        } else {
-          // An upload for the selected year may not exist yet. Keep that
-          // section blank so a prior-year target can still be exported.
-          if (reportYear === 2025) throw new Error("Data Target Revenue tahun " + reportYear + " belum lengkap untuk GB 1–6.");
-        }
-
-        const grid = global.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
-        const normalize = (value) => String(value == null ? "" : value).trim().toUpperCase().replace(/\s+/g, " ");
-        const sectionIndex = grid.findIndex((row) => row.some((value) => normalize(value) === "TARGET SELL OUT " + reportYear));
-        let headerIndex = -1;
-        if (sectionIndex >= 0) {
-          for (let row = sectionIndex; row < Math.min(grid.length, sectionIndex + 6); row++) {
-            const headers = grid[row].map(normalize);
-            if (headers.includes("JANUARI") && headers.includes("DESEMBER")) { headerIndex = row; break; }
-          }
-        }
-        if (headerIndex < 0) throw new Error("Header tabel TARGET SELL OUT " + reportYear + " tidak ditemukan.");
-        const header = grid[headerIndex].map(normalize);
-        const monthColumns = monthNames.map((name) => header.indexOf(name));
-        if (monthColumns.some((column) => column < 0)) throw new Error("Kolom bulan TARGET SELL OUT " + reportYear + " tidak lengkap.");
-        const ytdColumn = header.findIndex((value) => value.startsWith("YTD "));
-        const totalColumn = header.indexOf("TOTAL");
-        if (ytdColumn < 0 || totalColumn < 0) throw new Error("Kolom YTD atau TOTAL TARGET SELL OUT " + reportYear + " tidak ditemukan.");
-        const rowIndexes = new Map();
-        for (let row = headerIndex + 1; row < grid.length; row++) {
-          const label = normalize(grid[row][1] || grid[row][0]);
-          if (/^(?:REVENUE|BIAYA|MCM|TARGET SELL OUT)\s+(?:TAHUN\s+)?20\d{2}/.test(label)) break;
-          if (label) rowIndexes.set(label, row);
-        }
-        const setTargetNumber = (row, column, value) => {
-          const address = global.XLSX.utils.encode_cell({ r: row, c: column });
-          const oldCell = sheet[address] || {};
-          sheet[address] = { ...oldCell, t: "n", v: value, z: "#,##0;[Red]-#,##0" };
-          delete sheet[address].w;
-        };
-        for (let gb = 1; gb <= 6; gb++) {
-          const base = headerIndex + 1 + (gb - 1) * 4;
-          const rows = {
-            ["EXIST GB " + gb]: rowIndexes.get("EXIST GB " + gb) ?? base,
-            ["NP GB " + gb]: rowIndexes.get("NP GB " + gb) ?? base + 1,
-            ["TOTAL GB " + gb]: rowIndexes.get("TOTAL GB " + gb) ?? base + 2
-          };
-          const monthly = monthlyByGb.get(gb);
-          [
-            ["EXIST GB " + gb, (value) => value.existing],
-            ["NP GB " + gb, (value) => value.newProduct],
-            ["TOTAL GB " + gb, (value) => value.total]
-          ].forEach(([label, getValue]) => {
-            const row = rows[label];
-            const ytd = monthly.slice(0, reportMonth).reduce((sum, value) => sum + getValue(value), 0);
-            monthly.forEach((value, month) => setTargetNumber(row, monthColumns[month], getValue(value)));
-            setTargetNumber(row, ytdColumn, ytd);
-            setTargetNumber(row, totalColumn, monthly.reduce((sum, value) => sum + getValue(value), 0));
-          });
-        }
-      }
-    } catch (error) {
-      console.warn("Data kategori TARGET REVENUE tidak dimasukkan ke tabel TARGET SELL OUT:", error);
-    }
-
     // Each download contains target data for its selected year and the
     // preceding year. Match both data sets to their corresponding template
     // blocks so annual uploads roll forward without changing the table layout.
@@ -1396,45 +1413,26 @@
         const oldCell = sheet[address] || {};
         sheet[address] = { ...oldCell, t: "n", v: value, z: "#,##0;[Red]-#,##0" };
         delete sheet[address].w;
+        delete sheet[address].f;
+        delete sheet[address].F;
       };
       let monthlyByGb = null;
       const uploadedRows = await readTargetCategories(targetYear);
       if (Array.isArray(uploadedRows) && uploadedRows.length) {
-        const categories = new Map();
+        monthlyByGb = global.aggregateTargetCategories(uploadedRows);
         const processed = new Map();
         uploadedRows.forEach((record) => {
-          const categoryMatch = String(record.code || "").match(/^category([1-6])([ABCD])$/);
-          const processedMatch = String(record.code || "").match(/^(existing|new)([1-6])$/);
-          const months = Array.from({ length: 12 }, (_, index) => Number(record.months?.[index]) || 0);
-          if (categoryMatch) {
-            const group = categories.get(Number(categoryMatch[1])) || {};
-            group[categoryMatch[2]] = months;
-            categories.set(Number(categoryMatch[1]), group);
-          } else if (processedMatch) {
-            const group = processed.get(Number(processedMatch[2])) || {};
-            group[processedMatch[1]] = months;
-            processed.set(Number(processedMatch[2]), group);
-          }
+          const match = String(record.code || "").match(/^(existing|new)([1-6])$/);
+          if (!match) return;
+          const group = processed.get(Number(match[2])) || {};
+          group[match[1]] = Array.from({ length: 12 }, (_, index) => Number(record.months?.[index]) || 0);
+          processed.set(Number(match[2]), group);
         });
-        const hasCompleteCategories = Array.from({ length: 6 }, (_, index) => {
-          const group = categories.get(index + 1);
-          return Boolean(group && ["A", "B", "C", "D"].every((category) => group[category]));
-        }).every(Boolean);
         const hasCompleteProcessed = Array.from({ length: 6 }, (_, index) => {
           const group = processed.get(index + 1);
           return Boolean(group && group.existing && group.new);
         }).every(Boolean);
-        if (hasCompleteCategories) {
-          monthlyByGb = new Map();
-          for (let gb = 1; gb <= 6; gb++) {
-            const group = categories.get(gb);
-            monthlyByGb.set(gb, Array.from({ length: 12 }, (_, month) => {
-              const existing = group.A[month] + group.B[month] + group.C[month];
-              const newProduct = group.D[month];
-              return { existing, newProduct, total: existing + newProduct };
-            }));
-          }
-        } else if (hasCompleteProcessed) {
+        if (!monthlyByGb && hasCompleteProcessed) {
           monthlyByGb = new Map();
           for (let gb = 1; gb <= 6; gb++) {
             const group = processed.get(gb);

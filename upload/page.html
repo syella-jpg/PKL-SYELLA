@@ -192,7 +192,7 @@
 </main>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="../dashboard/report-templates.js?v=ib-dynamic-years-v17-20261015"></script>
+<script src="../dashboard/report-templates.js?v=edp-category-import-20261020-2"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -693,9 +693,19 @@
       const isRevenueSO = sectionSelect.value === "Revenue Konimex Selling Out";
       const isMtm = sectionSelect.value === "MTM";
       let isEthical = sectionSelect.value.toUpperCase() === "ETHICAL";
-      const isTargetSection = sectionSelect.value.toUpperCase() === "TARGET REVENUE";
+      let isTargetSection = sectionSelect.value.toUpperCase() === "TARGET REVENUE";
       let isEdpMnjRevenue = sectionSelect.value === "REVENUE VERSI EDP MNJ" || isUnitRevenue;
-      const isEdpMnjTarget = sectionSelect.value === "REVENUE VERSI EDP MNJ Target";
+      let isEdpMnjTarget = sectionSelect.value === "REVENUE VERSI EDP MNJ Target";
+      let detectedCategoryTarget = null;
+      if (isEdpMnjRevenue || isEdpMnjTarget) {
+        detectedCategoryTarget = await processTargetRevenue(chosen);
+        if (detectedCategoryTarget) {
+          isTargetSection = false;
+          isEdpMnjRevenue = false;
+          isEdpMnjTarget = true;
+          sectionSelect.value = "REVENUE VERSI EDP MNJ Target";
+        }
+      }
       let ethicalData = null;
       if (isEthical) {
         ethicalData = await readEthicalHjpData(chosen);
@@ -716,8 +726,17 @@
         throw new Error("Mode file:// saat ini mendukung upload Revenue Konimex Selling Out, IB, dan Target Revenue.");
       }
       const selectedYear = Number(periodSelect.value.slice(0, 4));
-      const edpTarget = isEdpMnjTarget ? await processEdpTarget(chosen, selectedYear) : null;
-      const processed = edpTarget
+      const edpTarget = isEdpMnjTarget && !detectedCategoryTarget ? await processEdpTarget(chosen, selectedYear) : null;
+      const categoryGroups = detectedCategoryTarget ? aggregateTargetCategories(detectedCategoryTarget.rows) : null;
+      const processed = detectedCategoryTarget
+        ? {
+          type: "target", year: selectedYear, sourceYear: detectedCategoryTarget.sourceYear,
+          rows: Array.from(categoryGroups, ([gb, months]) => [
+            { code: "existing" + gb, months: months.map((value) => value.existing) },
+            { code: "new" + gb, months: months.map((value) => value.newProduct) }
+          ]).flat()
+        }
+        : edpTarget
         ? { type: "target", ...edpTarget }
         : isTargetSection
         ? await processRevenueUpload(chosen).then((target) => target && target.type === "target" ? target : null)
