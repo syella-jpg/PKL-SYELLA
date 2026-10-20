@@ -42,10 +42,15 @@
       slides[0].fields[0] = 'TM BOD — ' + quarter;
       slides[0].fields[1] = quarter;
       slides[1].fields[1] = analysis;
-      const base = location.protocol === 'file:' ? 'http://127.0.0.1:8000/dashboard/' : './';
-      const response = await fetch(base + 'tm_bod_download.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slides }) });
+      // Call the PHP function directly: /dashboard/*.php may be served as static files.
+      const endpoint = location.protocol === 'file:'
+        ? 'http://127.0.0.1:8000/api/report.php?endpoint=tm_bod_download'
+        : new URL('../api/report.php?endpoint=tm_bod_download', location.href).href;
+      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slides }) });
       if (!response.ok) {
-        let message = 'Unduhan gagal. Pastikan server aplikasi berjalan.';
+        let message = response.status === 405
+          ? 'API unduhan menolak POST (HTTP 405). Pastikan deployment terbaru sudah aktif.'
+          : `Unduhan gagal (HTTP ${response.status}). Periksa log deployment API.`;
         try { message = (await response.json()).message || message; } catch (_) {}
         throw new Error(message);
       }
