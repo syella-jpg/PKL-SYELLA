@@ -104,6 +104,48 @@
   .analysis { margin-top:24px; }
   .analysis label { display:block; font-size:15px; font-weight:700; margin-bottom:10px; }
   .analysis textarea { min-height:190px; line-height:1.6; color:var(--ink); }
+  .search-panel { margin:20px 8px 0; max-width:760px; }
+  .search-panel label { display:block; margin-bottom:8px; font-size:13px; font-weight:600; }
+  .search-controls { display:flex; gap:8px; }
+  .search-controls input { min-width:0; flex:1; border:1.5px solid #cfcaf5; border-radius:10px; padding:10px 12px; font:inherit; font-size:13px; }
+  .search-controls button { border:1px solid #cfcaf5; border-radius:10px; background:#fff; padding:0 12px; }
+  .search-panel p { margin-top:8px; font-size:12px; color:#6b7280; }
+  .analysis[hidden] { display:none; }
+  main { min-width:0; }
+  .report-workspace { display:grid; grid-template-columns:minmax(0, 1fr) minmax(280px, 1fr); align-items:start; }
+  .report-workspace.with-preview { grid-template-columns:minmax(0, 1fr) minmax(280px, 1fr); }
+  .report-workspace .body { min-width:0; }
+  #ppt-preview { position:sticky; top:16px; min-width:0; margin:20px 20px 20px 0; border:1px solid #e5e3f7; border-radius:18px; padding:20px; background:#fff; box-shadow:0 4px 16px rgba(0,0,0,.08); }
+  #ppt-preview[hidden] { display:none; }
+  .editor-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:2px; padding:6px 9px; border:1px solid #cfcaf5; border-radius:12px 12px 0 0; background:#fafafa; margin-top:10px; }
+  .editor-toolbar button { display:inline-flex; align-items:center; justify-content:center; width:33px; height:30px; padding:0; border:0; border-radius:5px; background:transparent; color:#26384a; font:16px Arial,sans-serif; }
+  .editor-toolbar button[data-command="bold"] { font-weight:700; }
+  .editor-toolbar button[data-command="italic"] { font-style:italic; }
+  .editor-toolbar button[data-command="strikeThrough"] { text-decoration:line-through; }
+  .editor-toolbar button[data-command="underline"] { text-decoration:underline; text-underline-offset:3px; }
+  .editor-toolbar button:hover, .editor-toolbar button[aria-pressed="true"] { background:#e9e5ff; color:#4a3bd4; }
+  .editor-toolbar .toolbar-upload { width:auto; padding:0 8px; margin-left:auto; gap:4px; font-size:12px; }
+  .editor-image button { font:inherit; font-size:12px; padding:6px 8px; border:1px solid #e5e3f7; border-radius:5px; background:#fff; }
+  .rich-editor { min-height:190px; padding:12px 14px; background:#fff; border:1px solid #cfcaf5; border-top:0; border-radius:0 0 10px 10px; font:13px/1.6 Arial,sans-serif; overflow-wrap:anywhere; white-space:pre-wrap; }
+  .rich-editor:empty::before { content:attr(data-placeholder); color:#6b7280; pointer-events:none; }
+  .rich-editor blockquote { margin:8px 0; padding-left:12px; border-left:3px solid #cfcaf5; color:#4b5563; font-style:italic; }
+  .rich-editor ul, .rich-editor ol { padding-left:24px; }
+  .editor-image { margin-top:12px; }
+  .editor-image img { display:block; max-width:100%; max-height:180px; margin-bottom:8px; object-fit:contain; }
+  .analysis textarea[hidden], .editor-image[hidden] { display:none; }
+  .section-save-status { font-size:12px; color:#6b7280; margin-top:10px; }
+  @media (max-width:700px) {
+    .report-workspace, .report-workspace.with-preview { grid-template-columns:minmax(0, 1fr); }
+    #ppt-preview { position:static; margin:0 20px 24px; grid-row:1; }
+  }
+  .preview-header, .preview-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .preview-header h2 { font-size:20px; }
+  .preview-help { margin:12px 0; font-size:13px; color:#6b7280; }
+  .preview-slide { width:100%; aspect-ratio:16 / 9; border:1px solid #dedede; background:#fff; box-shadow:0 3px 12px rgba(0,0,0,.12); overflow:hidden; }
+  .preview-placeholder { display:grid; place-content:center; height:100%; padding:20px; text-align:center; gap:10px; color:#6b7280; font-size:13px; background:#fafafa; }
+  .preview-slide svg { display:block; width:100%; height:100%; }
+  .preview-actions { margin-top:16px; }
+  #preview-status { margin-top:12px; font-size:13px; }
   #status { min-height:18px; margin:12px 8px 0; font-size:12px; color:#6b7280; }
   .menu[hidden] { display:none; }
   .menu:not([hidden]) { display:block; }
@@ -145,14 +187,404 @@
       </div>
     </div>
   </section>
+  <div class="report-workspace" id="report-workspace">
   <div class="body">
-    <section class="analysis" aria-label="Analisis TM BOD">
-      <label for="analysis">Analisis</label>
-      <textarea id="analysis" maxlength="3000" placeholder="Tulis analisis atau catatan untuk TM BOD..." spellcheck="false"></textarea>
-    </section>
-    <p id="status" role="status" aria-live="polite"></p>
+
+  <h2>TM BOD</h2>
+  <div class="search-panel">
+    <label for="cover-year">Tahun cover</label>
+    <input id="cover-year" type="number" min="2000" max="2100" value="2026" style="padding:8px;width:100px">
+    <label for="cover-date" style="margin-top:10px">Tanggal presentasi</label>
+    <input id="cover-date" type="date" style="padding:8px">
+    <p>Cover otomatis menjadi slide pertama. Klik Simpan pada analisis untuk memperbarui presentasi.</p>
+  </div>
+  <div class="search-panel" role="search" aria-label="Pencarian laporan TM BOD">
+    <label for="report-search">Cari laporan</label>
+    <div class="search-controls">
+      <input id="report-search" type="search" placeholder="Cari judul atau isi analisis…" aria-describedby="search-result" autocomplete="off">
+      <button id="clear-search" type="button" hidden>Hapus pencarian</button>
+    </div>
+    <p id="search-result" role="status" aria-live="polite" aria-atomic="true"></p>
+  </div>
+
+  <section class="analysis">
+    <h3>Executive Summary</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>DOI Finished Goods Total (Kx dan MNJ)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4> UPB KX</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+ <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>UPB MNJ</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+   <section class="analysis">
+    <h3>Internal Business Process: </h3>
+    <h4>BRANCH AVAILABILITY (BA)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Stok Near ED FG Kx & MNJ - FARMA</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Stok Near ED FG Kx & MNJ - HEC</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Stok Near ED FG Kx & MNJ – GB 5</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Stok Near ED FG Kx & MNJ – GB 6</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Stok Near ED FG Kx & MNJ – ETHICAL</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Cost Savings</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Internal Business Process: Service Level Kx to MNJ </h3>
+    <h4> Service Level Kx to MNJ</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Issue BB BK : </h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3> SERVICE LEVEL REASON  JUNE 2026</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3> OUT OF STOCK REASON JUNE 2026 </h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3> RECEIVING FGs IN END OF THE MONTH JUNE 2026 REASON </h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+   <section class="analysis">
+    <h3> Internal Business Process: </h3>
+    <h4> Service Level MNJ to MT</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3> Internal Business Process: </h3>
+    <h4> OTF & Launch</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Recall & Complain </h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Keluhan Justified Farmasi dan Natpro</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Keluhan Justified Food</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Rekap keluhan OEM (justified)</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>KX Revenue Selling In (Rp)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>KX Revenue Selling In</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>KX Revenue Selling Out</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Rasio Sell Out vs Sell in Kx</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Risalah TM Q4 2025 :</h3>
+    <h4>Definisi Revenue Selling Out</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>KX Revenue Selling Out (Rp)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>Revenue Divisi Farma (Rp)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>Selling Out Farma</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Rasio Sell Out vs Sell in Div. Farma (unit)</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Rasio Biaya & Rasio MCM Farma</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>HEC Revenue (Rp)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>KX Revenue (Rp)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Rasio Biaya & Rasio MCM HEC</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>GB 5 Revenue (Rp)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Rasio Sell Out vs Sell in GB 5 (unit) </h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Rasio Sell Out vs Sell in GB 5 (unit) </h3>
+    <h4>Rasio Biaya & Rasio MCM GB 5</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Rasio Sell Out vs Sell in GB 5 (unit) </h3>
+    <h4>GB 6 Revenue (Rp)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Rasio Sell Out vs Sell in GB 6 (unit) </h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+   <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Rasio Biaya & Rasio MCM GB 6</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: </h3>
+    <h4>Ethical Revenue Selling Out (Rp)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Rasio Sell Out vs Sell in ETHICAL </h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4> Rasio Biaya & Rasio MCM ETHICAL </h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4> KX Revenue - MTM</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4> IB Revenue (Rp) IB</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>Rasio Biaya & EBITDA IB</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Risalah Meeting</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective:</h3>
+    <h4>MNJ Revenue (Rp)</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Internal Bussines MNJ – KWH & KPH 2026</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Internal Bussines MNJ - CPM 2026</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Risalah Meeting</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>Financial Perspective: Rasio Biaya & Rasio MCM MNJ</h3>
+    <h4>Rasio Biaya & Rasio MCM MNJ</h4>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="analysis">
+    <h3>STRATEGIC IT DEVELOPMENT</h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
+  </div>
+<section id="ppt-preview" aria-labelledby="preview-title" aria-describedby="preview-help">
+  <div class="preview-header">
+    <h2 id="preview-title">Preview PPT</h2>
+  </div>
+  <p class="preview-help" id="preview-help">Setiap kotak analisis menjadi satu slide. Preview dan unduhan memakai isi yang sudah disimpan dengan template Konimex (ODP).</p>
+  <article class="preview-slide" id="preview-slide" aria-live="polite"><div class="preview-placeholder"><strong>Preview slide analisis</strong><p>Klik Simpan pada salah satu kotak analisis untuk melihat slide di sini.</p></div></article>
+  <div class="preview-actions">
+    <button class="btn cancel" id="previous-slide" type="button" disabled>Sebelumnya</button>
+    <span id="slide-position" role="status"></span>
+    <button class="btn cancel" id="next-slide" type="button" disabled>Berikutnya</button>
+    <button class="btn save" id="preview-download" type="button" disabled>Unduh presentasi</button>
+  </div>
+  <p id="preview-status" role="status"></p>
+</section>
   </div>
 </main>
+<script src="tm-bod-editor.js"></script>
+<script src="tm-bod-preview.js"></script>
 <script src="tm-bod.js"></script>
 </body>
 </html>

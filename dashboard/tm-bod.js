@@ -1,5 +1,41 @@
 (() => {
   const $ = id => document.getElementById(id);
+  const search = $('report-search');
+  if (search) {
+    const sections = Array.from(document.querySelectorAll('main section.analysis'));
+    const normalize = value => value.toLocaleLowerCase('id').replace(/\s+/g, ' ').trim();
+    function filterReports() {
+      const query = normalize(search.value);
+      const terms = query.split(' ').filter(Boolean);
+      let matches = 0;
+      sections.forEach(section => {
+        const headings = Array.from(section.querySelectorAll('h3, h4'), heading => heading.textContent);
+        const values = Array.from(section.querySelectorAll('textarea'), field => field.value);
+        const content = normalize([...headings, ...values].join(' '));
+        section.hidden = !terms.every(term => content.includes(term));
+        if (!section.hidden) matches++;
+      });
+      $('clear-search').hidden = !search.value;
+      $('search-result').textContent = !query
+        ? `${sections.length} bagian laporan tersedia.`
+        : matches ? `${matches} dari ${sections.length} bagian ditemukan.`
+          : 'Tidak ada bagian yang cocok. Coba kata kunci lain.';
+    }
+    search.addEventListener('input', filterReports);
+    $('clear-search').addEventListener('click', () => {
+      search.value = '';
+      filterReports();
+      search.focus();
+    });
+    sections.forEach(section => section.addEventListener('input', filterReports));
+    filterReports();
+  }
+  // The multi-section page does not use the legacy single-analysis editor below.
+  if (!$('analysis')) {
+    $('burger').onclick = () => { location.href = '../menu/page.html'; };
+    document.querySelector('[data-sec="Dashboard"]').onclick = () => { location.href = '../menu/page.html'; };
+    return;
+  }
   const storageKey = 'tm-bod-analysis-v1';
   let template, drafts = {};
   try {
