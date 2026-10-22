@@ -69,6 +69,16 @@ function checkPeriodMenus() {
 checkPeriodMenus();
 
 (async () => {
+  const biaya2025 = XLSX.utils.book_new();
+  await api.replaceEdpTemplateSheet(biaya2025, "2025-09");
+  const biayaGrid = XLSX.utils.sheet_to_json(biaya2025.Sheets['REVENUE EDP MNJ'], {header:1});
+  const biayaRow = biayaGrid.findIndex((row) => row.includes('TARGET BIAYA 2025'));
+  assert.ok(biayaRow >= 0);
+  assert.equal(biayaGrid[biayaRow + 29][0], 'BIAYA TAHUN 2025');
+  assert.equal(biayaGrid[biayaRow + 2][2], 999);
+  assert.equal(biayaGrid[biayaRow + 31][3], 222);
+  assert.ok(apiCalls.some((url) => url.includes('biaya_api.php?period=2025-09')));
+  console.log('PASS: periode 2025-09, target/actual 2025 and YTD September.');
   for (const year of [2026, 2027, 2028]) {
     const period = `${year}-10`, book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, reportSheet(year, 'YTD OKTOBER'), 'LAPORAN');
@@ -85,13 +95,13 @@ checkPeriodMenus();
       const grid = XLSX.utils.sheet_to_json(book.Sheets['REVENUE EDP MNJ'], { header: 1 });
       assert.ok(grid.some((row) => row.includes(`TARGET SELL OUT ${expectedYear}`)));
       assert.ok(grid.some((row) => row.includes(`REVENUE TAHUN ${expectedYear}`)));
-      const biayaTarget = grid.findIndex((row) => row.includes(`TARGET BIAYA ${expectedYear}`));
-      assert.ok(biayaTarget >= 0);
-      assert.equal(grid[biayaTarget + 29][0], `BIAYA TAHUN ${expectedYear}`);
-      assert.equal(grid[biayaTarget + 2][3], 111);
-      assert.equal(grid[biayaTarget + 31][3], 222);
-      assert.equal(grid[biayaTarget + 2][2], 1110);
-      assert.ok(grid[biayaTarget + 3]?.[3] == null);
+      const biaya = grid.findIndex((row) => row.includes(`TARGET BIAYA ${expectedYear}`));
+      assert.ok(biaya >= 0);
+      assert.equal(grid[biaya + 29][0], `BIAYA TAHUN ${expectedYear}`);
+      assert.equal(grid[biaya + 2][3], 111);
+      assert.equal(grid[biaya + 31][3], 222);
+      assert.equal(grid[biaya + 2][2], 1110);
+      assert.ok(grid[biaya + 3]?.[3] == null);
 
     }
     api.fillReportMtmPriorTarget(book, period);

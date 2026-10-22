@@ -2057,19 +2057,11 @@
       if (start < 0) continue;
       let data = null;
       try {
-        const localBiaya = JSON.parse(global.localStorage.getItem("konimex_biaya_preview") || "{}");
-        data = localBiaya[String(biayaYear)] || null;
-      } catch (_) { data = null; }
-      // Use this browser's BIAYA preview when present. The server/database
-      // remains the fallback for reports without a local preview.
-      if (!data) {
-        try {
-          const response = await fetchReportApi(new URL("biaya_api.php", apiBase).href + "?period=" + biayaYear + (biayaYear === reportYear ? String(period).slice(4) : "-12"), { cache: "no-store" });
-          const result = await response.json();
-          if (!response.ok || !result.success) throw new Error(result.message || "Data biaya gagal dibaca.");
-          data = result.data;
-        } catch (error) { console.warn("Data biaya tidak tersedia:", error); }
-      }
+        const response = await fetchReportApi(new URL("biaya_api.php", apiBase).href + "?period=" + biayaYear + (biayaYear === reportYear ? String(period).slice(4) : "-12"), { cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || "Data biaya gagal dibaca.");
+        data = result.data;
+      } catch (error) { console.warn("Data biaya tidak tersedia:", error); }
       const height = 29;
       const copies = {};
       Object.keys(sheet).filter((key) => key[0] !== "!").forEach((key) => {

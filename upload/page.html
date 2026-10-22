@@ -775,16 +775,17 @@
         clearFile(); sectionSelect.value = "";
         return;
       }
-      if (["BIAYA", "BIAY"].includes(sectionSelect.value.toUpperCase())) {
-        const parsed = await parseBiayaPreview(chosen);
-        if (parsed.year !== Number(periodSelect.value.slice(0, 4))) throw new Error("Tahun pada file BIAYA (" + parsed.year + ") berbeda dari periode yang dipilih.");
-        let history = {};
-        try { history = JSON.parse(localStorage.getItem(BIAYA_PREVIEW_KEY) || "{}"); } catch (_) { history = {}; }
-        history[String(parsed.year)] = { ...parsed, source: chosen.name, period: periodSelect.value, processedAt: new Date().toISOString() };
-        localStorage.setItem(BIAYA_PREVIEW_KEY, JSON.stringify(history));
+      if (sectionSelect.value === "BIAYA") {
+        const endpoint = LOCAL_FILE_MODE ? "http://127.0.0.1:8000/dashboard/biaya_api.php" : "../dashboard/biaya_api.php";
+        const payload = new FormData();
+        payload.append("period", periodSelect.value);
+        payload.append("file", chosen);
+        const response = await fetch(endpoint, { method: "POST", body: payload });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || "Upload biaya gagal.");
         barFill.style.width = "100%";
-        const targetLabel = periodSelect.value.startsWith("2025-") ? "Target rolling" : "Target";
-        setMsg("BIAYA siap ditampilkan di REVENUE EDP MNJ untuk " + periodSelect.value + ". " + targetLabel + " tersimpan di browser ini; belum dikirim ke database.", "ok");
+        const target = periodSelect.value.startsWith("2025-") ? "Target rolling" : "Target";
+        setMsg("BIAYA berhasil disimpan untuk " + periodSelect.value + ". " + target + " dan realisasi masuk ke REVENUE EDP MNJ.", "ok");
         clearFile(); sectionSelect.value = "";
         return;
       }
