@@ -648,7 +648,8 @@ foreach ($workbookSheetNames as $sheetName) {
         $edpTemplateSheet->getStyle('C147:P173')->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
         require_once __DIR__ . '/../includes/biaya_workbook.php';
         populateBiayaSheet($edpTemplateSheet, $period, $conn);
-        clearMcmSheet($edpTemplateSheet, $periodYear);
+        scaleEdpRevenueToThousands($edpTemplateSheet);
+        populateMcmSheet($edpTemplateSheet, $periodYear);
         $edpTemplateSheet->setTitle($sheetName);
         $output->addExternalSheet($edpTemplateSheet);
         continue;

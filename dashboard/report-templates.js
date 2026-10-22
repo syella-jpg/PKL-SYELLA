@@ -2110,21 +2110,32 @@
         }
       }
     }
-    // MCM is actual BIAYA minus actual REVENUE, matched by GB and product
-    // type. Blank source values stay blank instead of being treated as zero.
+    // Convert revenue rupiah to the report's Rp (000) before computing MCM.
+    {
+      const grid = global.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
+      let revenue = false;
+      grid.forEach((row, r) => {
+        const heading = String(row[0] || "").trim().toUpperCase();
+        if (/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) 20\d{2}$/.test(heading)) {
+          revenue = heading.startsWith("REVENUE TAHUN ");
+          return;
+        }
+        if (!revenue || !/^(EXIST|NP|TOTAL)\s/.test(String(row[1] || "").trim().toUpperCase())) return;
+        for (let c = 2; c <= 15; c++) {
+          const address = global.XLSX.utils.encode_cell({ r, c });
+          const cell = sheet[address];
+          if (typeof cell?.v !== "number" || !Number.isFinite(cell.v)) continue;
+          sheet[address] = { ...cell, v: cell.v / 1000 };
+          delete sheet[address].f; delete sheet[address].F; delete sheet[address].w;
+        }
+      });
+    }
+    // MCM = REVENUE minus actual BIAYA for the same year and product.
     const normalizeReportCell = (value) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
     const findYearSection = (heading, year) => {
       const rows = global.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
       const index = rows.findIndex((row) => normalizeReportCell(row[0]) === heading + " TAHUN " + year);
       return index < 0 ? null : { rows, index };
-    };
-    const rowMap = (rows, start, end) => {
-      const result = new Map();
-      for (let r = start; r < end; r++) {
-        const label = normalizeReportCell(rows[r]?.[1]);
-        if (label) result.set(label, r);
-      }
-      return result;
     };
     const clearMcmCell = (row, column) => {
       const address = global.XLSX.utils.encode_cell({ r: row, c: column });
@@ -2139,12 +2150,38 @@
       if (!mcmSection) continue;
       const sectionEnd = (rows, index) => {
         for (let r = index + 1; r < rows.length; r++) {
-          if (/^(?:REVENUE|BIAYA|MCM|TARGET SELL OUT|TARGET BIAYA) TAHUN 20\d{2}$/.test(normalizeReportCell(rows[r]?.[0]))) return r;
+          if (/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) 20\d{2}$/.test(normalizeReportCell(rows[r]?.[0]))) return r;
         }
         return rows.length;
       };
-      const mcmRows = rowMap(mcmSection.rows, mcmSection.index + 2, sectionEnd(mcmSection.rows, mcmSection.index));
-      for (const row of mcmRows.values()) for (let column = 2; column <= 15; column++) clearMcmCell(row, column);
+      const sourceRows = (kind) => {
+        const section = findYearSection(kind, year);
+        const result = new Map();
+        if (!section) return result;
+        const end = sectionEnd(section.rows, section.index);
+        for (let r = section.index + 2; r < end; r++) {
+          const label = normalizeReportCell(section.rows[r]?.[1]).replace(/ ETH$/, " ETHICAL");
+          if (label) result.set(label, r);
+        }
+        return result;
+      };
+      const revenueRows = sourceRows("REVENUE");
+      const biayaRows = sourceRows("BIAYA");
+      const end = sectionEnd(mcmSection.rows, mcmSection.index);
+      for (let row = mcmSection.index + 2; row < end; row++) {
+        const label = normalizeReportCell(mcmSection.rows[row]?.[1]).replace(/ ETH$/, " ETHICAL");
+        const revenueRow = revenueRows.get(label), biayaRow = biayaRows.get(label);
+        for (let column = 2; column <= 15; column++) {
+          clearMcmCell(row, column);
+          if (revenueRow == null || biayaRow == null || !/^(?:(?:EXIST|NP|TOTAL) GB [1-6]|(?:EXIST|NP|TOTAL) ETHICAL)$/.test(label)) continue;
+          const address = global.XLSX.utils.encode_cell({ r: row, c: column });
+          const a = global.XLSX.utils.encode_cell({ r: revenueRow, c: column });
+          const b = global.XLSX.utils.encode_cell({ r: biayaRow, c: column });
+          const av = sheet[a]?.v, bv = sheet[b]?.v;
+          if (typeof av !== "number" || !Number.isFinite(av) || typeof bv !== "number" || !Number.isFinite(bv)) continue;
+          sheet[address] = { ...sheet[address], t: "n", v: av - bv, f: `${a}-${b}`, z: "#,##0;[Red]-#,##0" };
+        }
+      }
     }
     const existingIndex = workbook.SheetNames.indexOf(TEMPLATE_NAME);
     if (existingIndex < 0) {

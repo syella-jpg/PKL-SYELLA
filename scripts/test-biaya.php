@@ -39,13 +39,30 @@ foreach([2025,2026] as $year) {
     echo "PASS $year: original ODS, all 288 monthly values, empty cells, period year and rolling selection.\n";
 }
 class BiayaQuery {
-    public function bind_param($types,&...$args) {}
+    private array $bounds;
+    public function bind_param($types,&...$args) { $this->bounds=$args; }
     public function execute() {}
     public function get_result() { return $this; }
-    public function fetch_assoc() { return ['payload'=>json_encode(['target'=>['existing1'=>array_fill(0,12,100)],'actual'=>['existing1'=>array_fill(0,12,200)]])]; }
+    public function fetch_assoc() {
+        // Only October has an upload, and adjacent years have different values.
+        foreach (['2026-10'=>600, '2025-10'=>100] as $period=>$value) {
+            if ($period >= $this->bounds[0] && $period <= $this->bounds[1]) {
+                return ['payload'=>json_encode(['target'=>['existing1'=>array_fill(0,12,$value)],'actual'=>['existing1'=>array_fill(0,12,$value*2)]])];
+            }
+        }
+        return null;
+    }
     public function close() {}
 }
 class BiayaConnection { public function prepare($sql) { return new BiayaQuery(); } }
+foreach ([2025=>100,2026=>600] as $annualYear=>$expectedValue) {
+    for ($month=1;$month<=12;$month++) {
+        $period=sprintf('%d-%02d',$annualYear,$month);
+        $annual=findBiayaRecord(new BiayaConnection(),$period);
+        verifyBiaya(($annual['target']['existing1'][0]??null)===$expectedValue,'October upload missing or wrong year: '.$period);
+    }
+}
+echo "PASS: October-only uploads available January–December, 2025/2026 strictly isolated.\n";
 preg_match('/const TEMPLATE_BASE64 = "([A-Za-z0-9+\/=]+)";/',file_get_contents(__DIR__.'/../dashboard/report-templates.js'),$m);
 $tmp=tempnam(sys_get_temp_dir(),'biaya-test-');file_put_contents($tmp,base64_decode($m[1]));
 try { $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($tmp); } finally { unlink($tmp); }
@@ -62,3 +79,16 @@ for($r=1;$r<=$sheet->getHighestDataRow();$r++) if($sheet->getCell('A'.$r)->getVa
 }
 verifyBiaya($found===1,'Missing target table');
 echo "PASS: native export, TARGET BIAYA 2025 above BIAYA TAHUN 2025, YTD and missing NP.\n";
+
+$fixture=new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+$mc=$fixture->getActiveSheet();
+$mc->setCellValue('A1','MCM TAHUN 2026');
+$mc->setCellValue('B3','EXIST GB 1'); $mc->setCellValue('C3','=1+2');
+$mc->setCellValue('D4','=3+4');
+$mc->setCellValue('A6','TARGET SELL OUT 2025');
+$mc->setCellValue('B8','EXIST GB 1'); $mc->setCellValue('C8',123);
+clearMcmSheet($mc,2026);
+verifyBiaya($mc->getCell('C3')->getValue()===null && $mc->getCell('D4')->getValue()===null,'MCM formulas remain');
+verifyBiaya($mc->getCell('C8')->getValue()===123,'Following target was cleared');
+verifyBiaya($mc->getCell('B3')->getValue()==='EXIST GB 1','MCM label cleared');
+echo "PASS: MCM formulas/values cleared, labels and following target preserved.\n";

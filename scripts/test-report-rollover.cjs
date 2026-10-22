@@ -69,16 +69,22 @@ function checkPeriodMenus() {
 checkPeriodMenus();
 
 (async () => {
-  const biaya2025 = XLSX.utils.book_new();
-  await api.replaceEdpTemplateSheet(biaya2025, "2025-09");
-  const biayaGrid = XLSX.utils.sheet_to_json(biaya2025.Sheets['REVENUE EDP MNJ'], {header:1});
-  const biayaRow = biayaGrid.findIndex((row) => row.includes('TARGET BIAYA 2025'));
-  assert.ok(biayaRow >= 0);
-  assert.equal(biayaGrid[biayaRow + 29][0], 'BIAYA TAHUN 2025');
-  assert.equal(biayaGrid[biayaRow + 2][2], 999);
-  assert.equal(biayaGrid[biayaRow + 31][3], 222);
-  assert.ok(apiCalls.some((url) => url.includes('biaya_api.php?period=2025-09')));
-  console.log('PASS: periode 2025-09, target/actual 2025 and YTD September.');
+  for (const biayaYear of [2025, 2026]) for (let month = 1; month <= 12; month++) {
+    const period = `${biayaYear}-${String(month).padStart(2, '0')}`;
+    const book = XLSX.utils.book_new();
+    await api.replaceEdpTemplateSheet(book, period);
+    const grid = XLSX.utils.sheet_to_json(book.Sheets['REVENUE EDP MNJ'], {header:1});
+    const row = grid.findIndex((cells) => cells.includes(`TARGET BIAYA ${biayaYear}`));
+    assert.ok(row >= 0);
+    assert.equal(grid[row + 29][0], `BIAYA TAHUN ${biayaYear}`);
+    assert.equal(grid[row + 2][2], 111 * month);
+    assert.equal(grid[row + 31][2], 222 * month);
+    assert.equal(grid[row + 2][3], 111);
+    assert.equal(grid[row + 31][3], 222);
+    assert.equal(grid[row + 2][15], 111 * 12);
+    assert.ok(apiCalls.some((url) => url.includes(`biaya_api.php?period=${period}`)));
+  }
+  console.log('PASS: BIAYA 2025/2026 January–December, monthly values, full year and YTD.');
   for (const year of [2026, 2027, 2028]) {
     const period = `${year}-10`, book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, reportSheet(year, 'YTD OKTOBER'), 'LAPORAN');

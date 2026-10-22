@@ -76,8 +76,12 @@ function parseBiayaWorkbook(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, int $ye
     return $rows;
 }
 
+/** Annual uploads contain January–December; the download month only controls YTD. */
 function findBiayaRecord($conn, string $period): ?array
 {
+    if (!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/', $period)) {
+        throw new InvalidArgumentException('Periode biaya tidak valid.');
+    }
     try {
         // BIAYA is uploaded as a full-year workbook. Use the latest upload for
         // that year even when its selected upload month is after the report
@@ -161,9 +165,67 @@ function clearMcmSheet(Worksheet $sheet, int $reportYear): void
         if ($mcmStart === null) continue;
         for ($r = $mcmStart + 2; $r <= $highest; $r++) {
             $heading = strtoupper(trim((string)$sheet->getCell('A'.$r)->getValue()));
-            if (preg_match('/^(?:REVENUE|BIAYA|MCM|TARGET SELL OUT|TARGET BIAYA) TAHUN 20\d{2}$/', $heading)) break;
-            if (trim((string)$sheet->getCell('B'.$r)->getValue()) === '') continue;
+            if (preg_match('/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) 20\d{2}$/', $heading)) break;
             for ($column = 3; $column <= 16; $column++) $sheet->getCell([$column, $r])->setValue(null);
+        }
+    }
+}
+
+/** MCM = revenue minus actual biaya, matched by year and product label. */
+function populateMcmSheet(Worksheet $sheet, int $reportYear): void
+{
+    clearMcmSheet($sheet, $reportYear);
+    $sections = [];
+    $section = null;
+    $normalize = static fn($v) => preg_replace('/\s+/u', ' ', strtoupper(trim((string)$v)));
+    for ($r=1; $r<=$sheet->getHighestDataRow(); $r++) {
+        $heading = $normalize($sheet->getCell('A'.$r)->getValue());
+        if (preg_match('/^(?:(REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) (20\d{2})$/', $heading, $m)) {
+            $section = !empty($m[1]) ? $m[1].' '.$m[2] : null;
+            continue;
+        }
+        $label = $normalize($sheet->getCell('B'.$r)->getValue());
+        if ($section && preg_match('/^(?:(?:EXIST|NP|TOTAL) GB [1-6]|(?:EXIST|NP|TOTAL) ETH(?:ICAL)?)$/', $label)) {
+            $label = preg_replace('/ ETH$/', ' ETHICAL', $label);
+            $sections[$section][$label] = $r;
+        }
+    }
+    foreach ([$reportYear-1, $reportYear] as $year) foreach ($sections['MCM '.$year] ?? [] as $label=>$row) {
+        $rev = $sections['REVENUE '.$year][$label] ?? null;
+        $biaya = $sections['BIAYA '.$year][$label] ?? null;
+        if (!$rev || !$biaya) continue;
+        for ($c=3; $c<=16; $c++) {
+            $col = Coordinate::stringFromColumnIndex($c);
+            $a = $sheet->getCell($col.$rev);
+            $av = $a->isFormula() ? $a->getOldCalculatedValue() : $a->getValue();
+            $b = $sheet->getCell($col.$biaya);
+            $bv = $b->isFormula() ? $b->getOldCalculatedValue() : $b->getValue();
+            // Numeric zero is data. Missing inputs remain genuinely empty.
+            if (!is_int($av) && !is_float($av)) continue;
+            if (!is_int($bv) && !is_float($bv)) continue;
+            $cell = $sheet->getCell($col.$row);
+            $cell->setValue('='.$col.$rev.'-'.$col.$biaya);
+            $cell->setCalculatedValue($av-$bv);
+        }
+    }
+}
+
+/** Source revenue is rupiah; the EDP report uses Rp (000), like biaya. */
+function scaleEdpRevenueToThousands(Worksheet $sheet): void
+{
+    $revenue = false;
+    for ($r=1; $r<=$sheet->getHighestDataRow(); $r++) {
+        $heading = strtoupper(trim((string)$sheet->getCell('A'.$r)->getValue()));
+        if (preg_match('/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) 20\d{2}$/', $heading)) {
+            $revenue = str_starts_with($heading, 'REVENUE TAHUN ');
+            continue;
+        }
+        if (!$revenue || !preg_match('/^(EXIST|NP|TOTAL)\s/', strtoupper(trim((string)$sheet->getCell('B'.$r)->getValue())))) continue;
+        for ($c=3; $c<=16; $c++) {
+            $cell=$sheet->getCell([$c,$r]);
+            $value=$cell->isFormula()?$cell->getOldCalculatedValue():$cell->getValue();
+            if (!is_int($value) && !is_float($value)) continue;
+            $cell->setValue($value/1000);
         }
     }
 }
