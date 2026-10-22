@@ -646,6 +646,9 @@ foreach ($workbookSheetNames as $sheetName) {
         $edpTemplateSheet->getStyle('C34:P56')->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
         $edpTemplateSheet->getStyle('C120:P142')->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
         $edpTemplateSheet->getStyle('C147:P173')->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+        require_once __DIR__ . '/../includes/biaya_workbook.php';
+        populateBiayaSheet($edpTemplateSheet, $period, $conn);
+        clearMcmSheet($edpTemplateSheet, $periodYear);
         $edpTemplateSheet->setTitle($sheetName);
         $output->addExternalSheet($edpTemplateSheet);
         continue;
@@ -737,6 +740,14 @@ $sheet->freezePane('C3');
 
 // Keep a consistent workbook layout across report downloads. Tabs without
 // data for this report remain empty and are ready for their corresponding data.
+require_once __DIR__ . '/../includes/bod_mnj_workbook.php';
+$bodBook = buildBodMnjWorkbook((int)substr($period, 0, 4), $period, $conn);
+if ($bodBook) {
+    $bodSheet = $bodBook->getSheetByName('BOD MNJ');
+    $bodIndex = $output->getIndex($output->getSheetByName('BOD MNJ'));
+    $output->removeSheetByIndex($bodIndex);
+    $output->addExternalSheet($bodSheet, $bodIndex);
+}
 $conn->close();
 $filename = 'Revenue_Konimex_Selling_In_' . str_replace('-', '_', $period) . '.xlsx';
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

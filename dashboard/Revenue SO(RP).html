@@ -185,7 +185,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="report-templates.js?v=ib-upload-rate-20261020"></script>
+<script src="report-templates.js?v=target-sellout-header-restore-20261022"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -1098,6 +1098,7 @@
     formatReportSheetReferences(workbook);
     addReportTitle(workbook, selectedPeriod);
     appendMcmReportTable(workbook, selectedPeriod);
+    await replaceBodMnjTemplateSheet(workbook, selectedPeriod);
     return workbook;
   }
   $("dl").onclick = async () => {

@@ -159,7 +159,7 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="report-templates.js?v=ib-upload-rate-20261020"></script>
+<script src="report-templates.js?v=bod-mnj-ytd-20261022"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -400,6 +400,8 @@
     }
     catch (error) { toast(error.message || "Template Ethical gagal dimuat."); return; }
     const filename = (st.report + " - " + st.tab + " - " + st.period + ".ods").replace(/[\\/:*?"<>|]/g, "");
+    try { await replaceBodMnjTemplateSheet(workbook, st.period); }
+    catch (error) { toast(error.message || "BOD MNJ gagal dimuat."); return; }
     XLSX.writeFile(workbook, filename, { bookType: "ods", cellStyles: true });
   };
 

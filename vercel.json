@@ -5,6 +5,16 @@
     }
   },
   "rewrites": [
+    {"source":"/dashboard/biaya_api.php","destination":"/api/report.php?endpoint=biaya_api"},
+    {"source":"/dashboard/biaya_api","destination":"/api/report.php?endpoint=biaya_api"},
+    {
+      "source": "/dashboard/bod_mnj_api",
+      "destination": "/api/report.php?endpoint=bod_mnj_api"
+    },
+    {
+      "source": "/dashboard/bod_mnj_api.php",
+      "destination": "/api/report.php?endpoint=bod_mnj_api"
+    },
     {
       "source": "/dashboard/tm_bod_download",
       "destination": "/api/report.php?endpoint=tm_bod_download"

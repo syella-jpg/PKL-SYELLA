@@ -26,7 +26,8 @@ const context = {
     const year = Number(url.searchParams.get('year') || url.searchParams.get('period')?.slice(0, 4));
     const month = Number(url.searchParams.get('month') || 10);
     let data;
-    if (url.pathname.endsWith('/revenue_ibfm_api.php')) data = ib(year, month);
+    if (url.pathname.endsWith('/biaya_api.php')) data = {target:{existing1:Array(12).fill(111)},actual:{existing1:Array(12).fill(222)}};
+    else if (url.pathname.endsWith('/revenue_ibfm_api.php')) data = ib(year, month);
     else if (url.pathname.endsWith('/ethical_api.php')) data = [2025, 2026, 2027, 2028].map(ethical);
     else if (url.pathname.endsWith('/mtm_api.php')) data = Object.fromEntries(['EXISTING', 'NEW_PRODUCT'].map((key) => [key, { TARGET: months(year), ACTUAL: months(year + 100) }]));
     else if (url.pathname.endsWith('/revenue_edp_mnj_target_api.php')) data = Array.from({ length: 6 }, (_, i) => ['EXIST', 'NP'].flatMap((type) => months(year * 10 + i).map((value, index) => ({ product: `${type} GB ${i + 1}`, bulan: index + 1, target: value })))).flat();
@@ -84,6 +85,14 @@ checkPeriodMenus();
       const grid = XLSX.utils.sheet_to_json(book.Sheets['REVENUE EDP MNJ'], { header: 1 });
       assert.ok(grid.some((row) => row.includes(`TARGET SELL OUT ${expectedYear}`)));
       assert.ok(grid.some((row) => row.includes(`REVENUE TAHUN ${expectedYear}`)));
+      const biayaTarget = grid.findIndex((row) => row.includes(`TARGET BIAYA ${expectedYear}`));
+      assert.ok(biayaTarget >= 0);
+      assert.equal(grid[biayaTarget + 29][0], `BIAYA TAHUN ${expectedYear}`);
+      assert.equal(grid[biayaTarget + 2][3], 111);
+      assert.equal(grid[biayaTarget + 31][3], 222);
+      assert.equal(grid[biayaTarget + 2][2], 1110);
+      assert.ok(grid[biayaTarget + 3]?.[3] == null);
+
     }
     api.fillReportMtmPriorTarget(book, period);
     api.fillReportMtmPriorTarget(book, period, 0);

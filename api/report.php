@@ -5,7 +5,7 @@ header('Cache-Control: no-store');
 
 // Only these application endpoints may be executed by this function.
 $endpoints = [
-    'unit_api', 'ethical_api', 'mtm_api', 'revenue_so_api',
+    'biaya_api', 'bod_mnj_api', 'unit_api', 'ethical_api', 'mtm_api', 'revenue_so_api',
     'revenue_so_targets_api', 'revenue_edp_mnj_api',
     'revenue_edp_mnj_target_api', 'revenue_ibfm_api',
     'revenue_kx_si_download', 'tm_bod_download',
