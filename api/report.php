@@ -8,7 +8,7 @@ $endpoints = [
     'biaya_api', 'bod_mnj_api', 'unit_api', 'ethical_api', 'mtm_api', 'revenue_so_api',
     'revenue_so_targets_api', 'revenue_edp_mnj_api',
     'revenue_edp_mnj_target_api', 'revenue_ibfm_api',
-    'revenue_kx_si_download', 'tm_bod_download',
+    'revenue_kx_si_download', 'tm_bod_download', 'bod_mnj_download', 'biaya_download',
 ];
 $endpoint = $_GET['endpoint'] ?? '';
 unset($_GET['endpoint']);

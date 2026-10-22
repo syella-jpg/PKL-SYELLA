@@ -29,12 +29,17 @@ try {
     if ($method === 'POST') {
         $base64 = $payload['base64'] ?? null;
         if (!is_string($base64)) throw new InvalidArgumentException('File BOD MNJ tidak valid.');
-        $book = decodeBodMnjWorkbook($base64, (int)substr($period, 0, 4));
+        $filename = $payload['filename'] ?? null;
+        if (!is_string($filename) || !preg_match('/\.(ods|xlsx)$/i', $filename)) {
+            throw new InvalidArgumentException('Pilih file ODS atau XLSX.');
+        }
+        $filename = basename(str_replace('\\', '/', $filename));
+        $book = decodeBodMnjWorkbook($base64, (int)substr($period, 0, 4), false);
         $book->disconnectWorksheets();
     }
-    $conn = openReportConnection();
+    $conn = openTidbConnection();
     if ($method === 'POST') {
-        saveBodMnjRecord($conn, $period, $base64);
+        saveBodMnjRecord($conn, $period, $base64, $filename);
         echo json_encode(['success' => true, 'period' => $period]);
     } else {
         $record = findBodMnjRecord($conn, $period);

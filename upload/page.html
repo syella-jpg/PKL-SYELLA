@@ -198,7 +198,7 @@
 </main>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="../dashboard/report-templates.js?v=revenue-thousands-20261022"></script>
+<script src="../dashboard/report-templates.js?v=achievement-percent-20261022"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -771,7 +771,7 @@
       if (sectionSelect.value === "BOD MNJ") {
         await uploadBodMnjFile(chosen, periodSelect.value);
         barFill.style.width = "100%";
-        setMsg("BOD MNJ berhasil disimpan untuk " + periodSelect.value + ". Unduhan menampilkan tahun terpilih di atas dan tahun sebelumnya di bawah.", "ok");
+        setMsg("BOD MNJ berhasil disimpan untuk " + periodSelect.value + ". File asli dan nama file tersimpan sesuai unggahan.", "ok");
         clearFile(); sectionSelect.value = "";
         return;
       }
@@ -785,7 +785,7 @@
         if (!response.ok || !result.success) throw new Error(result.message || "Upload biaya gagal.");
         barFill.style.width = "100%";
         const target = periodSelect.value.startsWith("2025-") ? "Target rolling" : "Target";
-        setMsg("BIAYA berhasil disimpan untuk " + periodSelect.value + ". " + target + " dan realisasi masuk ke REVENUE EDP MNJ.", "ok");
+        setMsg("BIAYA berhasil disimpan untuk " + periodSelect.value + ". " + target + " dan realisasi masuk ke REVENUE EDP MNJ. File asli tersimpan dengan nama unggahan.", "ok");
         clearFile(); sectionSelect.value = "";
         return;
       }

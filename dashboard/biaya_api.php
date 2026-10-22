@@ -22,16 +22,26 @@ try {
         if(($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||($file['size']??0)>50*1024*1024) throw new InvalidArgumentException('File biaya gagal diterima atau terlalu besar.');
         $reader=\PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($file['tmp_name']);
         if(!$reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Ods && !$reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Xlsx) throw new InvalidArgumentException('Gunakan file ODS atau XLSX.');
+        $bytes=file_get_contents($file['tmp_name']);
+        if ($bytes === false || $bytes === '') throw new InvalidArgumentException('File biaya kosong atau gagal dibaca.');
+        $filename=basename(str_replace('\\', '/', $file['name'] ?? ''));
+        $extension=$reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Ods ? 'ods' : 'xlsx';
+        if (strtolower(pathinfo($filename, PATHINFO_EXTENSION)) !== $extension) throw new InvalidArgumentException('Ekstensi file harus sesuai format ODS atau XLSX.');
         $book=$reader->load($file['tmp_name']); $data=parseBiayaWorkbook($book,(int)substr($period,0,4)); $book->disconnectWorksheets();
     }
-    $conn=openReportConnection();
+    if ($method==='POST') {
+        $data['base64']=base64_encode($bytes);
+        $data['filename']=$filename;
+        $data['sha256']=hash('sha256', $bytes);
+    }
+    $conn=openTidbConnection();
     if($method==='POST') {
         $conn->query('CREATE TABLE IF NOT EXISTS biaya_files (report_period CHAR(7) PRIMARY KEY, payload LONGTEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
         $q=$conn->prepare('INSERT INTO biaya_files (report_period,payload) VALUES (?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload)');
         $payload=json_encode($data,JSON_THROW_ON_ERROR); $q->bind_param('ss',$period,$payload);
         if(!$q->execute()) throw new RuntimeException('Biaya gagal disimpan.'); $q->close();
     } else $data=findBiayaRecord($conn,$period);
-    echo json_encode(['success'=>true,'data'=>$data]);
+    echo json_encode(['success'=>true,'data'=>$method==='POST' ? ['period'=>$period,'filename'=>$filename,'sha256'=>$data['sha256']] : $data]);
 } catch(Throwable $e) {
     if(http_response_code()<400) http_response_code($e instanceof InvalidArgumentException?400:500);
     echo json_encode(['success'=>false,'message'=>$e instanceof InvalidArgumentException?$e->getMessage():'Data biaya gagal diproses. Periksa file dan koneksi database.']);

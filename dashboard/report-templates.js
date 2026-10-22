@@ -195,9 +195,9 @@
       reader.onerror = () => reject(new Error("File BOD MNJ gagal dibaca."));
       reader.readAsDataURL(file);
     });
-    global.readBodMnjSheet(base64, Number(period.slice(0, 4)));
+    if (!/\.(ods|xlsx)$/i.test(file.name)) throw new Error("Pilih file ODS atau XLSX.");
     const response = await fetchReportApi(new URL("bod_mnj_api.php", apiBase).href, {
-      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({period, base64})
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({period, base64, filename: file.name})
     });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.message || "BOD MNJ gagal disimpan.");
@@ -1235,11 +1235,10 @@
         const target = report[targetColumn + row]?.v;
         const valid = typeof actual === "number" && Number.isFinite(actual)
           && typeof target === "number" && Number.isFinite(target) && target !== 0;
-        const scale = 1000;
         report[address] = {
           ...report[address],
-          f: `I${row}/${targetColumn}${row}` + (scale === 1 ? "" : "/1000"),
-          t: valid ? "n" : "s", v: valid ? actual / target / scale : "", z: "0.0%"
+          f: `I${row}/${targetColumn}${row}`,
+          t: valid ? "n" : "s", v: valid ? actual / target : "", z: "0.0%"
         };
         delete report[address].w;
       }
