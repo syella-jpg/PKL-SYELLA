@@ -34,6 +34,14 @@ try {
         $data['filename']=$filename;
         $data['sha256']=hash('sha256', $bytes);
     }
+    $missingConfig = [];
+    foreach (['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'] as $key) {
+        if (getenv($key) === false || getenv($key) === '') $missingConfig[] = $key;
+    }
+    if ($missingConfig) {
+        http_response_code(503);
+        throw new InvalidArgumentException('Konfigurasi TiDB pada server belum lengkap: ' . implode(', ', $missingConfig) . '. Atur pada server yang menjalankan halaman ini, lalu restart server PHP.');
+    }
     $conn=openTidbConnection();
     if($method==='POST') {
         $conn->query('CREATE TABLE IF NOT EXISTS biaya_files (report_period CHAR(7) PRIMARY KEY, payload LONGTEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');

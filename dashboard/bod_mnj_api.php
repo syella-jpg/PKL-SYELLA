@@ -37,7 +37,7 @@ try {
         $book = decodeBodMnjWorkbook($base64, (int)substr($period, 0, 4), false);
         $book->disconnectWorksheets();
     }
-    $conn = openTidbConnection();
+    $conn = openReportConnection();
     if ($method === 'POST') {
         saveBodMnjRecord($conn, $period, $base64, $filename);
         echo json_encode(['success' => true, 'period' => $period]);
@@ -54,6 +54,7 @@ try {
     if (http_response_code() < 400) http_response_code(400);
     echo json_encode(['success' => false, 'message' => $error->getMessage()]);
 } catch (Throwable $error) {
+    error_log('BOD MNJ API: ' . $error->getMessage());
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Data BOD MNJ gagal diproses. Periksa koneksi database dan konfigurasi server.']);
 } finally {

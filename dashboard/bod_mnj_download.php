@@ -13,7 +13,7 @@ try {
     $period = $_GET['period'] ?? '';
     if (!is_string($period)) throw new InvalidArgumentException('Periode tidak valid.');
     validateBodMnjPeriod($period);
-    $conn = openTidbConnection();
+    $conn = openReportConnection();
     $query = $conn->prepare('SELECT payload FROM bod_mnj_files WHERE report_period = ?');
     $query->bind_param('s', $period);
     $query->execute();
