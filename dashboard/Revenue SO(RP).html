@@ -1082,6 +1082,7 @@
     addReportTitle(workbook, selectedPeriod);
     appendMcmReportTable(workbook, selectedPeriod);
     await replaceBodMnjTemplateSheet(workbook, selectedPeriod);
+    fillMcmEthicalTarget(workbook, selectedPeriod);
     return workbook;
   }
   $("dl").onclick = async () => {

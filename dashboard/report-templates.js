@@ -1107,35 +1107,185 @@
     putRow(first + 2, ["", "", "Full Year", ytd, "Full Year", ytd, ytd, ytd, String(year), ytd, "vs Divisi", "vs Corporate"], "8FC9F4", true);
     for (const column of [0, 1]) merges.push({ s: { r: first + 1, c: column }, e: { r: first + 2, c: column } });
     for (const column of [2, 4, 7, 10]) merges.push({ s: { r: first + 1, c: column }, e: { r: first + 1, c: column + 1 } });
+    const source = workbook.Sheets[TEMPLATE_NAME];
+    const normalize = (value) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    const grid = utils.sheet_to_json(source, { header: 1, defval: "", raw: true });
+    const section = grid.findIndex((values) => values.some((value) => normalize(value) === "MCM TAHUN " + (year - 1)));
+    const header = grid.findIndex((values, index) => section >= 0 && index > section && index < section + 6
+      && values.some((value) => normalize(value) === "TOTAL")
+      && values.some((value) => /^YTD(?:\s|$)/.test(normalize(value))));
+    if (header < 0) throw new Error("Kolom TOTAL/YTD MCM tahun sebelumnya tidak ditemukan.");
+    const totalColumn = grid[header].findIndex((value) => normalize(value) === "TOTAL");
+    const ytdColumn = grid[header].findIndex((value) => /^YTD(?:\s|$)/.test(normalize(value)));
+    const sourceRows = new Map();
+    for (let index = header + 1; index < grid.length; index++) {
+      if (grid[index].some((value) => /^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) 20\d{2}$/.test(normalize(value)))) break;
+      const label = normalize(grid[index][1]).replace(/ ETH$/, " ETHICAL");
+      if (label) sourceRows.set(label, index);
+    }
+    const biayaSection = grid.findIndex((values) => values.some((value) => normalize(value) === "TARGET BIAYA " + year));
+    const biayaHeader = grid.findIndex((values, index) => biayaSection >= 0 && index > biayaSection && index < biayaSection + 6
+      && values.some((value) => normalize(value) === "TOTAL")
+      && values.some((value) => /^YTD(?:\s|$)/.test(normalize(value))));
+    if (biayaHeader < 0) throw new Error("Kolom TOTAL/YTD TARGET BIAYA " + year + " tidak ditemukan.");
+    const biayaTotal = grid[biayaHeader].findIndex((value) => normalize(value) === "TOTAL");
+    const biayaYtd = grid[biayaHeader].findIndex((value) => /^YTD(?:\s|$)/.test(normalize(value)));
+    const biayaRows = new Map();
+    for (let index = biayaHeader + 1; index < grid.length; index++) {
+      if (grid[index].some((value) => /^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) 20\d{2}$/.test(normalize(value)))) break;
+      const label = normalize(grid[index][1]);
+      if (label) biayaRows.set(label, index);
+    }
+    const revenueGrid = utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
+    let targetContext = "";
     let row = first + 3;
-    const add = (label, fill = "FFFFFF", bold = false) => {
+    const add = (label, fill = "FFFFFF", bold = false, sources = []) => {
       putRow(row, ["", label], fill);
       const labelCell = sheet[utils.encode_cell({ r: row, c: 1 })];
       labelCell.s.font = { ...labelCell.s.font, bold, italic: true };
+      for (const [column, sourceColumn] of [[2, totalColumn], [3, ytdColumn]]) {
+        const matches = sources.map((name) => sourceRows.get(name));
+        if (!matches.length || matches.some((index) => index == null)) continue;
+        const addresses = matches.map((index) => utils.encode_cell({ r: index, c: sourceColumn }));
+        const references = addresses.map((address) => "'" + TEMPLATE_NAME.replace(/'/g, "''") + "'!" + address);
+        const values = addresses.map((address) => source[address]?.v);
+        const cell = sheet[utils.encode_cell({ r: row, c: column })];
+        cell.t = "n";
+        cell.f = references.join("+");
+        cell.v = values.reduce((sum, value) =>
+          sum + (typeof value === "number" && Number.isFinite(value) ? value : 0), 0);
+        cell.z = "#,##0;[Red]-#,##0";
+      }
+      if (/^(?:PHARMA|HCE|FOOD|GB [1-6])$/.test(label)) targetContext = label;
+      if (["Total Existing (ABC)", "Total New Product (D)"].includes(label)) {
+        const offset = label === "Total Existing (ABC)" ? 1 : 2;
+        const revenueIndex = revenueGrid.findIndex((values) => normalize(values[1]) === targetContext);
+        const revenueLabel = normalize(revenueGrid[revenueIndex + offset]?.[1]);
+        const expectedLabels = offset === 1
+          ? [normalize(label), normalize(label + " + Non target")]
+          : [normalize(label)];
+        if (revenueIndex < 0 || !expectedLabels.includes(revenueLabel)) {
+          throw new Error("Baris target Revenue " + targetContext + " " + label + " tidak ditemukan.");
+        }
+        const matches = sources.map((name) => biayaRows.get(name));
+        if (!matches.length || matches.some((index) => index == null)) {
+          throw new Error("Baris TARGET BIAYA " + year + " untuk " + sources.join(", ") + " tidak ditemukan.");
+        }
+        for (const [column, revenueColumn, biayaColumn] of [[4, 6, biayaTotal], [5, 7, biayaYtd]]) {
+          const revenueAddress = utils.encode_cell({ r: revenueIndex + offset, c: revenueColumn });
+          const addresses = matches.map((index) => utils.encode_cell({ r: index, c: biayaColumn }));
+          const references = addresses.map((address) => "'" + TEMPLATE_NAME.replace(/'/g, "''") + "'!" + address);
+          const cell = sheet[utils.encode_cell({ r: row, c: column })];
+          cell.t = "n";
+          cell.f = revenueAddress + "-" + references.join("-");
+          const revenueValue = sheet[revenueAddress]?.v;
+          const costs = addresses.map((address) => source[address]?.v);
+          cell.v = (typeof revenueValue === "number" && Number.isFinite(revenueValue) ? revenueValue : 0)
+            - costs.reduce((sum, value) =>
+              sum + (typeof value === "number" && Number.isFinite(value) ? value : 0), 0);
+          cell.z = "#,##0;[Red]-#,##0";
+          delete cell.w;
+        }
+      }
       row++;
     };
     add("KORPORAT LOKAL (incl. Bi. Non Produk)", "FFF5A3", true);
     add("KORPORAT LOKAL (Excl. Bi. Non Produk)", "DDE8CF", true);
     add("");
     for (const [division, groups] of [["PHARMA", [1, 4]], ["HCE", [2, 3]], ["FOOD", [5, 6]]]) {
-      add(division, "FFF7DF", true);
-      add("Total Existing (ABC)", "FFF7DF");
-      add("Total New Product (D)", "FFF7DF");
+      const divisionRow = row + 1;
+      add(division, "FFF7DF", true, groups.map((gb) => "TOTAL GB " + gb));
+      add("Total Existing (ABC)", "FFF7DF", false, groups.map((gb) => "EXIST GB " + gb));
+      add("Total New Product (D)", "FFF7DF", false, groups.map((gb) => "NP GB " + gb));
+      for (const column of ["C", "D", "E", "F"]) {
+        const existing = column + (divisionRow + 1);
+        const newProduct = column + (divisionRow + 2);
+        const cell = sheet[column + divisionRow];
+        cell.t = "n";
+        cell.f = existing + "+" + newProduct;
+        cell.v = [sheet[existing]?.v, sheet[newProduct]?.v].reduce((sum, value) =>
+          sum + (typeof value === "number" && Number.isFinite(value) ? value : 0), 0);
+        cell.z = "#,##0;[Red]-#,##0";
+        delete cell.w;
+      }
       for (const gb of groups) {
-        add("GB " + gb, "FFFFFF", true);
-        add("Total Existing (ABC)");
-        add("Total New Product (D)");
+        add("GB " + gb, "FFFFFF", true, ["TOTAL GB " + gb]);
+        add("Total Existing (ABC)", "FFFFFF", false, ["EXIST GB " + gb]);
+        add("Total New Product (D)", "FFFFFF", false, ["NP GB " + gb]);
+        for (const column of ["E", "F"]) {
+          const total = column + (row - 2);
+          const existing = column + (row - 1);
+          const newProduct = column + row;
+          const cell = sheet[total];
+          cell.t = "n";
+          cell.f = existing + "+" + newProduct;
+          const values = [sheet[existing]?.v, sheet[newProduct]?.v];
+          cell.v = values.reduce((sum, value) =>
+            sum + (typeof value === "number" && Number.isFinite(value) ? value : 0), 0);
+          cell.z = "#,##0;[Red]-#,##0";
+          delete cell.w;
+        }
       }
       add("");
     }
-    add("ETHICAL", "FFF7DF", true);
+    add("ETHICAL", "FFF7DF", true, ["TOTAL ETHICAL"]);
     add("");
     add("EBITDA IB", "FFF5A3", true);
+    for (const [column, address] of [["C", "R61"], ["D", "D61"], ["E", "R22"], ["F", "D22"]]) {
+      const cell = sheet[column + row];
+      const value = workbook.Sheets.IB?.[address]?.v;
+      cell.t = "n";
+      cell.f = "'IB'!" + address;
+      cell.v = typeof value === "number" && Number.isFinite(value) ? value : 0;
+      cell.z = "#,##0;[Red]-#,##0";
+      delete cell.w;
+    }
     sheet["!rows"] = sheet["!rows"] || [];
     sheet["!rows"][first] = { hpt: 28 };
     sheet["!rows"][first + 1] = { hpt: 24 };
     sheet["!rows"][first + 2] = { hpt: 24 };
     sheet["!ref"] = utils.encode_range({ s: range.s, e: { r: row - 1, c: Math.max(range.e.c, 11) } });
+  };
+
+  global.fillMcmEthicalTarget = function (workbook, period) {
+    const utils = global.XLSX.utils;
+    const report = workbook.Sheets.LAPORAN;
+    const bod = workbook.Sheets["BOD MNJ"];
+    const normalize = (value) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    const rows = utils.sheet_to_json(report, { header: 1, defval: "", raw: true });
+    const grid = utils.sheet_to_json(bod, { header: 1, defval: "", raw: true });
+    const year = Number(String(period).slice(0, 4));
+    const mcm = rows.findIndex((values) => values.some((value) => normalize(value).startsWith("MCM KONIMEX")));
+    const revenueRow = rows.findIndex((values, index) => index < mcm && normalize(values[1]) === "ETHICAL");
+    const mcmRow = rows.findIndex((values, index) => index > mcm && normalize(values[1]) === "ETHICAL");
+    const section = grid.findIndex((values) => values.some((value) => normalize(value) === "BIAYA PROMOSI MNJ TH " + year));
+    const header = grid.findIndex((values, index) => section >= 0 && index > section && index < section + 5
+      && values.some((value) => normalize(value) === "TARGET")
+      && values.some((value) => /^S\/D\b/.test(normalize(value))));
+    if (mcm < 0 || revenueRow < 0 || mcmRow < 0 || header < 0) {
+      throw new Error("Sumber Target ETHICAL MCM atau BIAYA PROMOSI MNJ " + year + " tidak ditemukan.");
+    }
+    let ethicalRow = -1;
+    for (let index = header + 1; index < grid.length; index++) {
+      if (grid[index].some((value) => /^BIAYA PROMOSI MNJ TH \d{4}$/.test(normalize(value)))) break;
+      if (normalize(grid[index][1]) === "ETHICAL") { ethicalRow = index; break; }
+    }
+    if (ethicalRow < 0) throw new Error("Baris ETHICAL BIAYA PROMOSI MNJ " + year + " tidak ditemukan.");
+    const targetColumn = grid[header].findIndex((value) => normalize(value) === "TARGET");
+    const ytdColumn = grid[header].findIndex((value) => /^S\/D\b/.test(normalize(value)));
+    for (const [column, revenueColumn, sourceColumn] of [[4, 6, targetColumn], [5, 7, ytdColumn]]) {
+      const revenueAddress = utils.encode_cell({ r: revenueRow, c: revenueColumn });
+      const sourceAddress = utils.encode_cell({ r: ethicalRow, c: sourceColumn });
+      const cell = report[utils.encode_cell({ r: mcmRow, c: column })];
+      const revenueValue = report[revenueAddress]?.v;
+      const cost = bod[sourceAddress]?.v;
+      cell.t = "n";
+      cell.f = revenueAddress + "-'BOD MNJ'!" + sourceAddress;
+      cell.v = (typeof revenueValue === "number" && Number.isFinite(revenueValue) ? revenueValue : 0)
+        - (typeof cost === "number" && Number.isFinite(cost) ? cost : 0);
+      cell.z = "#,##0;[Red]-#,##0";
+      delete cell.w;
+    }
   };
 
   global.addReportTitle = function (workbook, period) {
@@ -1343,8 +1493,9 @@
           write(column, ethical + offset + 1, "ETHICAL!" + address, source[address]?.v);
         });
         const values = [1, 2].map((offset) => report[column + (ethical + offset)]?.v);
-        write(column, ethical, "SUM(" + column + (ethical + 1) + ":" + column + (ethical + 2) + ")",
-          values.every((value) => typeof value === "number") ? values[0] + values[1] : undefined);
+        const scale = targetYear === year ? 1000 : 1;
+        write(column, ethical, "SUM(" + column + (ethical + 1) + ":" + column + (ethical + 2) + ")" + (scale === 1000 ? "/1000" : ""),
+          values.every((value) => typeof value === "number") ? (values[0] + values[1]) / scale : undefined);
       }
     }
   };
