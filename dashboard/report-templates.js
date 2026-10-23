@@ -1130,7 +1130,7 @@
     }
     add("ETHICAL", "FFF7DF", true);
     add("");
-    add("BERUANG", "FFF5A3", true);
+    add("EBITDA IB", "FFF5A3", true);
     sheet["!rows"] = sheet["!rows"] || [];
     sheet["!rows"][first] = { hpt: 28 };
     sheet["!rows"][first + 1] = { hpt: 24 };
