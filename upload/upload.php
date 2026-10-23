@@ -285,14 +285,6 @@ try {
         }
     }
 
-    if ($divisi === 'REVENUE VERSI EDP MNJ') {
-        $tagLegacyRows = $conn->prepare("UPDATE `{$tableName}` SET report_period = ? WHERE report_period IS NULL");
-        if (!$tagLegacyRows) throw new Exception('Gagal menandai periode data EDP lama: ' . $conn->error);
-        $tagLegacyRows->bind_param('s', $period);
-        if (!$tagLegacyRows->execute()) throw new Exception('Gagal menandai periode data EDP lama: ' . $tagLegacyRows->error);
-        $tagLegacyRows->close();
-    }
-
     $existingRows = 0;
     if ($divisi !== 'ETHICAL') {
         $periodCheck = $conn->prepare("SELECT COUNT(*) FROM `{$tableName}` WHERE report_period = ?");
@@ -1075,9 +1067,59 @@ try {
     // 6. TRANSACTION
     // =========================
 
-    $conn->begin_transaction();
+    $highestRow = $sheet->getHighestRow();
+    $edpRows = null;
+    if ($unitStmt) {
+        // Calculate spreadsheet cells before holding any upload/data locks.
+        $edpRows = $highestRow >= 5
+            ? $sheet->rangeToArray('A5:AE' . $highestRow, null, true, false, false)
+            : [];
+        if (!array_filter($edpRows, static fn($values) => array_filter($values,
+            static fn($value) => $value !== null && trim((string)$value) !== ''))) {
+            throw new Exception('File UNIT & Revenue tidak memiliki baris data. Data lama tetap disimpan.');
+        }
 
-    if ($existingRows > 0 && $replaceExistingPeriod) {
+        // A durable row is needed: locking an empty report period alone does
+        // not serialize concurrent first uploads in TiDB.
+        if (!$conn->query("CREATE TABLE IF NOT EXISTS unit_revenue_upload_locks (
+            report_period CHAR(7) NOT NULL PRIMARY KEY
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")) {
+            throw new Exception('Gagal menyiapkan pengunci upload UNIT & Revenue.');
+        }
+        if (!$conn->query('SET SESSION innodb_lock_wait_timeout = 5')) {
+            throw new Exception('Gagal mengatur waktu tunggu upload UNIT & Revenue.');
+        }
+        $lockPeriod = $conn->prepare('INSERT IGNORE INTO unit_revenue_upload_locks (report_period) VALUES (?)');
+        if (!$lockPeriod) throw new Exception('Gagal menyiapkan periode pengunci upload.');
+        $lockPeriod->bind_param('s', $period);
+        if (!$lockPeriod->execute()) throw new Exception('Gagal menyiapkan periode pengunci upload.');
+        $lockPeriod->close();
+
+        if (getenv('VERCEL') === '1' || getenv('DB_HOST') !== false) {
+            if (!$conn->query('BEGIN PESSIMISTIC')) throw new Exception('Gagal memulai transaksi upload.');
+        } else {
+            $conn->begin_transaction();
+        }
+        $lockPeriod = $conn->prepare('SELECT report_period FROM unit_revenue_upload_locks WHERE report_period = ? FOR UPDATE');
+        if (!$lockPeriod) throw new Exception('Gagal menyiapkan pengunci periode upload.');
+        $lockPeriod->bind_param('s', $period);
+        if (!$lockPeriod->execute()) throw new Exception('Gagal mengunci periode upload.');
+        $lockPeriod->store_result();
+        if ($lockPeriod->num_rows !== 1) throw new Exception('Pengunci periode upload tidak tersedia.');
+        $lockPeriod->close();
+
+        $tagLegacyRows = $conn->prepare("UPDATE `{$tableName}` SET report_period = ? WHERE report_period IS NULL");
+        if (!$tagLegacyRows) throw new Exception('Gagal menandai periode data EDP lama: ' . $conn->error);
+        $tagLegacyRows->bind_param('s', $period);
+        if (!$tagLegacyRows->execute()) throw new Exception('Gagal menandai periode data EDP lama: ' . $tagLegacyRows->error);
+        $tagLegacyRows->close();
+    } else {
+        $conn->begin_transaction();
+    }
+
+    // EDP uploads always replace both tables after acquiring the period lock.
+    // Do not use the row count observed before another request committed.
+    if ($unitStmt || ($existingRows > 0 && $replaceExistingPeriod)) {
         $deletePeriod = $conn->prepare("DELETE FROM `{$tableName}` WHERE report_period = ?");
         if (!$deletePeriod) {
             throw new Exception('Gagal menyiapkan penggantian data periode: ' . $conn->error);
@@ -1098,12 +1140,10 @@ try {
 
     $inserted = 0;
 
-    $highestRow = $sheet->getHighestRow();
-
     // Data mulai dari baris 5
     for ($rowNumber = 5; $rowNumber <= $highestRow; $rowNumber++) {
 
-        $row = $sheet->rangeToArray(
+        $row = $edpRows !== null ? $edpRows[$rowNumber - 5] : $sheet->rangeToArray(
             'A' . $rowNumber . ':AE' . $rowNumber,
             null,
             true,
@@ -1236,7 +1276,11 @@ try {
 
 } catch (Throwable $e) {
 
-    if (http_response_code() < 400) {
+    $unitRevenueBusy = ($divisi ?? '') === 'REVENUE VERSI EDP MNJ'
+        && in_array((int)$e->getCode(), [1205, 1213, 3572], true);
+    if ($unitRevenueBusy) {
+        http_response_code(409);
+    } elseif (http_response_code() < 400) {
         http_response_code(500);
     }
 
@@ -1251,6 +1295,8 @@ try {
 
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage()
+        'message' => $unitRevenueBusy
+            ? 'Upload UNIT & Revenue sedang berbenturan dengan proses lain. Tunggu proses sebelumnya selesai dan periksa data periode ini sebelum mencoba lagi.'
+            : $e->getMessage()
     ]);
 }
