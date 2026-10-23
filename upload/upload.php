@@ -1055,11 +1055,12 @@ try {
     }
     $unitStmt = null;
     if ($divisi === 'REVENUE VERSI EDP MNJ') {
-        $unitStmt = $conn->prepare("INSERT INTO `UNIT` (
+        $unitInsertSql = "INSERT INTO `UNIT` (
             report_period, gb, product_code, principal_product_code, product_name, kategori,
             unit_jan, unit_feb, unit_mar, unit_apr, unit_mei, unit_jun, unit_jul, unit_agt,
             unit_sep, unit_okt, unit_nov, unit_des, unit_total
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $unitStmt = $conn->prepare($unitInsertSql);
         if (!$unitStmt) throw new Exception('Gagal menyiapkan query UNIT: ' . $conn->error);
     }
 
@@ -1139,6 +1140,29 @@ try {
     }
 
     $inserted = 0;
+    $edpBatch = [];
+    $unitBatch = [];
+    $flushEdpBatch = static function () use ($conn, $sql, &$unitInsertSql, &$edpBatch, &$unitBatch): void {
+        if (!$edpBatch) return;
+        foreach ([[$sql, $edpBatch, 26], [$unitInsertSql, $unitBatch, 13]] as [$insertSql, $batch, $numericColumns]) {
+            $columnCount = 6 + $numericColumns;
+            $prefix = substr($insertSql, 0, strpos($insertSql, 'VALUES'));
+            $placeholders = '(' . implode(',', array_fill(0, $columnCount, '?')) . ')';
+            $batchStatement = $conn->prepare($prefix . 'VALUES ' . implode(',', array_fill(0, count($batch), $placeholders)));
+            if (!$batchStatement) throw new Exception('Gagal menyiapkan penyimpanan kelompok UNIT & Revenue.');
+            try {
+                $parameters = array_merge(...$batch);
+                $types = str_repeat('ssssss' . str_repeat('d', $numericColumns), count($batch));
+                if (!$batchStatement->bind_param($types, ...$parameters) || !$batchStatement->execute()) {
+                    throw new Exception('Gagal menyimpan kelompok UNIT & Revenue: ' . $batchStatement->error);
+                }
+            } finally {
+                $batchStatement->close();
+            }
+        }
+        $edpBatch = [];
+        $unitBatch = [];
+    };
 
     // Data mulai dari baris 5
     for ($rowNumber = 5; $rowNumber <= $highestRow; $rowNumber++) {
@@ -1195,6 +1219,12 @@ try {
         // Pada jalur upload UNIT & Revenue, nilai QTY hanya masuk ke tabel UNIT.
         if ($unitStmt) {
             for ($i = 0; $i < 13; $i++) $numbers[$i] = 0;
+            $identity = [$period, $gb, $productCode, $principalProductCode, $productName, $kategori];
+            $edpBatch[] = array_merge($identity, $numbers);
+            $unitBatch[] = array_merge($identity, $unitNumbers);
+            $inserted++;
+            if (count($edpBatch) === 100) $flushEdpBatch();
+            continue;
         }
 
         // =========================
@@ -1247,14 +1277,6 @@ try {
                 $stmt->error
             );
         }
-        if ($unitStmt) {
-            $unitStmt->bind_param('ssssss' . str_repeat('d', 13),
-                $period, $gb, $productCode, $principalProductCode, $productName, $kategori,
-                $unitNumbers[0], $unitNumbers[1], $unitNumbers[2], $unitNumbers[3], $unitNumbers[4], $unitNumbers[5], $unitNumbers[6],
-                $unitNumbers[7], $unitNumbers[8], $unitNumbers[9], $unitNumbers[10], $unitNumbers[11], $unitNumbers[12]);
-            if (!$unitStmt->execute()) throw new Exception('Gagal menyimpan UNIT pada baris Excel ke-' . $rowNumber . ': ' . $unitStmt->error);
-        }
-
         $inserted++;
     }
 
@@ -1262,6 +1284,7 @@ try {
     // 7. SIMPAN TRANSACTION
     // =========================
 
+    if ($unitStmt) $flushEdpBatch();
     $conn->commit();
 
     $stmt->close();

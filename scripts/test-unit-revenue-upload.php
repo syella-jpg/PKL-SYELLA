@@ -53,7 +53,12 @@ class Statement {
         } elseif (preg_match('/INSERT INTO `(revenue_edp_mnj|UNIT)`/', $sql, $match)) {
             check($conn->locked, 'Inserted data without period lock');
             if ($match[1] === 'UNIT' && $conn->failUnit) throw new \Exception('Simulated UNIT write failure');
-            $conn->data[$match[1]][$this->values[0]][] = array_values($this->values);
+            $width = $match[1] === 'UNIT' ? 19 : 32;
+            check(substr_count($sql, '?') === count($this->values), 'Placeholder count differs from values');
+            foreach (array_chunk(array_values($this->values), $width) as $values) {
+                check(count($values) === $width, 'Incomplete batch row');
+                $conn->data[$match[1]][$values[0]][] = $values;
+            }
         }
         return true;
     }
@@ -87,27 +92,40 @@ if (isset($argv[1])) {
 }
 $raw = $spreadsheet->getActiveSheet();
 $expected = 0;
+$sourceRows = [];
 foreach ($raw->rangeToArray('A5:AE' . $raw->getHighestRow(), null, true, false, false) as $values) {
-    if (array_filter($values, static fn($v) => $v !== null && trim((string)$v) !== '')) $expected++;
+    if (array_filter($values, static fn($v) => $v !== null && trim((string)$v) !== '')) {
+        $expected++;
+        $sourceRows[] = $values;
+    }
 }
 $conn = new mysqli();
 $conn->data = ['revenue_edp_mnj' => ['2026-09' => [['old revenue']]], 'UNIT' => ['2026-09' => [['old unit']]]];
 foreach (['local', 'tidb'] as $mode) {
     putenv('VERCEL=' . ($mode === 'tidb' ? '1' : '0'));
     for ($attempt = 0; $attempt < 2; $attempt++) {
+        $eventStart = count($conn->events);
         [$result, $status] = upload($conn, $raw, $program);
         check($status === 200 && $result['success'] && $result['rows_inserted'] === $expected, 'Upload failed');
         foreach (['revenue_edp_mnj','UNIT'] as $table) check(count($conn->data[$table]['2026-10']) === $expected, 'Repeated upload appended rows');
         check($conn->data['revenue_edp_mnj']['2026-09'] === [['old revenue']], 'Another period was changed');
+        $writes = array_filter(array_slice($conn->events, $eventStart), static fn($sql) =>
+            preg_match('/INSERT INTO `(revenue_edp_mnj|UNIT)`/', $sql));
+        check(count($writes) === 2 * (int)ceil($expected / 100), 'Upload did not batch inserts');
     }
 }
-$firstRevenue = $conn->data['revenue_edp_mnj']['2026-10'][0];
-$firstUnit = $conn->data['UNIT']['2026-10'][0];
-$firstSource = $raw->rangeToArray('A5:AE5', null, true, false, false)[0];
-for ($i=0; $i<13; $i++) {
-    check($firstRevenue[6+$i] == 0, 'QTY leaked into Revenue');
-    check($firstUnit[6+$i] == (float)($firstSource[5+$i] ?? 0), 'UNIT values changed');
-    check($firstRevenue[19+$i] == (float)($firstSource[18+$i] ?? 0), 'Revenue values changed');
+foreach ($sourceRows as $index => $values) {
+    $revenue = $conn->data['revenue_edp_mnj']['2026-10'][$index];
+    $unit = $conn->data['UNIT']['2026-10'][$index];
+    for ($i=0; $i<5; $i++) {
+        check($revenue[1+$i] === trim((string)$values[$i]), 'Revenue identity changed');
+        check($unit[1+$i] === trim((string)$values[$i]), 'UNIT identity changed');
+    }
+    for ($i=0; $i<13; $i++) {
+        check($revenue[6+$i] == 0, 'QTY leaked into Revenue');
+        check($unit[6+$i] == (float)($values[5+$i] ?? 0), 'UNIT values changed');
+        check($revenue[19+$i] == (float)($values[18+$i] ?? 0), 'Revenue values changed');
+    }
 }
 $before = $conn->data;
 $conn->failUnit = true;
@@ -120,5 +138,5 @@ $conn->busy = false;
 $empty = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
 [$result, $status] = upload($conn, $empty->getActiveSheet(), $program);
 check(!$result['success'] && $conn->data === $before, 'Empty file erased old data');
-echo "PASS: {$expected} source rows; repeated stale-count uploads replace both tables, other periods and amounts preserved, failures rollback, busy returns 409, empty file preserves data.\n";
+echo "PASS: {$expected} source rows in " . (2 * (int)ceil($expected / 100)) . " INSERTs; repeated stale-count uploads replace both tables, all identities and amounts preserved, failures rollback, busy returns 409, empty file preserves data.\n";
 echo "NOTE: connection double; not a live MySQL/TiDB concurrency test.\n";
