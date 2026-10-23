@@ -1,4 +1,18 @@
 <?php
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+// Release a small reserve so PHP can return JSON after a memory exhaustion error.
+$biayaErrorReserve = str_repeat(' ', 65536);
+register_shutdown_function(function () use (&$biayaErrorReserve) {
+    $error = error_get_last();
+    if (!$error || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) return;
+    $biayaErrorReserve = null;
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success'=>false, 'message'=>'Proses upload BIAYA berhenti di server. Periksa Runtime Logs Vercel atau terminal PHP.']);
+    }
+});
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../vendor/autoload.php';
 require_once __DIR__.'/../includes/biaya_workbook.php';
@@ -51,6 +65,8 @@ try {
     } else $data=findBiayaRecord($conn,$period);
     echo json_encode(['success'=>true,'data'=>$method==='POST' ? ['period'=>$period,'filename'=>$filename,'sha256'=>$data['sha256']] : $data]);
 } catch(Throwable $e) {
+    // Log the error category without database credentials or uploaded content.
+    error_log('BIAYA upload/API failed: ' . get_class($e) . ' code=' . $e->getCode());
     if(http_response_code()<400) http_response_code($e instanceof InvalidArgumentException?400:500);
     echo json_encode(['success'=>false,'message'=>$e instanceof InvalidArgumentException?$e->getMessage():'Data biaya gagal diproses. Periksa file dan koneksi database.']);
 } finally { if($conn) $conn->close(); }
