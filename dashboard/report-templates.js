@@ -195,9 +195,9 @@
       reader.onerror = () => reject(new Error("File BOD MNJ gagal dibaca."));
       reader.readAsDataURL(file);
     });
-    if (!/\.(ods|xlsx)$/i.test(file.name)) throw new Error("Pilih file ODS atau XLSX.");
+    global.readBodMnjSheet(base64, Number(period.slice(0, 4)));
     const response = await fetchReportApi(new URL("bod_mnj_api.php", apiBase).href, {
-      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({period, base64, filename: file.name})
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({period, base64})
     });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.message || "BOD MNJ gagal disimpan.");

@@ -41,7 +41,7 @@ function validateBodMnjYear(Spreadsheet $book, int $year): void
 }
 
 /** Read the uploaded binary without rewriting its cells or formatting. */
-function decodeBodMnjWorkbook(string $base64, int $year, bool $validateYear = true): Spreadsheet
+function decodeBodMnjWorkbook(string $base64, int $year): Spreadsheet
 {
     if (strlen($base64) > 70 * 1024 * 1024 || ($bytes = base64_decode($base64, true)) === false || $bytes === '') {
         throw new InvalidArgumentException('File BOD MNJ tidak valid atau terlalu besar.');
@@ -57,7 +57,7 @@ function decodeBodMnjWorkbook(string $base64, int $year, bool $validateYear = tr
         } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $error) {
             throw new InvalidArgumentException('File BOD MNJ harus berupa ODS atau XLSX yang dapat dibaca.', 0, $error);
         }
-        if ($validateYear) validateBodMnjYear($book, $year);
+        validateBodMnjYear($book, $year);
         return $book;
     } finally {
         if (is_file($temporary)) unlink($temporary);
@@ -88,7 +88,7 @@ function findBodMnjRecord($conn, string $period): ?array
     }
 }
 
-function saveBodMnjRecord($conn, string $period, string $base64, ?string $filename = null): void
+function saveBodMnjRecord($conn, string $period, string $base64): void
 {
     validateBodMnjPeriod($period);
     if (!$conn->query('CREATE TABLE IF NOT EXISTS bod_mnj_files (report_period CHAR(7) PRIMARY KEY, payload LONGTEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4')) {
@@ -97,12 +97,7 @@ function saveBodMnjRecord($conn, string $period, string $base64, ?string $filena
     $query = $conn->prepare('INSERT INTO bod_mnj_files (report_period, payload) VALUES (?, ?) ON DUPLICATE KEY UPDATE payload = VALUES(payload)');
     if (!$query) throw new RuntimeException('Data BOD MNJ gagal disimpan.');
     try {
-        $data = ['base64' => $base64];
-        if ($filename !== null) {
-            $data['filename'] = $filename;
-            $data['sha256'] = hash('sha256', base64_decode($base64, true));
-        }
-        $payload = json_encode($data, JSON_THROW_ON_ERROR);
+        $payload = json_encode(['base64' => $base64], JSON_THROW_ON_ERROR);
         $query->bind_param('ss', $period, $payload);
         if (!$query->execute()) throw new RuntimeException('Data BOD MNJ gagal disimpan.');
     } finally { $query->close(); }

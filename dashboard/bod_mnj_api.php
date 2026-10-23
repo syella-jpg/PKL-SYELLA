@@ -29,17 +29,12 @@ try {
     if ($method === 'POST') {
         $base64 = $payload['base64'] ?? null;
         if (!is_string($base64)) throw new InvalidArgumentException('File BOD MNJ tidak valid.');
-        $filename = $payload['filename'] ?? null;
-        if (!is_string($filename) || !preg_match('/\.(ods|xlsx)$/i', $filename)) {
-            throw new InvalidArgumentException('Pilih file ODS atau XLSX.');
-        }
-        $filename = basename(str_replace('\\', '/', $filename));
-        $book = decodeBodMnjWorkbook($base64, (int)substr($period, 0, 4), false);
+        $book = decodeBodMnjWorkbook($base64, (int)substr($period, 0, 4));
         $book->disconnectWorksheets();
     }
     $conn = openReportConnection();
     if ($method === 'POST') {
-        saveBodMnjRecord($conn, $period, $base64, $filename);
+        saveBodMnjRecord($conn, $period, $base64);
         echo json_encode(['success' => true, 'period' => $period]);
     } else {
         $record = findBodMnjRecord($conn, $period);
@@ -54,7 +49,6 @@ try {
     if (http_response_code() < 400) http_response_code(400);
     echo json_encode(['success' => false, 'message' => $error->getMessage()]);
 } catch (Throwable $error) {
-    error_log('BOD MNJ API: ' . $error->getMessage());
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Data BOD MNJ gagal diproses. Periksa koneksi database dan konfigurasi server.']);
 } finally {

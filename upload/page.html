@@ -198,7 +198,7 @@
 </main>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="../dashboard/report-templates.js?v=achievement-percent-20261022"></script>
+<script src="../dashboard/report-templates.js?v=revenue-thousands-20261022"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -213,26 +213,6 @@
   const TARGET_KEY = "konimex_revenue_so_targets_processed";
   const SELL_OUT_TARGET_KEY = "konimex_revenue_so_sellout_targets_processed";
   const ETHICAL_HJP_KEY = "konimex_ethical_hjp";
-  async function readBiayaUploadResponse(response) {
-    const body = await response.text();
-    const status = "HTTP " + response.status;
-    if (!body.trim()) {
-      throw new Error("Server mengirim respons kosong (" + status + "). Periksa Runtime Logs Vercel atau terminal server PHP untuk upload ini.");
-    }
-    let result;
-    try { result = JSON.parse(body); }
-    catch (_) {
-      throw new Error("Respons server bukan JSON (" + status + "). Periksa Runtime Logs Vercel atau terminal server PHP untuk upload ini.");
-    }
-    if (!result || typeof result !== "object" || Array.isArray(result)) {
-      throw new Error("Respons upload tidak valid (" + status + ").");
-    }
-    if (!response.ok || !result.success) {
-      throw new Error((typeof result.message === "string" && result.message) || "Upload biaya gagal (" + status + ").");
-    }
-    return result;
-  }
-
   const BIAYA_PREVIEW_KEY = "konimex_biaya_preview";
   const TARGET_API_URL = LOCAL_FILE_MODE
     ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
@@ -791,22 +771,21 @@
       if (sectionSelect.value === "BOD MNJ") {
         await uploadBodMnjFile(chosen, periodSelect.value);
         barFill.style.width = "100%";
-        setMsg("BOD MNJ berhasil disimpan untuk " + periodSelect.value + ". File asli dan nama file tersimpan sesuai unggahan.", "ok");
+        setMsg("BOD MNJ berhasil disimpan untuk " + periodSelect.value + ". Unduhan menampilkan tahun terpilih di atas dan tahun sebelumnya di bawah.", "ok");
         clearFile(); sectionSelect.value = "";
         return;
       }
       if (sectionSelect.value === "BIAYA") {
-        const endpoint = LOCAL_FILE_MODE
-          ? "http://127.0.0.1:8000/api/report.php?endpoint=biaya_api"
-          : "../api/report.php?endpoint=biaya_api";
+        const endpoint = LOCAL_FILE_MODE ? "http://127.0.0.1:8000/dashboard/biaya_api.php" : "../dashboard/biaya_api.php";
         const payload = new FormData();
         payload.append("period", periodSelect.value);
         payload.append("file", chosen);
         const response = await fetch(endpoint, { method: "POST", body: payload });
-        await readBiayaUploadResponse(response);
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || "Upload biaya gagal.");
         barFill.style.width = "100%";
         const target = periodSelect.value.startsWith("2025-") ? "Target rolling" : "Target";
-        setMsg("BIAYA berhasil disimpan untuk " + periodSelect.value + ". " + target + " dan realisasi masuk ke REVENUE EDP MNJ. File asli tersimpan dengan nama unggahan.", "ok");
+        setMsg("BIAYA berhasil disimpan untuk " + periodSelect.value + ". " + target + " dan realisasi masuk ke REVENUE EDP MNJ.", "ok");
         clearFile(); sectionSelect.value = "";
         return;
       }
