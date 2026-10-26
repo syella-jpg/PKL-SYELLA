@@ -954,7 +954,10 @@
       $("ibRate").value = "";
       updateIbRateField();
     } catch (err) {
-      setMsg(err.message || "Upload gagal. Coba lagi.", "error");
+      const networkError = err instanceof TypeError && /fetch|network|load failed/i.test(err.message);
+      setMsg(networkError
+        ? "Server upload tidak dapat dihubungi. Untuk localhost, jalankan bash scripts/start-local.sh dari folder proyek, lalu buka http://127.0.0.1:8000/menu/page.html. Jika server sudah aktif, periksa log terminal PHP."
+        : (err.message || "Upload gagal. Coba lagi."), "error");
     } finally {
       setBusy(false);
     }

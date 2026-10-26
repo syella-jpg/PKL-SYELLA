@@ -54,6 +54,16 @@ class BiayaStorageProbe {
         };
     }
 }
+$sheet->setCellValue('F4',1250.25);
+$sheet->setCellValue('E3','=2026');
+$check(count(parseBiayaProducts($book,2026))===112,'Formula year must be read');
+try {
+    parseBiayaProducts($book,2027);
+    throw new RuntimeException('Wrong year accepted');
+} catch (InvalidArgumentException $e) {
+    $check(str_contains($e->getMessage(),'2027') && str_contains($e->getMessage(),'2026'),'Year mismatch must explain both years');
+    $check(!str_contains($e->getMessage(),'ROLLING'),'Non-2025 error must not mention rolling');
+}
 $probe=new BiayaStorageProbe();
 saveBiayaProducts($probe,'2026-09',array_slice($rows,0,2));
 $check(str_contains($probe->sql[0],'CREATE TABLE IF NOT EXISTS biaya ('),'Schema must be available without SQL file');

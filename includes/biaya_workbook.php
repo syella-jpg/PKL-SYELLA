@@ -24,13 +24,25 @@ function biayaHasNumericSource(Worksheet $sheet, string $address, array $visited
     return false;
 }
 
+function biayaSheetYear(Worksheet $sheet): ?int
+{
+    $cell=$sheet->getCell('E3');
+    $value=$cell->isFormula()?$cell->getCalculatedValue():$cell->getValue();
+    if (preg_match('/^(20\d{2})$/',trim((string)$value),$match)) return (int)$match[1];
+    return null;
+}
+
 function parseBiayaWorkbook(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, int $year): array
 {
     $rows = [];
+    $foundYear=false; $availableYears=[];
     foreach ($book->getAllSheets() as $sheet) {
-        if ((int)$sheet->getCell('E3')->getValue() !== $year) continue;
+        $sheetYear=biayaSheetYear($sheet);
+        if ($sheetYear!==null) $availableYears[]=$sheetYear;
+        if ($sheetYear !== $year) continue;
+        $foundYear=true;
         $rollingHeading = strtoupper(trim((string)$sheet->getCell('X1')->getValue()));
-        $hasRolling = str_contains($rollingHeading, 'TARGET ROLLING');
+        $hasRolling = $year === 2025 && str_contains($rollingHeading, 'TARGET ROLLING');
         // The 2025 source has three blocks. Its original target must never
         // substitute for the requested rolling target, even if rolling is empty.
         if ($year === 2025 && !$hasRolling) {
@@ -72,7 +84,14 @@ function parseBiayaWorkbook(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, int $ye
             }
         }
     }
-    if (empty($rows['target']) || empty($rows['actual'])) throw new InvalidArgumentException('Gunakan file biaya dengan tahun sesuai periode, target (TARGET ROLLING untuk 2025) dan realisasi Januari–Desember.');
+    if (!$foundYear) {
+        $detected=$availableYears ? implode(', ',array_unique($availableYears)) : 'tidak terbaca pada sel E3';
+        throw new InvalidArgumentException('Periode upload memilih tahun '.$year.', tetapi tahun file BIAYA '.$detected.'. Periksa tahun di sel E3 dan periode upload.');
+    }
+    if (empty($rows['target']) || empty($rows['actual'])) {
+        $target=$year===2025?'TARGET ROLLING':'TARGET';
+        throw new InvalidArgumentException('Blok '.$target.' atau REALISASI Januari–Desember pada file BIAYA '.$year.' tidak ditemukan.');
+    }
     return $rows;
 }
 
@@ -83,8 +102,8 @@ function parseBiayaProducts(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, int $ye
     parseBiayaWorkbook($book, $year);
     $rows = [];
     foreach ($book->getAllSheets() as $sheet) {
-        if ((int)$sheet->getCell('E3')->getValue() !== $year) continue;
-        $rolling = str_contains(strtoupper((string)$sheet->getCell('X1')->getValue()), 'TARGET ROLLING');
+        if (biayaSheetYear($sheet) !== $year) continue;
+        $rolling = $year === 2025 && str_contains(strtoupper((string)$sheet->getCell('X1')->getValue()), 'TARGET ROLLING');
         $layouts = $rolling ? ['target'=>[20,22,23,24], 'actual'=>[38,39,40,42]]
                             : ['target'=>[1,3,4,6], 'actual'=>[20,21,22,23]];
         for ($r=4; $r<=min(10000,$sheet->getHighestDataRow()); $r++) {
