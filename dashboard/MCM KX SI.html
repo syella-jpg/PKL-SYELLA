@@ -64,6 +64,16 @@
   .chartcard { background: #fff; border-radius: 28px; box-shadow: 0 4px 8px rgba(0,0,0,.22); padding: 22px; margin: 0 8px; max-width: 760px; min-height: 220px; }
   .empty { display: grid; place-items: center; min-height: 176px; text-align: center; font-size: 12.5px; color: #6b7280; border: 2px dashed #d6d3ee; border-radius: 18px; padding: 16px; }
   .chartcard svg { width: 100%; height: auto; display: block; }
+  .chartcard { position: relative; }
+  .mcm-bar, .mcm-legend { transition: opacity .18s ease; }
+  .mcm-bar { cursor: pointer; }
+  .mcm-bar:focus-visible { outline: none; stroke: #26243d; stroke-width: 2; }
+  .chartcard.has-bar-focus .mcm-bar:not(.is-active),
+  .chartcard.has-bar-focus .mcm-legend:not(.is-active) { opacity: .22; }
+  .mcm-tooltip { position: absolute; z-index: 2; pointer-events: none; max-width: calc(100% - 24px); padding: 11px 14px; border-radius: 10px; background: #242331; color: #fff; box-shadow: 0 5px 18px #0002; font-size: 12px; line-height: 1.6; }
+  .mcm-tooltip strong { display: block; font-size: 15px; }
+  @media (prefers-reduced-motion: reduce) { .mcm-bar, .mcm-legend { transition: none; } }
+
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; margin-top: 12px; }
   .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
 
@@ -160,6 +170,9 @@
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="report-templates.js?v=revenue-thousands-20261022"></script>
+<script src="shared-report-download.js"></script>
+<script src="mcm-chart-data.js"></script>
+<script src="mcm-chart-interaction.js"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -257,59 +270,62 @@
   });
 
   /* ---------- Data ---------- */
+  const chartReports = new Map();
   async function getData() {
-    if (DATA_URL) {
-      try {
-        const q = new URLSearchParams({ report: st.report, tab: st.tab, period: st.period });
-        const res = await fetch(DATA_URL + "?" + q);
-        if (res.ok) return await res.json();
-      } catch (e) { /* abaikan, tampil kosong */ }
-      return null;
+    const period=st.period, tab=st.tab;
+    if(!chartReports.has(period)) {
+      chartReports.set(period,window.loadCorporateReportBuffer(period).then((buffer)=>XLSX.read(buffer,{type:"array"})).catch((error)=>{
+        chartReports.delete(period);throw error;
+      }));
     }
-    return (DATA[st.report] && DATA[st.report][st.tab]) || null;
+    try { return window.mcmChartData(await chartReports.get(period),tab,period); }
+    catch(error) { toast(error.message || "Data grafik MCM gagal dimuat.");return null; }
   }
   // Dipanggil dari luar setelah file diupload: setDashboardData("Nama Laporan", "Corporate", {cards, chart})
   window.setDashboardData = (report, tab, obj) => { (DATA[report] = DATA[report] || {})[tab] = obj; render(); };
 
   /* ---------- Kartu KPI ---------- */
+  const amount = (value) => typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("id-ID",{maximumFractionDigits:0}) : "—";
+  const percentage = (value) => typeof value === "number" && Number.isFinite(value) ? (value*100).toLocaleString("id-ID",{minimumFractionDigits:2,maximumFractionDigits:2})+"%" : "—";
   function renderCards() {
-    const T = st.tab.toUpperCase(), M = monthName().toUpperCase();
-    const labels = ["% Achievement " + st.period.slice(0, 4) + " " + T, "Growth YTD " + M + " " + T, "% Achievement " + st.period.slice(0, 4) + " Total Existing", "Growth YTD Existing"];
-    $("cards").innerHTML = labels.map((l, i) =>
-      '<div class="kpi"><p>' + esc(l) + "</p><b>" + esc(cur && cur.cards && cur.cards[i] != null ? cur.cards[i] : "-") + "</b></div>").join("");
-  }
-
-  /* ---------- Chart ---------- */
-  function legend(c) {
-    return '<div class="legend">' + c.series.map((s, i) => '<span><i style="background:' + COLORS[i % 3] + '"></i>' + esc(s.name) + "</span>").join("") + "</div>";
-  }
-  function vChart(c) {
-    const W = 680, H = 330, L = 56, R = 8, T = 14, B = 110, pw = W - L - R, ph = H - T - B;
-    const all = c.series.flatMap((s) => s.values.map(Number));
-    const lo = Math.min(0, Math.floor(Math.min(...all) / 20) * 20), hi = Math.max(20, Math.ceil(Math.max(...all) / 20) * 20);
-    const y = (v) => T + ph * (1 - (v - lo) / (hi - lo));
-    let g = "";
-    for (let i = 0; i <= 5; i++) {
-      const v = lo + (hi - lo) * i / 5;
-      g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="#d9d9d9"/><text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" font-size="11" text-anchor="end">' + v.toFixed(1) + "%</text>";
-    }
-    const n = c.labels.length, gw = pw / n, bw = gw * 0.78 / c.series.length;
-    c.labels.forEach((lb, i) => {
-      const x0 = L + gw * i + gw * 0.11;
-      c.series.forEach((s, k) => {
-        const v = Number(s.values[i]) || 0, top = Math.min(y(v), y(0)), h = Math.abs(y(v) - y(0));
-        g += '<rect x="' + (x0 + bw * k) + '" y="' + top + '" width="' + bw + '" height="' + h + '" fill="' + COLORS[k % 3] + '"><title>' + esc(s.name) + ": " + v + "%</title></rect>";
-      });
-      const cx = L + gw * i + gw / 2;
-      g += '<text transform="translate(' + cx + "," + (H - B + 14) + ') rotate(-35)" font-size="11" text-anchor="end">' + esc(lb) + "</text>";
-    });
-    return '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Chart batang">' + g + '<line x1="' + L + '" x2="' + L + '" y1="' + T + '" y2="' + (T + ph) + '" stroke="#999"/></svg>' + legend(c);
+    const labels=["% Achievement YTD","% Achievement Tahun","Growth YTD"];
+    $("cards").innerHTML=labels.map((label,i)=>'<div class="kpi"><p>'+esc(label)+'</p><b>'+esc(percentage(cur?.ratios?.[i]))+'</b></div>').join("");
   }
   function renderChart() {
-    const c = cur && cur.chart;
-    const ok = c && Array.isArray(c.labels) && c.labels.length && Array.isArray(c.series) && c.series.length;
-    $("chart").innerHTML = ok ? vChart(c)
-      : '<div class="empty">Belum ada data. Chart akan muncul setelah file laporan diupload.</div>';
+    if(!cur){$("chart").innerHTML='<div class="empty">Data MCM belum tersedia untuk periode ini.</div>';return;}
+    const values=cur.values,colors=["#ff420e","#ffd320","#579d1c"];
+    const year=Number(st.period.slice(0,4)),month=monthName().toUpperCase();
+    const labels=["Ach Last Year ("+(year-1)+") YTD "+month,"Target "+year+" YTD "+month,"Achievement YTD "+month];
+    const numeric=values.filter((v)=>typeof v==="number" && Number.isFinite(v));
+    if(!numeric.length){$("chart").innerHTML='<div class="empty">Nilai MCM belum tersedia untuk bagian ini.</div>';return;}
+    const W=1000,H=550,L=100,R=35,T=125,B=135,ph=H-T-B;
+    // Display RP (000.000) like the reference; workbook values remain RP (000).
+    const displayed=values.map((v)=>typeof v==="number" && Number.isFinite(v)?v/1000:null);
+    const numbers=displayed.filter((v)=>v!==null),min=Math.min(0,...numbers),max=Math.max(0,...numbers);
+    const rawStep=(max-min || 1)/4, magnitude=10**Math.floor(Math.log10(rawStep));
+    const step=[1,2,2.5,5,10].map((n)=>n*magnitude).find((n)=>n>=rawStep);
+    const lo=Math.floor(min/step)*step,hi=Math.max(lo+step,Math.ceil(max/step)*step);
+    const y=(v)=>T+ph*(hi-v)/(hi-lo),baseline=y(0);
+    const axis=(v)=>v.toLocaleString("id-ID",{maximumFractionDigits:Math.abs(hi-lo)<10?2:0});
+    let svg='<text x="'+L+'" y="28" font-size="14" fill="#666">RP(000)</text>';
+    for(let v=lo;v<=hi+step/100;v+=step){
+      svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="#d9d9d9"/><text x="'+(L-14)+'" y="'+(y(v)+5)+'" font-size="14" text-anchor="end">'+esc(axis(v))+'</text>';
+    }
+    const centers=[280,660,720],bw=52;
+    displayed.forEach((v,i)=>{
+      if(v===null)return;
+      svg+='<rect class="mcm-bar" data-series="'+i+'" tabindex="0" aria-label="'+esc(labels[i])+': '+esc(amount(values[i]))+' RP (000)" x="'+(centers[i]-bw/2)+'" y="'+Math.min(y(v),baseline)+'" width="'+bw+'" height="'+Math.abs(y(v)-baseline)+'" fill="'+colors[i]+'"></rect>';
+    });
+    const top=Math.min(y(Math.max(0,displayed[1]??0)),y(Math.max(0,displayed[2]??0)));
+    const annotations=["Ach YTD "+percentage(cur.ratios?.[0]),"Ach Tahun "+percentage(cur.ratios?.[1]),"Growth "+percentage(cur.ratios?.[2])];
+    annotations.forEach((text,i)=>{svg+='<text x="690" y="'+(top-66+i*21)+'" text-anchor="middle" font-size="15" font-weight="bold">'+esc(text)+'</text>';});
+    svg+='<text x="280" y="'+(H-B+32)+'" text-anchor="middle" font-size="18">'+(year-1)+'</text><text x="690" y="'+(H-B+32)+'" text-anchor="middle" font-size="18">'+year+'</text>';
+    labels.forEach((label,i)=>{
+      const x=i===0?L:i===1?L:560,yy=i===0?H-62:H-25;
+      svg+='<g class="mcm-legend" data-series="'+i+'"><rect x="'+x+'" y="'+(yy-12)+'" width="14" height="14" rx="3" fill="'+colors[i]+'"/><text x="'+(x+23)+'" y="'+yy+'" font-size="13" fill="#333">'+esc(label)+'</text></g>';
+    });
+    $("chart").innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Grafik MCM '+esc(st.tab)+': perbandingan YTD '+(year-1)+' dan '+year+'">'+svg+'</svg>';
+    window.attachMcmChartHover($("chart"), labels, values, amount);
   }
 
   /* ---------- Catatan analisis ---------- */
@@ -373,8 +389,9 @@
     document.querySelectorAll("#menu button").forEach((b) => b.classList.toggle("on", b.dataset.r === st.report));
     document.querySelectorAll("#tabs button").forEach((b) => { const on = b.dataset.t === st.tab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
     const my = ++token;
-    cur = await getData();
-    if (my !== token) return; // abaikan hasil lama bila pengguna sudah pindah
+    const next = await getData();
+    if (my !== token) return;
+    cur = next; // abaikan hasil lama bila pengguna sudah pindah
     renderCards(); renderChart(); renderNotes();
   }
   /* ---------- Scroll horizontal tanpa scrollbar (roda mouse + geser dengan mouse) ---------- */
@@ -404,6 +421,5 @@
 
   render();
 </script>
-<script src="shared-report-download.js"></script>
 </body>
 </html>

@@ -34,6 +34,7 @@
       document.body.append(frame);
     });
   }
+  window.loadCorporateReportBuffer = build;
   // Capture the common data-download button before any page-specific export handler.
   button.addEventListener('click', async (event) => {
     event.preventDefault(); event.stopImmediatePropagation();
