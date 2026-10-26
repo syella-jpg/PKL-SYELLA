@@ -1246,6 +1246,9 @@
     sheet["!rows"][first + 2] = { hpt: 24 };
     sheet["!ref"] = utils.encode_range({ s: range.s, e: { r: row - 1, c: Math.max(range.e.c, 11) } });
     global.fillMcmGbAchievement(workbook, period);
+    global.fillMcmFoodTotals(workbook);
+    global.fillMcmAchievementPercentages(workbook);
+    global.fillMcmGrowth(workbook);
   };
 
   // Achievement for GB 1–6 and their division subtotals.
@@ -1312,6 +1315,79 @@
         const groupRow=rowFor("GB "+gb); return groupRow < 0 ? -1 : groupRow+offset;
       }));
       sumInto(row,[row+1,row+2]);
+    }
+  };
+
+  // Reconcile nominal totals only within FOOD; ratios are calculated afterwards.
+  global.fillMcmFoodTotals = function (workbook) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    const rows=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+    const norm=(v)=>String(v ?? "").trim().toUpperCase();
+    const start=rows.findIndex((row)=>row.some((v)=>norm(v).startsWith("MCM KONIMEX")));
+    if (start < 0) return;
+    const find=(label)=>rows.findIndex((row,i)=>i>start && norm(row[1])===label);
+    const food=find("FOOD"), gb5=find("GB 5"), gb6=find("GB 6");
+    if ([food,gb5,gb6].some((row)=>row<0)) return;
+    const numeric=(v)=>typeof v === "number" && Number.isFinite(v);
+    const sum=(row,inputs,column)=>{
+      const address=column+(row+1), refs=inputs.map((r)=>column+(r+1));
+      const values=refs.map((ref)=>sheet[ref]?.v);
+      const cell=sheet[address] || (sheet[address]={});
+      delete cell.f; delete cell.F; delete cell.w;
+      if (!values.some(numeric)) {cell.t="s";cell.v="";return;}
+      cell.t="n";cell.v=values.reduce((total,v)=>total+(numeric(v)?v:0),0);
+      cell.f=refs.join("+");cell.z="#,##0;[Red]-#,##0";
+    };
+    for (const column of ["C","D","E","F","G"]) {
+      sum(gb5,[gb5+1,gb5+2],column);
+      sum(gb6,[gb6+1,gb6+2],column);
+      sum(food+1,[gb5+1,gb6+1],column);
+      sum(food+2,[gb5+2,gb6+2],column);
+      sum(food,[food+1,food+2],column);
+    }
+  };
+
+  global.fillMcmAchievementPercentages = function (workbook) {
+    const sheet = workbook.Sheets.LAPORAN, utils = global.XLSX.utils;
+    const rows = utils.sheet_to_json(sheet, {header:1,defval:"",raw:true});
+    const start = rows.findIndex((row) => row.some((v) => String(v).trim().startsWith("MCM KONIMEX")));
+    if (start < 0) return;
+    const numeric = (v) => typeof v === "number" && Number.isFinite(v);
+    for (let row=start+3;row<rows.length;row++) {
+      if (!String(rows[row][1] ?? "").trim()) continue;
+      const achievement = sheet["G"+(row+1)]?.v;
+      for (const [column,target] of [["H","F"],["I","E"]]) {
+        const address=column+(row+1), targetAddress=target+(row+1);
+        const denominator=sheet[targetAddress]?.v;
+        const cell=sheet[address] || (sheet[address]={});
+        delete cell.f; delete cell.F; delete cell.w;
+        cell.z="0.00%";
+        if (!numeric(achievement) || !numeric(denominator) || denominator===0) {
+          cell.t="s"; cell.v=""; continue;
+        }
+        cell.t="n"; cell.v=achievement/denominator;
+        cell.f="G"+(row+1)+"/"+targetAddress;
+      }
+    }
+  };
+
+  global.fillMcmGrowth = function (workbook) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    const rows=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+    const start=rows.findIndex((row)=>row.some((v)=>String(v).trim().startsWith("MCM KONIMEX")));
+    if (start < 0) return;
+    const numeric=(v)=>typeof v === "number" && Number.isFinite(v);
+    for (let row=start+3;row<rows.length;row++) {
+      if (!String(rows[row][1] ?? "").trim()) continue;
+      const r=row+1, achievement=sheet["G"+r]?.v, prior=sheet["D"+r]?.v;
+      const cell=sheet["J"+r] || (sheet["J"+r]={});
+      delete cell.f; delete cell.F; delete cell.w;
+      cell.z="0.00%";
+      if (!numeric(achievement) || !numeric(prior) || prior===0) {
+        cell.t="s"; cell.v=""; continue;
+      }
+      cell.t="n"; cell.v=achievement/prior-1;
+      cell.f="G"+r+"/D"+r+"-1";
     }
   };
 
@@ -2318,6 +2394,9 @@
             const a = data?.[type]?.["existing"+match[2]] || values;
             const b = data?.[type]?.["new"+match[2]] || values;
             values = match[1] === "EXIST" ? a : match[1] === "NP" ? b : a.map((v,j)=>v===null && b[j]===null ? null : (v??0)+(b[j]??0));
+            if (type === "target" && biayaYear === 2026 && match[2] === "5") {
+              values = values.map((value) => value === null ? null : value / 1000);
+            }
           }
           const amounts = [sum(values.slice(0,reportMonth)), ...values, sum(values)];
           amounts.forEach((value,j)=>{

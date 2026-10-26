@@ -52,3 +52,25 @@ for($r=1;$r<=$sheet->getHighestDataRow();$r++) {
 }
 if($found!==3) throw new RuntimeException('GB6 target rows missing');
 echo "PASS: GB6 formula product IDs -> database aggregation -> TARGET BIAYA 2026 EXIST/NP/TOTAL, January/YTD/annual total.\n";
+$source->getSheet(0)->setCellValue('F54',9000);
+$source->getSheet(0)->setCellValue('W70',8000);
+$products=parseBiayaProducts($source,2026);
+$temp=tempnam(sys_get_temp_dir(),'gb5-');
+try { file_put_contents($temp,base64_decode($match[1])); $book=\PhpOffice\PhpSpreadsheet\IOFactory::load($temp); }
+finally { unlink($temp); }
+$sheet=$book->getSheet(0);
+populateBiayaSheet($sheet,'2026-09',new Gb6ExportConnection($products));
+$section='';$checks=0;
+for($r=1;$r<=$sheet->getHighestDataRow();$r++) {
+    $heading=$sheet->getCell('A'.$r)->getValue();
+    if(is_string($heading) && preg_match('/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) 20\d{2}$/',$heading))$section=$heading;
+    $label=trim((string)$sheet->getCell('B'.$r)->getValue());
+    if($section==='TARGET BIAYA 2026' && $label==='EXIST GB 5') {
+        if((float)$sheet->getCell('D'.$r)->getValue()!==9.0)throw new RuntimeException('GB5 target scaling');$checks++;
+    }
+    if($section==='BIAYA TAHUN 2026' && $label==='EXIST GB 6') {
+        if((float)$sheet->getCell('D'.$r)->getValue()!==8000.0)throw new RuntimeException('Actual must remain unscaled');$checks++;
+    }
+}
+if($checks!==2)throw new RuntimeException('Missing verification rows');
+echo "PASS: GB5 target divided by 1000, GB6 actual unchanged.\n";

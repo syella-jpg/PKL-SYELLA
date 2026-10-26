@@ -234,6 +234,9 @@ function populateBiayaSheet(Worksheet $sheet, string $period, $conn): void
                 }
                 for ($c = 3; $c <= 16; $c++) $sheet->getCell([$c,$start+$i])->setValue(null);
                 if ($values === null) continue;
+                if ($type === 'target' && $y === 2026 && isset($match[2]) && $match[2] === '5') {
+                    $values = array_map(static fn($value) => $value === null ? null : $value / 1000, $values);
+                }
                 for ($j=0;$j<12;$j++) $sheet->getCell([$j+4,$start+$i])->setValue($values[$j]);
                 $sum = static fn($v) => count(array_filter($v, static fn($x)=>$x!==null)) ? array_sum($v) : null;
                 $sheet->setCellValue('C'.($start+$i),$sum(array_slice($values,0,$month)));
