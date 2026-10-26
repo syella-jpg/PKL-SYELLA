@@ -1245,6 +1245,74 @@
     sheet["!rows"][first + 1] = { hpt: 24 };
     sheet["!rows"][first + 2] = { hpt: 24 };
     sheet["!ref"] = utils.encode_range({ s: range.s, e: { r: row - 1, c: Math.max(range.e.c, 11) } });
+    global.fillMcmGbAchievement(workbook, period);
+  };
+
+  // Achievement for GB 1–6 and their division subtotals.
+  global.fillMcmGbAchievement = function (workbook, period) {
+    const utils = global.XLSX.utils, report = workbook.Sheets.LAPORAN;
+    const source = workbook.Sheets[TEMPLATE_NAME];
+    const norm = (v) => String(v ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+    const rows = utils.sheet_to_json(report, {header: 1, defval: "", raw: true});
+    const costs = utils.sheet_to_json(source, {header: 1, defval: "", raw: true});
+    const mcm = rows.findIndex((r) => r.some((v) => norm(v).startsWith("MCM KONIMEX")));
+    const start = costs.findIndex((r) => norm(r[0]) === "BIAYA TAHUN " + String(period).slice(0,4));
+    const header = costs.findIndex((r,i) => i > start && i < start + 6 && r.some((v) => /^YTD(?:\s|$)/.test(norm(v))));
+    const ytd = header < 0 ? -1 : costs[header].findIndex((v) => /^YTD(?:\s|$)/.test(norm(v)));
+    const costRows = new Map();
+    if (start >= 0 && header >= 0) for (let i=header+1;i<costs.length;i++) {
+      if (/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) 20\d{2}$/.test(norm(costs[i][0]))) break;
+      costRows.set(norm(costs[i][1]),i);
+    }
+    for (let gb=1;gb<=6;gb++) {
+      const revenue = rows.findIndex((r,i) => i < mcm && norm(r[1]) === "GB " + gb);
+      const target = rows.findIndex((r,i) => i > mcm && norm(r[1]) === "GB " + gb);
+      if (target < 0) continue;
+      for (const [offset,kind] of [[1,"EXIST"],[2,"NP"]]) {
+        const address = utils.encode_cell({r:target+offset,c:6});
+        const cell = report[address];
+        if (!cell) continue;
+        const revenueAddress = utils.encode_cell({r:revenue+offset,c:8});
+        const costRow = costRows.get(kind + " GB " + gb);
+        const costAddress = costRow == null || ytd < 0 ? null : utils.encode_cell({r:costRow,c:ytd});
+        const a = revenue >= 0 ? report[revenueAddress]?.v : null;
+        const b = costAddress ? source[costAddress]?.v : null;
+        delete cell.f; delete cell.F; delete cell.w;
+        const numeric = (v) => typeof v === "number" && Number.isFinite(v);
+        if (![a,b].some(numeric)) {
+          cell.t="s"; cell.v="";
+          continue;
+        }
+        cell.t="n"; cell.v=(numeric(a)?a:0)-(numeric(b)?b:0);
+        cell.f=(revenue >= 0 ? revenueAddress : "0") + "-" + (costAddress ? "'" + TEMPLATE_NAME.replace(/'/g,"''") + "'!" + costAddress : "0");
+        cell.z="#,##0;[Red]-#,##0";
+      }
+    }
+    const rowFor = (label) => rows.findIndex((r,i) => i > mcm && norm(r[1]) === label);
+    const sumInto = (row, inputs) => {
+      if (row < 0) return;
+      const address = utils.encode_cell({r:row,c:6});
+      const refs = inputs.filter((r) => r >= 0).map((r) => utils.encode_cell({r,c:6}));
+      const values = refs.map((ref) => report[ref]?.v);
+      const numeric = (v) => typeof v === "number" && Number.isFinite(v);
+      const cell = report[address] || (report[address]={});
+      delete cell.f; delete cell.F; delete cell.w;
+      if (!values.some(numeric)) { cell.t="s"; cell.v=""; return; }
+      cell.t="n"; cell.v=values.reduce((sum,v) => sum+(numeric(v)?v:0),0);
+      cell.f=refs.join("+"); cell.z="#,##0;[Red]-#,##0";
+    };
+    for (let gb=1;gb<=6;gb++) {
+      const row=rowFor("GB "+gb);
+      if (row >= 0) sumInto(row,[row+1,row+2]);
+    }
+    for (const [division,groups] of [["PHARMA",[1,4]],["HCE",[2,3]],["FOOD",[5,6]]]) {
+      const row=rowFor(division);
+      if (row < 0) continue;
+      for (const offset of [1,2]) sumInto(row+offset,groups.map((gb) => {
+        const groupRow=rowFor("GB "+gb); return groupRow < 0 ? -1 : groupRow+offset;
+      }));
+      sumInto(row,[row+1,row+2]);
+    }
   };
 
   global.fillMcmEthicalTarget = function (workbook, period) {
