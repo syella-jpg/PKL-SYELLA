@@ -1085,6 +1085,23 @@
     fillMcmEthicalTarget(workbook, selectedPeriod);
     return workbook;
   }
+  // Serve the exact same workbook builder to sidebar download buttons.
+  window.addEventListener("message", async (event) => {
+    if (window.parent === window || event.source !== window.parent) return;
+    if (location.protocol !== "file:" && event.origin !== location.origin) return;
+    const request = event.data;
+    if (request?.type !== "corporate-report-build" || typeof request.requestId !== "string") return;
+    const destination = location.protocol === "file:" ? "*" : event.origin;
+    const reply = {type:"corporate-report-result",requestId:request.requestId};
+    try {
+      if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(request.period)) throw new Error("Periode laporan tidak valid.");
+      const workbook = await buildReportWorkbook(request.period);
+      if (!workbook) throw new Error("Laporan belum dapat dibuat. Periksa data dan koneksi API untuk periode " + request.period + ".");
+      const buffer = XLSX.write(workbook, {type:"array",bookType:"ods",cellStyles:true});
+      window.parent.postMessage({...reply,buffer}, destination, [buffer]);
+    } catch (error) { window.parent.postMessage({...reply,error:error.message || "Unduh laporan gagal."}, destination); }
+  });
+
   $("dl").onclick = async () => {
     const period = $("period").value || st.period;
     try {

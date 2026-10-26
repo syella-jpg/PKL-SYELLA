@@ -31,7 +31,6 @@
     $('next-slide').disabled = true;
     $('preview-download').disabled = true;
     $('report-workspace').classList.remove('with-preview');
-    $('download').disabled = true;
     statuses.forEach(status => { status.textContent = ''; });
     $('report-search')?.dispatchEvent(new Event('input'));
   }
@@ -165,7 +164,6 @@
       status.textContent = 'Tersimpan di browser untuk ' + savedQuarter + '.';
       try {
         await openPreview(savedSections, savedQuarter, sectionIndex);
-        $('download').disabled = $('preview-download').disabled;
       } finally {
         busy = false;
         disableSaving(false);
@@ -177,7 +175,6 @@
     }));
   });
   $('quarter').addEventListener('change', loadDraft);
-  $('download').onclick = () => $('preview-download').click();
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   $('cover-date').value = today;
   $('cover-year').value = today.slice(0, 4);
@@ -188,7 +185,6 @@
     if (busy) return;
     busy = true;
     $('preview-download').disabled = true;
-    $('download').disabled = true;
     disableSaving(true);
     $('quarter').disabled = true;
     $('preview-status').textContent = 'Menyiapkan unduhan…';
@@ -221,7 +217,6 @@
     finally {
       busy = false;
       $('preview-download').disabled = false;
-      $('download').disabled = false;
       disableSaving(false);
       $('quarter').disabled = false;
     }
