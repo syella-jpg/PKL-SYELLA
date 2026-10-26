@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),XLSX=require(process.argv[2]);
+const ctx={window:{XLSX},URL,location:{protocol:'http:',hostname:'localhost'},document:{currentScript:{src:'http://localhost/dashboard/report-templates.js'}}};
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('dashboard/report-templates.js','utf8'),ctx);
+const rows=[['REVENUE KONIMEX'],['','PHARMA',999,999,999,999,999],['MCM KONIMEX'],['No','Parameter'],['',''],['','KORPORAT LOKAL (incl. Bi. Non Produk)',9,9,9,9,9,9,9,9],['','KORPORAT LOKAL (Excl. Bi. Non Produk)',9,9,9,9,9,9,9,9]];
+for(const name of ['PHARMA','HCE','FOOD','ETHICAL'])rows.push(['',name,400,120,400,200,100,9,9,9]);
+const sheet=XLSX.utils.aoa_to_sheet(rows),before=JSON.parse(JSON.stringify(sheet)),book={Sheets:{LAPORAN:sheet}};
+ctx.window.fillMcmCorporateExcludingNonProduct(book);
+for(const [col,value]of [['C',1600],['D',480],['E',1600],['F',800],['G',400],['H',.5],['I',.25]])assert.equal(sheet[col+'7'].v,value);
+assert.ok(Math.abs(sheet.J7.v-(100/120-1))<1e-12);assert.equal(sheet.J7.f,'G7/D7-1');assert.equal(sheet.C7.f,'C8+C9+C10+C11');
+for(const col of ['H','I','J'])assert.equal(sheet[col+'7'].z,'0.00%');
+for(const [key,value]of Object.entries(before))if(!/^[C-J]7$/.test(key))assert.deepEqual(sheet[key],value);
+for(let r=8;r<=11;r++)sheet['G'+r].v=0;
+ctx.window.fillMcmCorporateExcludingNonProduct(book);assert.equal(sheet.G7.v,0);assert.equal(sheet.H7.v,0);assert.equal(sheet.J7.v,-1);
+for(let r=8;r<=11;r++)for(const col of ['C','D','E','F','G'])sheet[col+r].v='';
+ctx.window.fillMcmCorporateExcludingNonProduct(book);for(const col of ['C','D','E','F','G','H','I','J'])assert.equal(sheet[col+'7'].v,'');
+console.log('PASS Corporate Excl totals, percentage/growth order, zero/blank, only C:J of requested row changed');

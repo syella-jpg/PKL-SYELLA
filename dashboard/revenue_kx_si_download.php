@@ -749,6 +749,9 @@ if ($bodBook) {
     $output->removeSheetByIndex($bodIndex);
     $output->addExternalSheet($bodSheet, $bodIndex);
 }
+fillEdpEthicalCost2025($output, $period);
+fillEdpEthicalCost2025($output, $period, 2026);
+fillEdpMcmEthical($output);
 $conn->close();
 $filename = 'Revenue_Konimex_Selling_In_' . str_replace('-', '_', $period) . '.xlsx';
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

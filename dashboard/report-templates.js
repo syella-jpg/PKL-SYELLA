@@ -183,8 +183,126 @@
     global.populateBodMnjYtd(current, period);
     if (previous) global.populateBodMnjYtd(previous, (year - 1) + period.slice(4));
     const sheet = global.combineBodMnjSheets(current, previous);
+    global.scaleBodNonProduct2025(sheet);
     if (!workbook.SheetNames.includes("BOD MNJ")) workbook.SheetNames.push("BOD MNJ");
     workbook.Sheets["BOD MNJ"] = sheet;
+    global.fillEdpEthicalCost2025(workbook, period);
+    global.fillEdpEthicalCost2025(workbook, period, 2026);
+    global.fillEdpMcmEthical(workbook);
+    global.fillReportMcmEthicalPrior(workbook);
+  };
+
+  global.scaleBodNonProduct2025 = function (sheet) {
+    const utils=global.XLSX.utils,norm=(v)=>String(v ?? "").trim().toUpperCase();
+    const grid=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+    for(let r=0;r<grid.length;r++) {
+      if(!norm(grid[r][1]).startsWith("BIAYA NON PRODUCT") || norm(grid[r+1]?.[1])!=="2025")continue;
+      for(let row=r+2;row<Math.min(r+5,grid.length);row++) {
+        if(!["TARGET","AKTUAL","ACTUAL"].includes(norm(grid[row][1])))continue;
+        for(let c=2;c<=15;c++) {
+          const cell=sheet[utils.encode_cell({r:row,c})];
+          if(typeof cell?.v!=="number" || !Number.isFinite(cell.v))continue;
+          if(c!==15)cell.v*=1000;
+          delete cell.w;
+          // TOTAL remains in its original units while months and S/D are scaled.
+          if(c===15 && cell.f)cell.f="SUM(D"+(row+1)+":O"+(row+1)+")/1000";
+          if(c!==2 && c!==15){delete cell.f;delete cell.F;}
+        }
+      }
+    }
+  };
+
+  global.fillEdpEthicalCost2025 = function (workbook, period, year = 2025) {
+    const utils=global.XLSX.utils, target=workbook.Sheets["REVENUE EDP MNJ"], source=workbook.Sheets["BOD MNJ"];
+    if (!target || !source) return;
+    const norm=(v)=>String(v ?? "").trim().toUpperCase().replace(/\s+/g," ");
+    const findRow=(sheet,heading,label)=>{
+      const grid=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+      const start=grid.findIndex((r)=>r.some((v)=>norm(v)===heading));
+      if(start<0)return -1;
+      for(let r=start+1;r<grid.length;r++) {
+        if(grid[r].some((v)=>/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET BIAYA|TARGET SELL OUT|SALES MNJ TH|BIAYA PROMOSI MNJ TH) 20\d{2}$/.test(norm(v))))break;
+        if(norm(grid[r][1])===label)return r;
+      }
+      return -1;
+    };
+    const from=findRow(source,"BIAYA PROMOSI MNJ TH " + year,"ETHICAL");
+    const to=findRow(target,"BIAYA TAHUN " + year,"TOTAL ETHICAL");
+    if(from<0 || to<0)return;
+    const values=[];
+    for(let m=0;m<12;m++) {
+      const ref=utils.encode_cell({r:from,c:m+3}),value=source[ref]?.v;
+      const number=typeof value==="number" && Number.isFinite(value)?value:null;
+      values.push(number);
+      const address=utils.encode_cell({r:to,c:m+3});
+      const cell=target[address] || (target[address]={});
+      delete cell.f;delete cell.F;delete cell.w;
+      cell.t=number===null?"s":"n";cell.v=number===null?"":number;cell.z="#,##0;[Red]-#,##0";
+      if(number!==null)cell.f="'BOD MNJ'!"+ref;
+    }
+    for(const [column,count] of [["C",Number(period.slice(5,7))],["P",12]]) {
+      const selected=values.slice(0,count),cell=target[column+(to+1)] || (target[column+(to+1)]={});
+      delete cell.f;delete cell.F;delete cell.w;cell.z="#,##0;[Red]-#,##0";
+      if(selected.every((v)=>v===null)){cell.t="s";cell.v="";continue;}
+      cell.t="n";cell.v=selected.reduce((sum,v)=>sum+(v??0),0);
+      cell.f="SUM(D"+(to+1)+":"+utils.encode_col(count+2)+(to+1)+")";
+    }
+  };
+
+  global.fillEdpMcmEthical = function (workbook) {
+    const sheet=workbook.Sheets["REVENUE EDP MNJ"], utils=global.XLSX.utils;
+    if (!sheet) return;
+    const norm=(v)=>String(v ?? "").trim().toUpperCase().replace(/\s+/g," ");
+    const grid=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+    const sections=new Map();let section="";
+    grid.forEach((row,r)=>{
+      const heading=norm(row[0]);
+      if (/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET BIAYA|TARGET SELL OUT) 20\d{2}$/.test(heading))section=heading;
+      if(norm(row[1])==="TOTAL ETHICAL")sections.set(section,r);
+    });
+    const numeric=(v)=>typeof v === "number" && Number.isFinite(v);
+    for(const year of [2025,2026]) {
+      const revenue=sections.get("REVENUE TAHUN "+year),cost=sections.get("BIAYA TAHUN "+year),target=sections.get("MCM TAHUN "+year);
+      if(target==null || revenue==null || cost==null)continue;
+      for(let c=2;c<=15;c++) {
+        const a=utils.encode_cell({r:revenue,c}),b=utils.encode_cell({r:cost,c});
+        const av=sheet[a]?.v,bv=sheet[b]?.v;
+        const address=utils.encode_cell({r:target,c}),cell=sheet[address] || (sheet[address]={});
+        delete cell.f;delete cell.F;delete cell.w;
+        if(!numeric(av) && !numeric(bv)){cell.t="s";cell.v="";continue;}
+        cell.t="n";cell.v=(numeric(av)?av:0)-(numeric(bv)?bv:0);cell.f=a+"-"+b;
+        cell.z="#,##0;[Red]-#,##0";
+      }
+    }
+  };
+
+  global.fillReportMcmEthicalPrior = function (workbook) {
+    const report=workbook.Sheets.LAPORAN, source=workbook.Sheets["REVENUE EDP MNJ"], utils=global.XLSX.utils;
+    if (!report || !source) return;
+    const norm=(v)=>String(v ?? "").trim().toUpperCase().replace(/\s+/g," ");
+    const rows=utils.sheet_to_json(report,{header:1,defval:"",raw:true});
+    const grid=utils.sheet_to_json(source,{header:1,defval:"",raw:true});
+    const mcm=rows.findIndex((r)=>r.some((v)=>norm(v).startsWith("MCM KONIMEX")));
+    if(mcm<0)return;
+    const target=rows.findIndex((r,i)=>i>mcm && norm(r[1])==="ETHICAL");
+    const start=grid.findIndex((r)=>norm(r[0])==="MCM TAHUN 2025");
+    if(target<0 || start<0)return;
+    let from=-1, header=-1;
+    for(let r=start+1;r<grid.length;r++) {
+      if(/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET BIAYA|TARGET SELL OUT) 20\d{2}$/.test(norm(grid[r][0])))break;
+      if(grid[r].some((v)=>norm(v)==="TOTAL") && grid[r].some((v)=>/^YTD(?:\s|$)/.test(norm(v))))header=r;
+      if(norm(grid[r][1])==="TOTAL ETHICAL"){from=r;break;}
+    }
+    if(from<0 || header<0)return;
+    for(const [column,sourceColumn] of [["C",grid[header].findIndex((v)=>norm(v)==="TOTAL")],["D",grid[header].findIndex((v)=>/^YTD(?:\s|$)/.test(norm(v)))]]) {
+      if(sourceColumn<0)continue;
+      const ref=utils.encode_cell({r:from,c:sourceColumn}),value=source[ref]?.v;
+      const cell=report[column+(target+1)] || (report[column+(target+1)]={});
+      delete cell.f;delete cell.F;delete cell.w;
+      cell.z="#,##0;[Red]-#,##0";
+      if(typeof value!=="number" || !Number.isFinite(value)){cell.t="s";cell.v="";continue;}
+      cell.t="n";cell.v=value;cell.f="'REVENUE EDP MNJ'!"+ref;
+    }
   };
 
   global.uploadBodMnjFile = async function (file, period) {
@@ -1240,6 +1358,17 @@
       cell.z = "#,##0;[Red]-#,##0";
       delete cell.w;
     }
+    // Current-year rupiah block: MCM (EBITDA), AKTUAL, YTD.
+    const ebitdaAchievement = sheet["G" + row];
+    const ebitdaValue = workbook.Sheets.IB?.D23?.v;
+    delete ebitdaAchievement.f; delete ebitdaAchievement.F; delete ebitdaAchievement.w;
+    ebitdaAchievement.z = "#,##0;[Red]-#,##0";
+    if (typeof ebitdaValue === "number" && Number.isFinite(ebitdaValue)) {
+      ebitdaAchievement.t = "n"; ebitdaAchievement.v = ebitdaValue;
+      ebitdaAchievement.f = "'IB'!D23";
+    } else {
+      ebitdaAchievement.t = "s"; ebitdaAchievement.v = "";
+    }
     sheet["!rows"] = sheet["!rows"] || [];
     sheet["!rows"][first] = { hpt: 28 };
     sheet["!rows"][first + 1] = { hpt: 24 };
@@ -1417,18 +1546,140 @@
     if (ethicalRow < 0) throw new Error("Baris ETHICAL BIAYA PROMOSI MNJ " + year + " tidak ditemukan.");
     const targetColumn = grid[header].findIndex((value) => normalize(value) === "TARGET");
     const ytdColumn = grid[header].findIndex((value) => /^S\/D\b/.test(normalize(value)));
-    for (const [column, revenueColumn, sourceColumn] of [[4, 6, targetColumn], [5, 7, ytdColumn]]) {
+    for (const [column, revenueColumn, sourceColumn] of [[4, 6, targetColumn], [5, 7, ytdColumn], [6, 8, ytdColumn]]) {
       const revenueAddress = utils.encode_cell({ r: revenueRow, c: revenueColumn });
       const sourceAddress = utils.encode_cell({ r: ethicalRow, c: sourceColumn });
       const cell = report[utils.encode_cell({ r: mcmRow, c: column })];
       const revenueValue = report[revenueAddress]?.v;
       const cost = bod[sourceAddress]?.v;
+      if (column === 6) {
+        delete cell.f; delete cell.F; delete cell.w;
+        const numeric = (value) => typeof value === "number" && Number.isFinite(value);
+        if (![revenueValue, cost].some(numeric)) {
+          cell.t = "s"; cell.v = "";
+          continue;
+        }
+      }
       cell.t = "n";
       cell.f = revenueAddress + "-'BOD MNJ'!" + sourceAddress;
       cell.v = (typeof revenueValue === "number" && Number.isFinite(revenueValue) ? revenueValue : 0)
         - (typeof cost === "number" && Number.isFinite(cost) ? cost : 0);
       cell.z = "#,##0;[Red]-#,##0";
       delete cell.w;
+    }
+    global.fillMcmEthicalRatios(workbook);
+    global.fillMcmCorporateExcludingNonProduct(workbook);
+    global.fillMcmCorporateIncludingPrior(workbook);
+    global.fillMcmCorporateIncludingPrior(workbook, 2026, true);
+    global.fillMcmCorporateIncludingPrior(workbook, 2026, false, true);
+    global.fillMcmCorporateIncludingRatios(workbook);
+  };
+
+  global.fillMcmEthicalRatios = function (workbook) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    if (!sheet) return;
+    const norm=(v)=>String(v ?? "").trim().toUpperCase();
+    const rows=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+    const start=rows.findIndex((row)=>row.some((v)=>norm(v).startsWith("MCM KONIMEX")));
+    if(start<0)return;
+    const index=rows.findIndex((row,i)=>i>start && norm(row[1])==="ETHICAL");
+    if(index<0)return;
+    const r=index+1, numeric=(v)=>typeof v === "number" && Number.isFinite(v);
+    for(const [column,numerator,denominator,growth] of [["H","G","F",false],["I","G","E",false],["J","D","G",true]]) {
+      const a=sheet[numerator+r]?.v,b=sheet[denominator+r]?.v;
+      const cell=sheet[column+r] || (sheet[column+r]={});
+      delete cell.f;delete cell.F;delete cell.w;cell.z="0.00%";
+      if(!numeric(a)||!numeric(b)||b===0){cell.t="s";cell.v="";continue;}
+      cell.t="n";cell.v=a/b-(growth?1:0);
+      cell.f=numerator+r+"/"+denominator+r+(growth?"-1":"");
+    }
+  };
+
+  global.fillMcmCorporateExcludingNonProduct = function (workbook) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    if(!sheet)return;
+    const norm=(v)=>String(v ?? "").trim().toUpperCase().replace(/\s+/g," ");
+    const rows=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+    const start=rows.findIndex((row)=>row.some((v)=>norm(v).startsWith("MCM KONIMEX")));
+    if(start<0)return;
+    const find=(label)=>rows.findIndex((row,i)=>i>start && norm(row[1])===label);
+    const target=find("KORPORAT LOKAL (EXCL. BI. NON PRODUK)");
+    const members=["PHARMA","HCE","FOOD","ETHICAL"].map(find);
+    if(target<0 || members.some((r)=>r<0))return;
+    const r=target+1,numeric=(v)=>typeof v === "number" && Number.isFinite(v);
+    const write=(column,value,formula)=>{
+      const cell=sheet[column+r] || (sheet[column+r]={});
+      delete cell.f;delete cell.F;delete cell.w;
+      cell.z=["H","I","J"].includes(column)?"0.00%":"#,##0;[Red]-#,##0";
+      if(value===null){cell.t="s";cell.v="";return;}
+      cell.t="n";cell.v=value;cell.f=formula;
+    };
+    for(const column of ["C","D","E","F","G"]) {
+      const refs=members.map((row)=>column+(row+1)),values=refs.map((ref)=>sheet[ref]?.v);
+      write(column,values.some(numeric)?values.reduce((sum,v)=>sum+(numeric(v)?v:0),0):null,refs.join("+"));
+    }
+    for(const [column,numerator,denominator,growth] of [["H","G","F",false],["I","G","E",false],["J","G","D",true]]) {
+      const a=sheet[numerator+r]?.v,b=sheet[denominator+r]?.v;
+      write(column,numeric(a)&&numeric(b)&&b!==0?a/b-(growth?1:0):null,numerator+r+"/"+denominator+r+(growth?"-1":""));
+    }
+  };
+
+  global.fillMcmCorporateIncludingPrior = function (workbook, year = 2025, target = false, achievement = false) {
+    const report=workbook.Sheets.LAPORAN, bod=workbook.Sheets["BOD MNJ"], utils=global.XLSX.utils;
+    if(!report || !bod)return;
+    const norm=(v)=>String(v ?? "").trim().toUpperCase().replace(/\s+/g," ");
+    const rows=utils.sheet_to_json(report,{header:1,defval:"",raw:true});
+    const grid=utils.sheet_to_json(bod,{header:1,defval:"",raw:true});
+    const mcm=rows.findIndex((row)=>row.some((v)=>norm(v).startsWith("MCM KONIMEX")));
+    if(mcm<0)return;
+    const find=(label)=>rows.findIndex((row,i)=>i>mcm && norm(row[1])===label);
+    const incl=find("KORPORAT LOKAL (INCL. BI. NON PRODUK)"),excl=find("KORPORAT LOKAL (EXCL. BI. NON PRODUK)");
+    if(incl<0 || excl<0)return;
+    let header=-1,actual=-1;
+    for(let r=0;r<grid.length;r++) {
+      if(!norm(grid[r][1]).startsWith("BIAYA NON PRODUCT"))continue;
+      const h=r+1;
+      if(norm(grid[h]?.[1])!==String(year))continue;
+      header=h;
+      for(let i=h+1;i<Math.min(h+5,grid.length);i++) {
+        if((target ? norm(grid[i][1]) === "TARGET" : ["AKTUAL","ACTUAL"].includes(norm(grid[i][1])))){actual=i;break;}
+      }
+      break;
+    }
+    if(header<0 || actual<0)return;
+    const total=grid[header].findIndex((v)=>norm(v)==="TOTAL");
+    const ytd=grid[header].findIndex((v)=>/^S\/D(?:\s|$)/.test(norm(v)));
+    const numeric=(v)=>typeof v === "number" && Number.isFinite(v);
+    const columns = achievement ? [["G",ytd]] : [[target?"E":"C",total],[target?"F":"D",ytd]];
+    for(const [column,sourceColumn]of columns) {
+      if(sourceColumn<0)continue;
+      const ref=utils.encode_cell({r:actual,c:sourceColumn}),base=column+(excl+1);
+      const a=report[base]?.v,b=bod[ref]?.v;
+      const cell=report[column+(incl+1)] || (report[column+(incl+1)]={});
+      delete cell.f;delete cell.F;delete cell.w;cell.z="#,##0;[Red]-#,##0";
+      if(!numeric(a)&&!numeric(b)){cell.t="s";cell.v="";continue;}
+      cell.t="n";cell.v=(numeric(a)?a:0)-(numeric(b)?b:0);
+      cell.f=base+"-'BOD MNJ'!"+ref;
+    }
+  };
+
+  global.fillMcmCorporateIncludingRatios = function (workbook) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    if(!sheet)return;
+    const norm=(v)=>String(v ?? "").trim().toUpperCase().replace(/\s+/g," ");
+    const rows=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+    const start=rows.findIndex((row)=>row.some((v)=>norm(v).startsWith("MCM KONIMEX")));
+    if(start<0)return;
+    const index=rows.findIndex((row,i)=>i>start && norm(row[1])==="KORPORAT LOKAL (INCL. BI. NON PRODUK)");
+    if(index<0)return;
+    const r=index+1,numeric=(v)=>typeof v === "number" && Number.isFinite(v);
+    for(const [column,numerator,denominator,growth]of [["H","G","F",false],["I","G","E",false],["J","G","D",true]]) {
+      const a=sheet[numerator+r]?.v,b=sheet[denominator+r]?.v;
+      const cell=sheet[column+r] || (sheet[column+r]={});
+      delete cell.f;delete cell.F;delete cell.w;cell.z="0.00%";
+      if(!numeric(a)||!numeric(b)||b===0){cell.t="s";cell.v="";continue;}
+      cell.t="n";cell.v=a/b-(growth?1:0);
+      cell.f=numerator+r+"/"+denominator+r+(growth?"-1":"");
     }
   };
 
@@ -1634,12 +1885,16 @@
       for (const [column, sourceRow] of [[columns[0], fullRow], [columns[1], ytdRow]]) {
         [0, 1].forEach((offset) => {
           const address = utils.encode_cell({ r: sourceRow, c: startColumn + offset });
-          write(column, ethical + offset + 1, "ETHICAL!" + address, source[address]?.v);
+          const value = source[address]?.v;
+          write(column, ethical + offset + 1, "ETHICAL!" + address + "/1000",
+            typeof value === "number" && Number.isFinite(value) ? value / 1000 : undefined);
         });
         const values = [1, 2].map((offset) => report[column + (ethical + offset)]?.v);
         const scale = targetYear === year ? 1000 : 1;
-        write(column, ethical, "SUM(" + column + (ethical + 1) + ":" + column + (ethical + 2) + ")" + (scale === 1000 ? "/1000" : ""),
-          values.every((value) => typeof value === "number") ? (values[0] + values[1]) / scale : undefined);
+        // Target 2025 summary uses the scaled detail values; other years retain their units.
+        const summaryMultiplier = targetYear === 2025 ? 1 : 1000 / scale;
+        write(column, ethical, "SUM(" + column + (ethical + 1) + ":" + column + (ethical + 2) + ")" + (summaryMultiplier === 1 ? "" : "*" + summaryMultiplier),
+          values.every((value) => typeof value === "number") ? (values[0] + values[1]) * summaryMultiplier : undefined);
       }
     }
   };

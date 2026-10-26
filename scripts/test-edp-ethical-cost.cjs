@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),XLSX=require(process.argv[2]);
+const ctx={window:{XLSX},URL,location:{protocol:'http:',hostname:'localhost'},document:{currentScript:{src:'http://localhost/dashboard/report-templates.js'}}};
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('dashboard/report-templates.js','utf8'),ctx);
+const source=XLSX.utils.aoa_to_sheet([['','BIAYA PROMOSI MNJ  TH 2026'],['','ETHICAL','',999],['','BIAYA PROMOSI MNJ  TH 2025'],['','ETHICAL','',10,0,null,30,40,50,60,70,80,90,100,110]]);
+const target=XLSX.utils.aoa_to_sheet([['TARGET BIAYA 2025'],['','TOTAL ETHICAL',999,999],['BIAYA TAHUN 2025'],['','EXIST GB 1',999,999],['','TOTAL ETHICAL',999,...Array(13).fill(999)],['BIAYA TAHUN 2026'],['','TOTAL ETHICAL',999,999]]);
+const before=JSON.parse(JSON.stringify(target)), sourceBefore=JSON.parse(JSON.stringify(source));
+const book={Sheets:{'BOD MNJ':source,'REVENUE EDP MNJ':target}};
+ctx.window.fillEdpEthicalCost2025(book,'2026-04');
+assert.equal(target.D5.v,10);assert.equal(target.E5.v,0);assert.equal(target.F5.v,'');assert.equal(target.C5.v,40);assert.equal(target.P5.v,640);
+assert.equal(target.D5.f,"'BOD MNJ'!D4");assert.equal(target.C5.f,'SUM(D5:G5)');
+for(const [key,value] of Object.entries(before))if(!/^[C-P]5$/.test(key))assert.deepEqual(target[key],value);
+assert.deepEqual(source,sourceBefore);
+console.log('PASS 2025 ETHICAL monthly/YTD/total, zero/blank, correct year, all other rows and source unchanged');
+
+const after2025=JSON.parse(JSON.stringify(target));
+ctx.window.fillEdpEthicalCost2025(book,'2026-04',2026);
+assert.equal(target.D7.v,999);assert.equal(target.C7.v,999);assert.equal(target.P7.v,999);
+assert.equal(target.D7.f,"'BOD MNJ'!D2");
+for(const [key,value]of Object.entries(after2025))if(!/^[C-P]7$/.test(key))assert.deepEqual(target[key],value);
+assert.deepEqual(source,sourceBefore);
+console.log('PASS 2026 ETHICAL monthly/YTD/total, 2025 and other rows preserved');

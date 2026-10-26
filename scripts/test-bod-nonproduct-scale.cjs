@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),XLSX=require(process.argv[2]);
+const ctx={window:{XLSX},URL,location:{protocol:'http:',hostname:'localhost'},document:{currentScript:{src:'http://localhost/dashboard/report-templates.js'}}};
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('dashboard/report-templates.js','utf8'),ctx);
+const block=(year)=>[['','BIAYA NON PRODUCT (000.000)'],['',year,'S/D SEP',...Array(12).fill('MONTH'),'TOTAL'],['','Target',10,10,...Array(11).fill(null),10],['','Aktual',2,2,0,...Array(10).fill(null),2],['','%',.2,.2,0]];
+const sheet=XLSX.utils.aoa_to_sheet([...block(2026),...block(2025)]);
+sheet.C9.f='SUM(D9:L9)';sheet.P9.f='SUM(D9:O9)';sheet.D9.f='1+1';
+const before=JSON.parse(JSON.stringify(sheet));
+ctx.window.scaleBodNonProduct2025(sheet);
+assert.equal(sheet.D8.v,10000);assert.equal(sheet.D9.v,2000);assert.equal(sheet.C9.v,2000);assert.equal(sheet.P9.v,2);assert.equal(sheet.E9.v,0);
+assert.equal(sheet.C9.f,'SUM(D9:L9)');assert.equal(sheet.P9.f,'SUM(D9:O9)/1000');assert.ok(!sheet.D9.f);
+for(const [key,value]of Object.entries(before))if(!/^[C-P][89]$/.test(key))assert.deepEqual(sheet[key],value);
+console.log('PASS only 2025 Target/Actual monthly/YTD scaled 1000-fold, TOTAL original units; zero/blank, percentages and 2026 unchanged; cumulative formulas avoid double scaling');

@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),XLSX=require(process.argv[2]);
+const ctx={window:{XLSX},URL,location:{protocol:'http:',hostname:'localhost'},document:{currentScript:{src:'http://localhost/dashboard/report-templates.js'}}};
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('dashboard/report-templates.js','utf8'),ctx);
+const report=XLSX.utils.aoa_to_sheet([['REVENUE KONIMEX'],['','ETHICAL',999,999],['MCM KONIMEX (SELLING OUT) – RP. (000)'],['No','Parameter'],['',''],['','GB 1',999,999],['','ETHICAL',999,999,4,5,6,7,8,9]]);
+const source=XLSX.utils.aoa_to_sheet([['MCM TAHUN 2026'],['','TOTAL ETHICAL',999,999],['MCM TAHUN 2025'],['','PRODUK','YTD SEP',...Array(12).fill('MONTH'),'TOTAL'],['','TOTAL ETHICAL',120,...Array(12).fill(10),150]]);
+const before=JSON.parse(JSON.stringify(report)),sourceBefore=JSON.parse(JSON.stringify(source));
+const book={Sheets:{LAPORAN:report,'REVENUE EDP MNJ':source}};
+ctx.window.fillReportMcmEthicalPrior(book);
+assert.equal(report.C7.v,150);assert.equal(report.D7.v,120);
+assert.equal(report.C7.f,"'REVENUE EDP MNJ'!P5");assert.equal(report.D7.f,"'REVENUE EDP MNJ'!C5");
+for(const [key,value]of Object.entries(before))if(!['C7','D7'].includes(key))assert.deepEqual(report[key],value);
+assert.deepEqual(source,sourceBefore);
+source.P5.v=0;source.C5.v='';ctx.window.fillReportMcmEthicalPrior(book);
+assert.equal(report.C7.v,0);assert.equal(report.D7.v,'');assert.ok(!report.D7.f);
+console.log('PASS LAPORAN MCM ETHICAL prior Full Year/YTD, formulas, zero/blank, only C/D changed, source unchanged');

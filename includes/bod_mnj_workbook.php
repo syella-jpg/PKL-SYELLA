@@ -297,10 +297,12 @@ function buildBodMnjWorkbook(int $year, string $period, $conn = null): ?Spreadsh
     $sheet = getBodMnjSheet($book);
     $sheet->setTitle('BOD MNJ');
     populateBodMnjYtd($sheet, $period);
+    scaleBodNonProduct2025($sheet);
     $previous = $year > 2025 ? readBodMnjWorkbook($year - 1, ($year - 1) . '-12', $conn) : null;
     if (!$previous) return $book;
     $source = getBodMnjSheet($previous);
     populateBodMnjYtd($source, ($year - 1) . substr($period, 4));
+    scaleBodNonProduct2025($source);
     $source->setTitle('BOD MNJ prior source');
     // Transfer the actual worksheet so its parent and style indices stay valid.
     $book->addExternalSheet($source);
@@ -333,4 +335,98 @@ function buildBodMnjWorkbook(int $year, string $period, $conn = null): ?Spreadsh
     $sheet->getPageSetup()->setPrintArea('A1:' . $sheet->getHighestDataColumn() . ($offset + $lastPrior));
     $book->removeSheetByIndex($book->getIndex($source));
     return $book;
+}
+
+/** Populate only the requested actual cost ETHICAL row; other sections stay intact. */
+function fillEdpEthicalCost2025(Spreadsheet $book, string $period, int $year = 2025): void
+{
+    $target=$book->getSheetByName('REVENUE EDP MNJ');
+    $source=$book->getSheetByName('BOD MNJ');
+    if (!$target || !$source) return;
+    $norm=static fn($v)=>preg_replace('/\s+/u',' ',strtoupper(trim((string)$v)));
+    $find=static function($sheet,$heading,$label) use($norm) {
+        $inside=false;
+        for($r=1;$r<=$sheet->getHighestDataRow();$r++) {
+            $a=$norm($sheet->getCell('A'.$r)->getValue());
+            $b=$norm($sheet->getCell('B'.$r)->getValue());
+            if($a===$heading || $b===$heading){$inside=true;continue;}
+            if(!$inside)continue;
+            if(preg_match('/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET BIAYA|TARGET SELL OUT|SALES MNJ TH|BIAYA PROMOSI MNJ TH) 20\d{2}$/',$a.'') || preg_match('/^(SALES MNJ TH|BIAYA PROMOSI MNJ TH) 20\d{2}$/',$b))break;
+            if($b===$label)return $r;
+        }
+        return null;
+    };
+    $from=$find($source,'BIAYA PROMOSI MNJ TH '.$year,'ETHICAL');
+    $to=$find($target,'BIAYA TAHUN '.$year,'TOTAL ETHICAL');
+    if(!$from || !$to)return;
+    $values=[];
+    for($m=0;$m<12;$m++) {
+        $address=Coordinate::stringFromColumnIndex($m+4).$from;
+        $cell=$source->getCell($address);
+        $value=$cell->isFormula()?$cell->getOldCalculatedValue():$cell->getValue();
+        $value=is_int($value)||is_float($value)?$value:null;
+        $values[]=$value;
+        $dest=$target->getCell([$m+4,$to]);
+        if($value===null)$dest->setValue(null);
+        else {$dest->setValue("='BOD MNJ'!".$address);$dest->setCalculatedValue($value);}
+    }
+    foreach(['C'=>(int)substr($period,5,2),'P'=>12] as $column=>$count) {
+        $selected=array_slice($values,0,$count);$cell=$target->getCell($column.$to);
+        if(!count(array_filter($selected,static fn($v)=>$v!==null)))$cell->setValue(null);
+        else {$cell->setValue('=SUM(D'.$to.':'.Coordinate::stringFromColumnIndex($count+3).$to.')');$cell->setCalculatedValue(array_sum($selected));}
+    }
+}
+
+/** Refresh only TOTAL ETHICAL after its BOD cost has been loaded. */
+function fillEdpMcmEthical(Spreadsheet $book): void
+{
+    $sheet=$book->getSheetByName('REVENUE EDP MNJ');
+    if(!$sheet)return;
+    $norm=static fn($v)=>preg_replace('/\s+/u',' ',strtoupper(trim((string)$v)));
+    $sections=[];$section='';
+    for($r=1;$r<=$sheet->getHighestDataRow();$r++) {
+        $heading=$norm($sheet->getCell('A'.$r)->getValue());
+        if(preg_match('/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET BIAYA|TARGET SELL OUT) 20\d{2}$/',$heading))$section=$heading;
+        if($norm($sheet->getCell('B'.$r)->getValue())==='TOTAL ETHICAL')$sections[$section]=$r;
+    }
+    $numeric=static fn($v)=>is_int($v)||is_float($v);
+    foreach([2025,2026] as $year) {
+        $revenue=$sections['REVENUE TAHUN '.$year]??null;
+        $cost=$sections['BIAYA TAHUN '.$year]??null;
+        $target=$sections['MCM TAHUN '.$year]??null;
+        if(!$revenue||!$cost||!$target)continue;
+        for($c=3;$c<=16;$c++) {
+            $col=Coordinate::stringFromColumnIndex($c);
+            $a=$sheet->getCell($col.$revenue);$b=$sheet->getCell($col.$cost);
+            $av=$a->isFormula()?$a->getOldCalculatedValue():$a->getValue();
+            $bv=$b->isFormula()?$b->getOldCalculatedValue():$b->getValue();
+            $cell=$sheet->getCell($col.$target);
+            if(!$numeric($av)&&!$numeric($bv)){$cell->setValue(null);continue;}
+            $cell->setValue('='.$col.$revenue.'-'.$col.$cost);
+            $cell->setCalculatedValue(($numeric($av)?$av:0)-($numeric($bv)?$bv:0));
+        }
+    }
+}
+
+function scaleBodNonProduct2025(Worksheet $sheet): void
+{
+    $norm=static fn($v)=>strtoupper(trim((string)$v));
+    for($r=1;$r<=$sheet->getHighestDataRow();$r++) {
+        if(!str_starts_with($norm($sheet->getCell('B'.$r)->getValue()),'BIAYA NON PRODUCT') || $norm($sheet->getCell('B'.($r+1))->getValue())!=='2025')continue;
+        for($row=$r+2;$row<=$r+4;$row++) {
+            if(!in_array($norm($sheet->getCell('B'.$row)->getValue()),['TARGET','AKTUAL','ACTUAL'],true))continue;
+            for($c=3;$c<=16;$c++) {
+                $cell=$sheet->getCell([$c,$row]);
+                $value=$cell->isFormula()?$cell->getOldCalculatedValue():$cell->getValue();
+                if(!is_int($value)&&!is_float($value))continue;
+                if($c===16) {
+                    if($cell->isFormula()) {
+                        $cell->setValue('=SUM(D'.$row.':O'.$row.')/1000');
+                        $cell->setCalculatedValue($value);
+                    }
+                } elseif($cell->isFormula() && $c===3)$cell->setCalculatedValue($value*1000);
+                else $cell->setValue($value*1000);
+            }
+        }
+    }
 }
