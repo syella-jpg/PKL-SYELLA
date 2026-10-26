@@ -39,18 +39,16 @@ foreach([2025,2026] as $year) {
     echo "PASS $year: original ODS, all 288 monthly values, empty cells, period year and rolling selection.\n";
 }
 class BiayaQuery {
-    private array $bounds;
-    public function bind_param($types,&...$args) { $this->bounds=$args; }
+    private int $year;
+    private int $read = 0;
+    public function bind_param($types,&...$args) { $this->year=(int)$args[0]; }
     public function execute() {}
     public function get_result() { return $this; }
     public function fetch_assoc() {
-        // Only October has an upload, and adjacent years have different values.
-        foreach (['2026-10'=>600, '2025-10'=>100] as $period=>$value) {
-            if ($period >= $this->bounds[0] && $period <= $this->bounds[1]) {
-                return ['payload'=>json_encode(['target'=>['existing1'=>array_fill(0,12,$value)],'actual'=>['existing1'=>array_fill(0,12,$value*2)]])];
-            }
-        }
-        return null;
+        if ($this->read>=2) return null;
+        $actual=$this->read++===1;
+        $value=($this->year===2026?600:100)*($actual?2:1);
+        return ['jenis'=>$actual?'actual':'target','gb'=>1,'kategori'=>'EXIS',...array_fill_keys(['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'],$value)];
     }
     public function close() {}
 }
@@ -59,7 +57,7 @@ foreach ([2025=>100,2026=>600] as $annualYear=>$expectedValue) {
     for ($month=1;$month<=12;$month++) {
         $period=sprintf('%d-%02d',$annualYear,$month);
         $annual=findBiayaRecord(new BiayaConnection(),$period);
-        verifyBiaya(($annual['target']['existing1'][0]??null)===$expectedValue,'October upload missing or wrong year: '.$period);
+        verifyBiaya(($annual['target']['existing1'][0]??null)===(float)$expectedValue,'October upload missing or wrong year: '.$period);
     }
 }
 echo "PASS: October-only uploads available January–December, 2025/2026 strictly isolated.\n";
@@ -71,8 +69,8 @@ populateBiayaSheet($sheet,'2026-09',new BiayaConnection());
 $found=0;
 for($r=1;$r<=$sheet->getHighestDataRow();$r++) if($sheet->getCell('A'.$r)->getValue()==='TARGET BIAYA 2025') {
     $found++;
-    verifyBiaya($sheet->getCell('D'.($r+2))->getValue()===100,'Target export');
-    verifyBiaya($sheet->getCell('D'.($r+31))->getValue()===200,'Actual export');
+    verifyBiaya($sheet->getCell('D'.($r+2))->getValue()===100.0,'Target export');
+    verifyBiaya($sheet->getCell('D'.($r+31))->getValue()===200.0,'Actual export');
     verifyBiaya($sheet->getCell('C'.($r+2))->getValue()==900,'YTD export');
     verifyBiaya($sheet->getCell('D'.($r+3))->getValue()===null,'Missing NP');
     verifyBiaya($sheet->getCell('A'.($r+29))->getValue()==='BIAYA TAHUN 2025','Table order');

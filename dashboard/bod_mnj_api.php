@@ -49,6 +49,7 @@ try {
     if (http_response_code() < 400) http_response_code(400);
     echo json_encode(['success' => false, 'message' => $error->getMessage()]);
 } catch (Throwable $error) {
+    error_log('BOD MNJ upload/read failed: '.$error->getMessage());
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Data BOD MNJ gagal diproses. Periksa koneksi database dan konfigurasi server.']);
 } finally {

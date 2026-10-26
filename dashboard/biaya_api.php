@@ -22,17 +22,16 @@ try {
         if(($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||($file['size']??0)>50*1024*1024) throw new InvalidArgumentException('File biaya gagal diterima atau terlalu besar.');
         $reader=\PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($file['tmp_name']);
         if(!$reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Ods && !$reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Xlsx) throw new InvalidArgumentException('Gunakan file ODS atau XLSX.');
-        $book=$reader->load($file['tmp_name']); $data=parseBiayaWorkbook($book,(int)substr($period,0,4)); $book->disconnectWorksheets();
+        $book=$reader->load($file['tmp_name']); $rows=parseBiayaProducts($book,(int)substr($period,0,4)); $book->disconnectWorksheets();
     }
     $conn=openReportConnection();
     if($method==='POST') {
-        $conn->query('CREATE TABLE IF NOT EXISTS biaya_files (report_period CHAR(7) PRIMARY KEY, payload LONGTEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
-        $q=$conn->prepare('INSERT INTO biaya_files (report_period,payload) VALUES (?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload)');
-        $payload=json_encode($data,JSON_THROW_ON_ERROR); $q->bind_param('ss',$period,$payload);
-        if(!$q->execute()) throw new RuntimeException('Biaya gagal disimpan.'); $q->close();
+        saveBiayaProducts($conn,$period,$rows);
+        $data=findBiayaRecord($conn,$period);
     } else $data=findBiayaRecord($conn,$period);
     echo json_encode(['success'=>true,'data'=>$data]);
 } catch(Throwable $e) {
+    error_log('BIAYA upload/read failed ['.get_class($e).']: '.$e->getMessage());
     if(http_response_code()<400) http_response_code($e instanceof InvalidArgumentException?400:500);
     echo json_encode(['success'=>false,'message'=>$e instanceof InvalidArgumentException?$e->getMessage():'Data biaya gagal diproses. Periksa file dan koneksi database.']);
 } finally { if($conn) $conn->close(); }

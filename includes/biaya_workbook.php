@@ -76,26 +76,100 @@ function parseBiayaWorkbook(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, int $ye
     return $rows;
 }
 
-/** Annual uploads contain January–December; the download month only controls YTD. */
+/** Product rows mirror the uploaded workbook; totals are calculated by SQL. */
+function parseBiayaProducts(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, int $year): array
+{
+    // Validate year, monthly headers and rolling layout before accepting rows.
+    parseBiayaWorkbook($book, $year);
+    $rows = [];
+    foreach ($book->getAllSheets() as $sheet) {
+        if ((int)$sheet->getCell('E3')->getValue() !== $year) continue;
+        $rolling = str_contains(strtoupper((string)$sheet->getCell('X1')->getValue()), 'TARGET ROLLING');
+        $layouts = $rolling ? ['target'=>[20,22,23,24], 'actual'=>[38,39,40,42]]
+                            : ['target'=>[1,3,4,6], 'actual'=>[20,21,22,23]];
+        for ($r=4; $r<=min(10000,$sheet->getHighestDataRow()); $r++) {
+            $category = strtoupper(trim((string)$sheet->getCell('B'.$r)->getValue()));
+            foreach ($layouts as $type=>[$groupCol,$numberCol,$nameCol,$monthCol]) {
+                $gb = trim((string)$sheet->getCell([$groupCol,$r])->getValue());
+                $numberCell = $sheet->getCell([$numberCol,$r]);
+                $number = $numberCell->isFormula() ? $numberCell->getCalculatedValue() : $numberCell->getValue();
+                if (!preg_match('/^[1-6]$/',$gb) || !is_numeric($number)) continue;
+                if (!in_array($category,['EXIS','D'],true)) throw new InvalidArgumentException('Kategori produk harus EXIS atau D pada baris '.$r.'.');
+                $values = [];
+                for ($m=0;$m<12;$m++) {
+                    $cell=$sheet->getCell([$monthCol+$m,$r]);
+                    $v=$cell->isFormula() ? $cell->getCalculatedValue() : $cell->getValue();
+                    // Spreadsheet templates use a dash as an empty amount.
+                    if (is_string($v)) $v=trim(str_replace("\xc2\xa0", ' ', $v));
+                    if ($v===null || $v==='' || in_array($v,['-','–','—'],true)) $v=null;
+                    elseif (!is_numeric($v)) throw new InvalidArgumentException('Nilai biaya tidak valid pada '.$cell->getCoordinate().'.');
+                    elseif ($cell->isFormula() && (float)$v===0.0 && !biayaHasNumericSource($sheet,$cell->getCoordinate())) $v=null;
+                    $values[]= $v===null ? null : (float)$v;
+                }
+                $key=$type.':'.$gb.':'.(int)$number;
+                if (isset($rows[$key])) throw new InvalidArgumentException('Nomor produk biaya berulang: '.$key.'.');
+                $rows[$key]=['type'=>$type,'gb'=>(int)$gb,'category'=>$category,'number'=>(int)$number,
+                    'name'=>trim((string)$sheet->getCell([$nameCol,$r])->getValue()),'values'=>$values];
+            }
+        }
+    }
+    if (!$rows) throw new InvalidArgumentException('Rincian produk biaya tidak ditemukan.');
+    return array_values($rows);
+}
+
+function saveBiayaProducts($conn, string $period, array $rows): void
+{
+    // Keep the schema with the upload code; no external SQL file is required.
+    $monthlyColumns=implode(',',array_map(
+        static fn($month)=>'`'.$month.'` DECIMAL(20,6) NULL',
+        ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
+    ));
+    $conn->query("CREATE TABLE IF NOT EXISTS biaya (
+        report_year SMALLINT UNSIGNED NOT NULL,
+        jenis ENUM('target','actual') NOT NULL,
+        gb TINYINT UNSIGNED NOT NULL,
+        kategori ENUM('EXIS','D') NOT NULL,
+        nomor_produk INT UNSIGNED NOT NULL,
+        nama_produk VARCHAR(255) NOT NULL,
+        $monthlyColumns,
+        PRIMARY KEY (report_year,jenis,gb,nomor_produk)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $conn->query('CREATE TABLE IF NOT EXISTS biaya_uploads (report_year SMALLINT UNSIGNED PRIMARY KEY, report_period CHAR(7) NOT NULL, uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    $year=(int)substr($period,0,4);
+    $conn->begin_transaction();
+    try {
+        // Lock the annual upload, so concurrent uploads replace a year atomically.
+        $q=$conn->prepare('INSERT INTO biaya_uploads (report_year,report_period) VALUES (?,?) ON DUPLICATE KEY UPDATE report_period=VALUES(report_period), uploaded_at=CURRENT_TIMESTAMP');
+        $q->bind_param('is',$year,$period); $q->execute(); $q->close();
+        $q=$conn->prepare('DELETE FROM biaya WHERE report_year=?');
+        $q->bind_param('i',$year); $q->execute(); $q->close();
+        $months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+        $q=$conn->prepare('INSERT INTO biaya (report_year,jenis,gb,kategori,nomor_produk,nama_produk,'.implode(',',array_map(static fn($m)=>'`'.$m.'`',$months)).') VALUES ('.implode(',',array_fill(0,18,'?')).')');
+        foreach ($rows as $row) {
+            $args=[$year,$row['type'],$row['gb'],$row['category'],$row['number'],$row['name'],...$row['values']];
+            $q->bind_param('isisis'.str_repeat('d',12),...$args); $q->execute();
+        }
+        $q->close(); $conn->commit();
+    } catch (Throwable $e) { $conn->rollback(); throw $e; }
+}
+
+/** The annual product data serves every download month; SQL preserves NULLs. */
 function findBiayaRecord($conn, string $period): ?array
 {
-    if (!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/', $period)) {
-        throw new InvalidArgumentException('Periode biaya tidak valid.');
-    }
+    if (!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/',$period)) throw new InvalidArgumentException('Periode biaya tidak valid.');
+    $months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
     try {
-        // BIAYA is uploaded as a full-year workbook. Use the latest upload for
-        // that year even when its selected upload month is after the report
-        // month (for example, an October upload must also serve September).
-        $first = substr($period, 0, 4) . '-01';
-        $last = substr($period, 0, 4) . '-12';
-        $q = $conn->prepare('SELECT payload FROM biaya_files WHERE report_period BETWEEN ? AND ? ORDER BY report_period DESC LIMIT 1');
-        $q->bind_param('ss', $first, $last);
-        $q->execute();
-        $row = $q->get_result()->fetch_assoc();
-        $q->close();
-        return $row ? json_decode($row['payload'], true, 512, JSON_THROW_ON_ERROR) : null;
+        $sums=implode(',',array_map(static fn($m)=>'SUM(`'.$m.'`) AS `'.$m.'`',$months));
+        $q=$conn->prepare('SELECT jenis,gb,kategori,'.$sums.' FROM biaya WHERE report_year=? GROUP BY jenis,gb,kategori');
+        $year=(int)substr($period,0,4); $q->bind_param('i',$year); $q->execute();
+        $result=$q->get_result(); $data=[];
+        while ($row=$result->fetch_assoc()) {
+            $code=($row['kategori']==='EXIS'?'existing':'new').$row['gb'];
+            $data[$row['jenis']][$code]=array_map(static fn($m)=>$row[$m]===null?null:(float)$row[$m],$months);
+        }
+        $q->close(); return $data ?: null;
     } catch (mysqli_sql_exception $e) {
-        if ((int)$e->getCode() === 1146) return null;
+        if ((int)$e->getCode()===1146) return null;
         throw $e;
     }
 }

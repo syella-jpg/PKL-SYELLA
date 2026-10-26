@@ -88,12 +88,44 @@ function findBodMnjRecord($conn, string $period): ?array
     }
 }
 
+/** Extract the non-product target/actual blocks into the user's relational table. */
+function parseBodMnjNonProduct(Spreadsheet $book, int $defaultYear): array
+{
+    $sheet=getBodMnjSheet($book); $rows=[]; $year=null; $section=false;
+    for ($r=1;$r<=$sheet->getHighestDataRow();$r++) {
+        $label=strtoupper(trim((string)$sheet->getCell('B'.$r)->getValue()));
+        if (str_contains($label,'BIAYA NON PRODUCT')) { $section=true; $year=null; continue; }
+        if (!$section) continue;
+        if (preg_match('/^20\d{2}$/',$label)) { $year=(int)$label; continue; }
+        if (!in_array($label,['TARGET','AKTUAL'],true)) continue;
+        $values=[];
+        for ($c=4;$c<=15;$c++) {
+            $cell=$sheet->getCell([$c,$r]);
+            $value=$cell->isFormula()?$cell->getCalculatedValue():$cell->getValue();
+            if (is_string($value)) $value=trim($value);
+            if ($value===null || $value==='' || in_array($value,['-','–','—'],true)) $value=null;
+            elseif (!is_numeric($value)) throw new InvalidArgumentException('Nilai BIAYA NON PRODUCT tidak valid pada '.$cell->getCoordinate().'.');
+            $values[]=$value===null?null:(float)$value;
+        }
+        $key=($year??$defaultYear).':'.$label;
+        if(isset($rows[$key])) throw new InvalidArgumentException('Blok BIAYA NON PRODUCT berulang.');
+        $rows[$key]=['year'=>$year??$defaultYear,'type'=>strtolower($label),'values'=>$values];
+    }
+    if (!$rows) throw new InvalidArgumentException('Bagian BIAYA NON PRODUCT target/aktual tidak ditemukan.');
+    return array_values($rows);
+}
+
 function saveBodMnjRecord($conn, string $period, string $base64): void
 {
     validateBodMnjPeriod($period);
     if (!$conn->query('CREATE TABLE IF NOT EXISTS bod_mnj_files (report_period CHAR(7) PRIMARY KEY, payload LONGTEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4')) {
         throw new RuntimeException('Tabel BOD MNJ gagal disiapkan.');
     }
+    $book=decodeBodMnjWorkbook($base64,(int)substr($period,0,4));
+    try { $nonProduct=parseBodMnjNonProduct($book,(int)substr($period,0,4)); }
+    finally { $book->disconnectWorksheets(); }
+    $conn->begin_transaction();
+    try {
     $query = $conn->prepare('INSERT INTO bod_mnj_files (report_period, payload) VALUES (?, ?) ON DUPLICATE KEY UPDATE payload = VALUES(payload)');
     if (!$query) throw new RuntimeException('Data BOD MNJ gagal disimpan.');
     try {
@@ -101,6 +133,19 @@ function saveBodMnjRecord($conn, string $period, string $base64): void
         $query->bind_param('ss', $period, $payload);
         if (!$query->execute()) throw new RuntimeException('Data BOD MNJ gagal disimpan.');
     } finally { $query->close(); }
+    $months=['jan','feb','mar','apr','mei','jun','jul','agu','sep','okt','nov','des'];
+    $columns=implode(',',array_map(static fn($m)=>'`'.$m.'`',$months));
+    $updates=implode(',',array_map(static fn($m)=>'`'.$m.'`=VALUES(`'.$m.'`)',$months));
+    $query=$conn->prepare('INSERT INTO bod_mnj (periode,tahun_data,jenis,'.$columns.') VALUES ('.implode(',',array_fill(0,15,'?')).') ON DUPLICATE KEY UPDATE '.$updates);
+    try {
+        foreach ($nonProduct as $row) {
+            $args=[$period.'-01',$row['year'],$row['type'],...$row['values']];
+            $query->bind_param('sis'.str_repeat('d',12),...$args);
+            if (!$query->execute()) throw new RuntimeException('Rincian BOD MNJ gagal disimpan.');
+        }
+    } finally { $query->close(); }
+    $conn->commit();
+    } catch (Throwable $error) { $conn->rollback(); throw $error; }
 }
 
 function readBodMnjWorkbook(int $year, string $period, $conn = null): ?Spreadsheet

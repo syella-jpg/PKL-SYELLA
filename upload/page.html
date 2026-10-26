@@ -776,7 +776,7 @@
         return;
       }
       if (sectionSelect.value === "BIAYA") {
-        const endpoint = LOCAL_FILE_MODE ? "http://127.0.0.1:8000/dashboard/biaya_api.php" : "../dashboard/biaya_api.php";
+        const endpoint = LOCAL_FILE_MODE ? "http://127.0.0.1:8000/api/report.php?endpoint=biaya_api" : "../api/report.php?endpoint=biaya_api";
         const payload = new FormData();
         payload.append("period", periodSelect.value);
         payload.append("file", chosen);
