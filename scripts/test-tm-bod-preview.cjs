@@ -67,7 +67,10 @@ const slideText = () => {
   assert(!request.slides.some(slide => slide.fields.join('').includes('Uncommitted change')));
   $('quarter').value = 'Q2'; $('quarter').events.change();
   assert(sections.every(section => section.field.value === ''));
-  $('quarter').value = 'Q1'; $('quarter').events.change();
+  $('quarter').value = 'Q1'; await $('quarter').events.change();
+  assert.equal($('preview-download').disabled, false);
+  assert(slideText().includes('Saved summary'));
+  assert.equal($('slide-position').textContent, `Slide 2 dari ${sections.length + 3}`);
   assert.equal(sections[1].field.value, 'Unsaved financial text');
   sections[0].field.value = 'Very long text '.repeat(3000);
   await sections[0].button.onclick();

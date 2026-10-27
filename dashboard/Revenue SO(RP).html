@@ -1082,6 +1082,14 @@
     appendMcmReportTable(workbook, selectedPeriod);
     await replaceBodMnjTemplateSheet(workbook, selectedPeriod);
     fillMcmEthicalTarget(workbook, selectedPeriod);
+    appendSellingInReportTable(workbook, selectedPeriod);
+    appendRatioBiayaReportTable(workbook, selectedPeriod);
+    appendSellOutSellInRatioTable(workbook, selectedPeriod);
+    appendSellOutSellInUnitRatioTable(workbook, selectedPeriod);
+    appendMtmContributionReportTable(workbook, selectedPeriod);
+    appendUnitSellOutReportTable(workbook, selectedPeriod);
+    fillUnitSellOutPrior(workbook, selectedPeriod);
+    fillUnitSellOutPrior(workbook, selectedPeriod, true);
     return workbook;
   }
   // Serve the exact same workbook builder to sidebar download buttons.

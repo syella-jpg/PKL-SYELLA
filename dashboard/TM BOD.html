@@ -130,9 +130,22 @@
   .rich-editor:empty::before { content:attr(data-placeholder); color:#6b7280; pointer-events:none; }
   .rich-editor blockquote { margin:8px 0; padding-left:12px; border-left:3px solid #cfcaf5; color:#4b5563; font-style:italic; }
   .rich-editor ul, .rich-editor ol { padding-left:24px; }
-  .editor-image { margin-top:12px; }
-  .editor-image img { display:block; max-width:100%; max-height:180px; margin-bottom:8px; object-fit:contain; }
+  .editor-content { display:flex; align-items:stretch; gap:10px; }
+  .editor-content .rich-editor { flex:1; min-width:0; }
+  .editor-image { flex:0 0 34%; display:flex; flex-direction:column; gap:10px; padding-top:10px; }
+  .editor-image-card { position:relative; padding:8px; border:1px solid #d8d4f0; border-radius:10px; background:#fff; }
+  .editor-image img { display:block; width:100%; height:110px; object-fit:contain; }
+  .editor-image .image-remove { position:absolute; right:3px; top:3px; width:26px; height:26px; padding:0; border-radius:50%; background:#fff; color:#b91c1c; font-size:22px; line-height:1; box-shadow:0 1px 5px #ccc; }
   .analysis textarea[hidden], .editor-image[hidden] { display:none; }
+  .add-slide-row { margin:14px 8px 0; max-width:760px; text-align:center; }
+  .add-slide-row button { padding:8px 20px; border:1px dashed #9b8cff; border-radius:9px; background:#faf9ff; color:#4a3bd4; font:600 13px Arial,sans-serif; }
+  .slide-locked .rich-editor { background:#f7f7fb; }
+  .slide-locked .editor-toolbar button:disabled { opacity:.45; cursor:default; }
+  .slide-locked .image-remove:disabled { opacity:.4; cursor:default; }
+  .acts button[hidden] { display:none; }
+  .delete-slide { border:1px solid #dc2626; background:#fff; color:#b91c1c; }
+  .delete-slide:hover { background:#fef2f2; }
+  .slide-title { display:block; width:100%; margin:8px 0 12px; padding:10px; border:1px solid #cfcaf5; border-radius:8px; font:inherit; }
   .section-save-status { font-size:12px; color:#6b7280; margin-top:10px; }
   @media (max-width:700px) {
     .report-workspace, .report-workspace.with-preview { grid-template-columns:minmax(0, 1fr); }

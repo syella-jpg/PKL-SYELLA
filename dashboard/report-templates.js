@@ -1683,6 +1683,271 @@
     }
   };
 
+  global.appendSellingInReportTable = function (workbook, period) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    if(!sheet)throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const title="REVENUE KONIMEX (SELLING IN) – RP. (000)";
+    if(Object.values(sheet).some((cell)=>cell?.v===title))return;
+    const range=utils.decode_range(sheet["!ref"]||"A1:K1");
+    const first=range.e.r+3,year=Number(period.slice(0,4));
+    const months=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"];
+    const ytd="YTD "+months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(["top","bottom","left","right"].map((side)=>[side,{style:"thin",color:{rgb:"000000"}}]));
+    const merges=sheet["!merges"]||(sheet["!merges"]=[]);
+    const heights=sheet["!rows"]||(sheet["!rows"]=[]);
+    const put=(row,values,header=false)=>{
+      for(let c=0;c<11;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
+        font:{name:"Arial",sz:header?10:11,bold:header,color:{rgb:"000000"}},
+        fill:{fgColor:{rgb:header?"8FC9F4":"FFFFFF"}},border,
+        alignment:{horizontal:header?"center":"left",vertical:"center",wrapText:true}
+      }};
+    };
+    sheet[utils.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:16,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
+    merges.push({s:{r:first,c:0},e:{r:first,c:10}});heights[first]={hpt:28};
+    put(first+1,["No","Parameter","Target "+(year-1),"","Ach Last Year ("+(year-1)+")","","Target "+year,"","Ach "+year,"% Achievement","Growth"],true);
+    put(first+2,["","","Full Year",ytd,"Full Year",ytd,"Full Year",ytd,ytd,String(year),ytd],true);
+    heights[first+1]={hpt:24};heights[first+2]={hpt:24};
+    for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
+    for(const c of [2,4,6])merges.push({s:{r:first+1,c},e:{r:first+1,c:c+1}});
+    const labels=["PHARMA","GB 1","GB 4","","HCE","GB 2","GB 3","","Biskuit","Candy","Ethical","","Ekstraksi Solonat","KODC","Toll In","","Ekspor","IB Farma","IB Food"];
+    labels.forEach((label,i)=>{
+      const row=first+3+i;put(row,["",label]);heights[row]={hpt:18};
+      if(["PHARMA","HCE","Ekspor"].includes(label))sheet[utils.encode_cell({r:row,c:1})].s.font.bold=true;
+    });
+    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,10)}});
+  };
+
+  global.appendRatioBiayaReportTable = function (workbook, period) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    if(!sheet)throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const title="RATIO BIAYA (Biaya vs Selling in)";
+    if(Object.values(sheet).some((cell)=>cell?.v===title))return;
+    const range=utils.decode_range(sheet["!ref"]||"A1:K1"),first=range.e.r+3;
+    const year=Number(period.slice(0,4)),prior=year-1;
+    const months=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"];
+    const ytd="YTD "+months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(["top","bottom","left","right"].map((side)=>[side,{style:"thin",color:{rgb:"000000"}}]));
+    const merges=sheet["!merges"]||(sheet["!merges"]=[]),heights=sheet["!rows"]||(sheet["!rows"]=[]);
+    const put=(row,values,header=false)=>{
+      for(let c=0;c<11;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
+        font:{name:"Arial",sz:header?10:11,bold:header,color:{rgb:"000000"}},
+        fill:{fgColor:{rgb:header?"8FC9F4":"FFFFFF"}},border,
+        alignment:{horizontal:header?"center":"left",vertical:"center",wrapText:true}
+      }};
+    };
+    sheet[utils.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:16,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
+    merges.push({s:{r:first,c:0},e:{r:first,c:10}});heights[first]={hpt:28};
+    put(first+1,["No","UNIT BISNIS","Actual BI PROMOSI–Last Year ("+prior+")","","Actual "+year,"Anggaran","Ratio Biaya","","","Target Ratio Biaya "+year,"Ratio Growth YTD"],true);
+    put(first+2,["","","Full Year",ytd,ytd,String(year),"FY "+prior,"YTD "+prior,"YTD "+year,"",""],true);
+    heights[first+1]={hpt:28};heights[first+2]={hpt:24};
+    for(const c of [0,1,9,10])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
+    merges.push({s:{r:first+1,c:2},e:{r:first+1,c:3}},{s:{r:first+1,c:6},e:{r:first+1,c:8}});
+    const labels=["Total (Domestik + Export)","FARMASI","GB 1","GB 4","HCE","GB 2","GB 3","BISKUIT","CANDY","BIAYA CM","ETHICAL","IB"];
+    labels.forEach((label,i)=>{
+      const row=first+3+i;put(row,["",label]);heights[row]={hpt:18};
+      const cell=sheet[utils.encode_cell({r:row,c:1})];
+      cell.s.font.bold=!label.startsWith("GB ");
+      if(label.startsWith("GB "))cell.s.alignment.indent=1;
+    });
+    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,10)}});
+  };
+
+  global.appendSellOutSellInRatioTable = function (workbook, period) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    if(!sheet)throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const title="RATIO SELL OUT VS SELL IN (RUPIAH)";
+    if(Object.values(sheet).some((cell)=>cell?.v===title))return;
+    const range=utils.decode_range(sheet["!ref"]||"A1:L1"),first=range.e.r+3;
+    const year=Number(period.slice(0,4)),prior=year-1;
+    const months=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"];
+    const ytd="YTD "+months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(["top","bottom","left","right"].map((side)=>[side,{style:"thin",color:{rgb:"000000"}}]));
+    const merges=sheet["!merges"]||(sheet["!merges"]=[]),heights=sheet["!rows"]||(sheet["!rows"]=[]);
+    const put=(row,values,header=false)=>{
+      for(let c=0;c<12;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
+        font:{name:"Arial",sz:header?10:11,bold:header,color:{rgb:"000000"}},
+        fill:{fgColor:{rgb:header?"8FC9F4":"FFFFFF"}},border,
+        alignment:{horizontal:header?"center":"left",vertical:"center",wrapText:true}
+      }};
+    };
+    sheet[utils.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:16,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
+    merges.push({s:{r:first,c:0},e:{r:first,c:11}});heights[first]={hpt:28};
+    put(first+1,["No","UNIT BISNIS","SELL OUT – RP","","","SELL IN – RP","","","RATIO SELL OUT VS SELL IN (RP)","","",""],true);
+    put(first+2,["","",ytd+" "+prior,ytd+" "+year,"Growth",ytd+" "+prior,ytd+" "+year,"Growth",ytd+" "+prior,ytd+" "+year,"Growth","TARGET RATIO "+year],true);
+    heights[first+1]={hpt:24};heights[first+2]={hpt:32};
+    for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
+    for(const [start,end]of [[2,4],[5,7],[8,11]])merges.push({s:{r:first+1,c:start},e:{r:first+1,c:end}});
+    const labels=["FARMASI","GB 1","GB 4","","HCE","GB 2","GB 3","","BISKUIT","","CANDY","","ETHICAL"];
+    labels.forEach((label,i)=>{
+      const row=first+3+i;put(row,["",label]);heights[row]={hpt:18};
+      if(label.startsWith("GB "))sheet[utils.encode_cell({r:row,c:1})].s.alignment.indent=1;
+    });
+    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,11)}});
+  };
+
+  global.appendSellOutSellInUnitRatioTable = function (workbook, period) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    if(!sheet)throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const title="RATIO SELL OUT VS SELL IN (UNIT)";
+    if(Object.values(sheet).some((cell)=>cell?.v===title))return;
+    const range=utils.decode_range(sheet["!ref"]||"A1:K1"),first=range.e.r+3;
+    const year=Number(period.slice(0,4)),prior=year-1;
+    const months=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"];
+    const ytd="YTD "+months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(["top","bottom","left","right"].map((side)=>[side,{style:"thin",color:{rgb:"000000"}}]));
+    const merges=sheet["!merges"]||(sheet["!merges"]=[]),heights=sheet["!rows"]||(sheet["!rows"]=[]);
+    const put=(row,values,header=false)=>{
+      for(let c=0;c<11;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
+        font:{name:"Arial",sz:header?10:11,bold:header,color:{rgb:"000000"}},
+        fill:{fgColor:{rgb:header?"8FC9F4":"FFFFFF"}},border,
+        alignment:{horizontal:header?"center":"left",vertical:"center",wrapText:true}
+      }};
+    };
+    sheet[utils.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:16,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
+    merges.push({s:{r:first,c:0},e:{r:first,c:10}});heights[first]={hpt:28};
+    put(first+1,["No","UNIT BISNIS","JUMLAH UNIT (SELL OUT)","","","JUMLAH UNIT (SELL IN)","","","RATIO SELL OUT VS SELL IN (UNIT)","",""],true);
+    put(first+2,["","",ytd+" "+prior,ytd+" "+year,"Growth",ytd+" "+prior,ytd+" "+year,"Growth",ytd+" "+prior,ytd+" "+year,"Growth"],true);
+    heights[first+1]={hpt:24};heights[first+2]={hpt:32};
+    for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
+    for(const [start,end]of [[2,4],[5,7],[8,10]])merges.push({s:{r:first+1,c:start},e:{r:first+1,c:end}});
+    const labels=["FARMASI","GB 1","GB 4","HCE","GB 2","GB 3","BISKUIT","CANDY","ETHICAL"];
+    labels.forEach((label,i)=>{
+      const row=first+3+i;put(row,["",label]);heights[row]={hpt:18};
+      if(label.startsWith("GB "))sheet[utils.encode_cell({r:row,c:1})].s.alignment.indent=1;
+    });
+    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,10)}});
+  };
+
+  global.appendMtmContributionReportTable = function (workbook, period) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    if(!sheet)throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const title="MTM CONTRIBUTION";
+    if(Object.values(sheet).some((cell)=>cell?.v===title))return;
+    const range=utils.decode_range(sheet["!ref"]||"A1:H1"),first=range.e.r+3;
+    const year=Number(period.slice(0,4)),prior=year-1;
+    const months=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"];
+    const ytd="YTD "+months[Number(period.slice(5,7))-1]+" "+year;
+    const border=Object.fromEntries(["top","bottom","left","right"].map((side)=>[side,{style:"thin",color:{rgb:"000000"}}]));
+    const merges=sheet["!merges"]||(sheet["!merges"]=[]),heights=sheet["!rows"]||(sheet["!rows"]=[]);
+    const put=(row,values,header=false)=>{
+      for(let c=0;c<8;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
+        font:{name:"Arial",sz:header?10:11,bold:header,color:{rgb:"000000"}},
+        fill:{fgColor:{rgb:header?"8FC9F4":"FFFFFF"}},border,
+        alignment:{horizontal:header?"center":"left",vertical:"center",wrapText:true}
+      }};
+    };
+    sheet[utils.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:16,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
+    merges.push({s:{r:first,c:0},e:{r:first,c:7}});heights[first]={hpt:28};
+    put(first+1,["No","UNIT BISNIS","REVENUE","","","BUDGET SPENDING","",""],true);
+    put(first+2,["","","FY "+prior,ytd,"Growth","FY "+prior,ytd,"Growth"],true);
+    heights[first+1]={hpt:24};heights[first+2]={hpt:24};
+    for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
+    for(const [start,end]of [[2,4],[5,7]])merges.push({s:{r:first+1,c:start},e:{r:first+1,c:end}});
+    const labels=["FARMASI","GB 1","GB 4","HCE","GB 2","GB 3","BISKUIT","CANDY"];
+    labels.forEach((label,i)=>{
+      const row=first+3+i;put(row,["",label]);heights[row]={hpt:18};
+      if(label.startsWith("GB "))sheet[utils.encode_cell({r:row,c:1})].s.alignment.indent=1;
+    });
+    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,7)}});
+  };
+
+  global.appendUnitSellOutReportTable = function (workbook, period) {
+    const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
+    if(!sheet)throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const title="REVENUE KONIMEX (UNIT) – SELL OUT";
+    if(Object.values(sheet).some((cell)=>cell?.v===title))return;
+    const range=utils.decode_range(sheet["!ref"]||"A1:J1"),first=range.e.r+3;
+    const year=Number(period.slice(0,4)),prior=year-1;
+    const months=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"];
+    const ytd="YTD "+months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(["top","bottom","left","right"].map((side)=>[side,{style:"thin",color:{rgb:"000000"}}]));
+    const merges=sheet["!merges"]||(sheet["!merges"]=[]),heights=sheet["!rows"]||(sheet["!rows"]=[]);
+    const put=(row,values,fill="FFFFFF",header=false)=>{
+      for(let c=0;c<10;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
+        font:{name:"Arial",sz:header?10:11,bold:header,color:{rgb:"000000"}},
+        fill:{fgColor:{rgb:fill}},border,
+        alignment:{horizontal:header?"center":"left",vertical:"center",wrapText:true}
+      }};
+    };
+    sheet[utils.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:16,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
+    merges.push({s:{r:first,c:0},e:{r:first,c:9}});heights[first]={hpt:28};
+    put(first+1,["No","Parameter","Ach Last Year ("+prior+")","","Target "+year,"","Achievement "+year,"% Achievement "+year,"","Growth"],"8FC9F4",true);
+    put(first+2,["","","Full Year",ytd,"Full Year",ytd,ytd,ytd,"FY",ytd],"8FC9F4",true);
+    heights[first+1]={hpt:24};heights[first+2]={hpt:24};
+    for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
+    for(const c of [2,4,7])merges.push({s:{r:first+1,c},e:{r:first+1,c:c+1}});
+    const labels=["CORPORATE","","PHARMA","GB 1","GB 4","","HCE","GB 2","GB 3","","FOOD","GB 5","GB 6","","ETHICAL","","INTERNATIONAL BUSINESS"];
+    labels.forEach((label,i)=>{
+      const row=first+3+i,section=["PHARMA","HCE","FOOD","ETHICAL","INTERNATIONAL BUSINESS"].includes(label);
+      put(row,["",label],label==="CORPORATE"?"DDE8CF":section?"FFF7DF":"FFFFFF");heights[row]={hpt:20};
+      if(label){const cell=sheet[utils.encode_cell({r:row,c:1})];cell.s.font.bold=true;cell.s.font.italic=true;}
+    });
+    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,9)}});
+  };
+
+  global.fillUnitSellOutPrior = function (workbook, period, achievement = false) {
+    const report=workbook.Sheets.LAPORAN, source=workbook.Sheets.UNIT, utils=global.XLSX.utils;
+    if(!report || !source)return;
+    const norm=(v)=>String(v??"").trim().toUpperCase().replace(/\s+/g," ");
+    const grid=utils.sheet_to_json(source,{header:1,defval:"",raw:true});
+    const rows=utils.sheet_to_json(report,{header:1,defval:"",raw:true});
+    const start=grid.findIndex((row)=>norm(row[0])==="REVENUE TAHUN "+(Number(period.slice(0,4))-(achievement?0:1))+" (SELL OUT)");
+    const target=rows.findIndex((row)=>row.some((v)=>norm(v)==="REVENUE KONIMEX (UNIT) – SELL OUT"));
+    if(start<0 || target<0)return;
+    let header=-1;const sourceRows=new Map();
+    for(let r=start+1;r<grid.length;r++) {
+      if(/^(?:REVENUE|TARGET) TAHUN 20\d{2}/.test(norm(grid[r][0])))break;
+      if((achievement || grid[r].some((v)=>norm(v)==="TOTAL")) && grid[r].some((v)=>/^YTD(?:\s|$)/.test(norm(v))))header=r;
+      if(norm(grid[r][1]))sourceRows.set(norm(grid[r][1]),r);
+    }
+    if(header<0)return;
+    const mapping={"PHARMA":["TOTAL GB 1","TOTAL GB 4"],"HCE":["TOTAL GB 2","TOTAL GB 3"],"FOOD":["TOTAL GB 5","TOTAL GB 6"],"ETHICAL":["TOTAL ETHICAL"],"INTERNATIONAL BUSINESS":["IB"]};
+    for(let gb=1;gb<=6;gb++)mapping["GB "+gb]=["TOTAL GB "+gb];
+    mapping.CORPORATE=[...Array.from({length:6},(_,i)=>"TOTAL GB "+(i+1)),"TOTAL ETHICAL","IB"];
+    const numeric=(v)=>typeof v==="number" && Number.isFinite(v);
+    const columns=achievement ? [["G",grid[header].findIndex((v)=>/^YTD(?:\s|$)/.test(norm(v)))]] : [["C",grid[header].findIndex((v)=>norm(v)==="TOTAL")],["D",grid[header].findIndex((v)=>/^YTD(?:\s|$)/.test(norm(v)))]];
+    for(let r=target+3;r<rows.length;r++) {
+      if(rows[r].some((v)=>/^(?:REVENUE KONIMEX|RATIO |MTM CONTRIBUTION|MCM KONIMEX)/.test(norm(v))))break;
+      const labels=mapping[norm(rows[r][1])];if(!labels)continue;
+      for(const [column,index]of columns) {
+        if(index<0)continue;
+        const refs=labels.filter((label)=>sourceRows.has(label)).map((label)=>utils.encode_cell({r:sourceRows.get(label),c:index}));
+        const values=refs.map((ref)=>source[ref]?.v),cell=report[column+(r+1)] || (report[column+(r+1)]={});
+        delete cell.f;delete cell.F;delete cell.w;cell.z="#,##0;[Red]-#,##0";
+        if(!values.some(numeric)){cell.t="s";cell.v="";continue;}
+        cell.t="n";cell.v=values.reduce((sum,v)=>sum+(numeric(v)?v:0),0);
+        cell.f=refs.map((ref)=>"'UNIT'!"+ref).join("+");
+      }
+    }
+    // Division subtotals refer to the GB values displayed directly below them.
+    const targetRows=new Map();
+    for(let r=target+3;r<rows.length;r++) {
+      if(rows[r].some((v)=>/^(?:REVENUE KONIMEX|RATIO |MTM CONTRIBUTION|MCM KONIMEX)/.test(norm(v))))break;
+      targetRows.set(norm(rows[r][1]),r);
+    }
+    for(const [division,groups]of [["PHARMA",[1,4]],["HCE",[2,3]],["FOOD",[5,6]]]) {
+      const row=targetRows.get(division),members=groups.map((gb)=>targetRows.get("GB "+gb));
+      if(row==null || members.some((r)=>r==null))continue;
+      for(const [column] of columns) {
+        const refs=members.map((r)=>column+(r+1)),values=refs.map((ref)=>report[ref]?.v);
+        const cell=report[column+(row+1)];delete cell.f;delete cell.F;delete cell.w;
+        if(!values.some(numeric)){cell.t="s";cell.v="";continue;}
+        cell.t="n";cell.v=values.reduce((sum,v)=>sum+(numeric(v)?v:0),0);cell.f=refs.join("+");
+      }
+    }
+    const corporate=targetRows.get("CORPORATE");
+    const corporateMembers=["PHARMA","HCE","FOOD","ETHICAL","INTERNATIONAL BUSINESS"].map((label)=>targetRows.get(label));
+    if(corporate!=null && corporateMembers.every((r)=>r!=null)) {
+      for(const [column] of columns) {
+        const refs=corporateMembers.map((r)=>column+(r+1)),values=refs.map((ref)=>report[ref]?.v);
+        const cell=report[column+(corporate+1)];delete cell.f;delete cell.F;delete cell.w;
+        if(!values.some(numeric)){cell.t="s";cell.v="";continue;}
+        cell.t="n";cell.v=values.reduce((sum,v)=>sum+(numeric(v)?v:0),0);cell.f=refs.join("+");
+      }
+    }
+
+  };
+
   global.addReportTitle = function (workbook, period) {
     const sheet = workbook.Sheets.LAPORAN;
     if (!sheet) throw new Error("Sheet LAPORAN tidak ditemukan.");

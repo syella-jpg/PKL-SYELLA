@@ -2,16 +2,18 @@
   const $ = id => document.getElementById(id);
   const search = $('report-search');
   if (search) {
-    const sections = Array.from(document.querySelectorAll('main section.analysis'));
     const normalize = value => value.toLocaleLowerCase('id').replace(/\s+/g, ' ').trim();
     function filterReports() {
+      const sections = Array.from(document.querySelectorAll('main section.analysis'));
       const query = normalize(search.value);
       const terms = query.split(' ').filter(Boolean);
       let matches = 0;
       sections.forEach(section => {
         const headings = Array.from(section.querySelectorAll('h3, h4'), heading => heading.textContent);
         const values = Array.from(section.querySelectorAll('textarea'), field => field.value);
-        const content = normalize([...headings, ...values].join(' '));
+        const title = section.querySelector('.slide-title')?.value || '';
+        const content = normalize([...headings, title, ...values].join(' '));
+        if (section.nextElementSibling?.classList.contains('add-slide-row')) section.nextElementSibling.hidden = !terms.every(term => content.includes(term));
         section.hidden = !terms.every(term => content.includes(term));
         if (!section.hidden) matches++;
       });
@@ -27,7 +29,7 @@
       filterReports();
       search.focus();
     });
-    sections.forEach(section => section.addEventListener('input', filterReports));
+    document.querySelector('main').addEventListener('input', event => { if (event.target.matches('textarea, .slide-title')) filterReports(); });
     filterReports();
   }
   // The multi-section page does not use the legacy single-analysis editor below.
