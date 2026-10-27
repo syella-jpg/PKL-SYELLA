@@ -28,6 +28,32 @@ try {
     if (!$manifest->loadXML($zip->getFromName('META-INF/manifest.xml'), LIBXML_NONET)) throw new RuntimeException('Manifest template tidak valid.');
     if (!$base || !$styles) throw new RuntimeException('Template slide analisis tidak valid.');
     foreach ($slides as $i => $slide) {
+        $dividerAssets = ['manufacturing-support' => 'ManufacturingSupport', 'marketing-sales' => 'MarketingSales'];
+        $dividerType = $slide['type'] ?? '';
+        if (is_string($dividerType) && isset($dividerAssets[$dividerType])) {
+            $page = $base->cloneNode(false);
+            $page->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:drawing:1.0', 'draw:name', $dividerType . '-' . ($i + 1));
+            $page->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:drawing:1.0', 'draw:master-page-name', 'Default_20_16');
+            $frame = $doc->createElementNS('urn:oasis:names:tc:opendocument:xmlns:drawing:1.0', 'draw:frame');
+            foreach (['x'=>'0cm', 'y'=>'0cm', 'width'=>'25.4cm', 'height'=>'14.288cm'] as $key => $value) {
+                $frame->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0', 'svg:' . $key, $value);
+            }
+            $picture = $doc->createElementNS('urn:oasis:names:tc:opendocument:xmlns:drawing:1.0', 'draw:image');
+            $imagePath = 'Pictures/' . $dividerAssets[$dividerType] . '.png';
+            $picture->setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', $imagePath);
+            $picture->setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:type', 'simple');
+            $picture->setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:show', 'embed');
+            $picture->setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:actuate', 'onLoad');
+            $frame->appendChild($picture);
+            $page->appendChild($frame);
+            $presentation->appendChild($page);
+            if (!$zip->addFile(__DIR__ . '/assets/tm-bod/' . $dividerType . '.png', $imagePath)) throw new RuntimeException('Gambar pembatas presentasi tidak tersedia.');
+            $entry = $manifest->createElementNS('urn:oasis:names:tc:opendocument:xmlns:manifest:1.0', 'manifest:file-entry');
+            $entry->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:manifest:1.0', 'manifest:full-path', $imagePath);
+            $entry->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:manifest:1.0', 'manifest:media-type', 'image/png');
+            $manifest->documentElement->appendChild($entry);
+            continue;
+        }
         $values = $slide['fields'] ?? null;
         $sizes = $slide['fontSizes'] ?? null;
         if (!is_array($values) || !array_is_list($values) || count($values) !== 3 || !is_array($sizes) || !array_is_list($sizes) || count($sizes) !== 3) {

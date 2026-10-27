@@ -80,6 +80,9 @@
       Object.entries({ href, x, y, width, height }).forEach(([key, value]) => node.setAttribute(key, value));
       svg.append(node);
     }
+    if (['manufacturing-support', 'marketing-sales'].includes(slide.type)) {
+      image(`assets/tm-bod/${slide.type}.png`, 0, 0, 960, 540);
+    } else {
     image(slide.type === 'cover' ? 'assets/tm-bod/cover-background.png' : 'assets/tm-bod/slide-background.png', 0, 0, 960, 540);
     if (slide.type !== 'cover') image('assets/tm-bod/slide-logo.png', 33, 8, 140, 83);
     if (slide.bodyImage) image(slide.bodyImage, 34, 158, 820, 310);
@@ -96,6 +99,7 @@
       });
       svg.append(text);
     });
+    }
     $('preview-slide').replaceChildren(svg);
     $('slide-position').textContent = `Slide ${position + 1} dari ${slides.length}`;
     $('previous-slide').disabled = position === 0;
@@ -126,7 +130,16 @@
         { ...fitText(dateLabel, 24, 500, 40, 16), x: 40, y: 324 }
       ];
       slides.unshift({ type: 'cover', name: 'Cover', fields: coverLayout.map(item => item.lines.join('\n')), fontSizes: coverLayout.map(item => item.size), layout: coverLayout, bodyImage: '' });
-      position = selectedIndex + 1;
+      const dividers = [
+        { after: /^Executive Summary$/i, type: 'manufacturing-support', name: 'Manufacturing & Support' },
+        { after: /^Rekap keluhan OEM\s*\(justified\)$/i, type: 'marketing-sales', name: 'Marketing & Sales' }
+      ];
+      // Locate source analyses by title so added dividers do not shift later anchors.
+      const insertions = dividers.map(divider => ({ ...divider, index: savedSections.findIndex(section => divider.after.test(section.title.trim())) })).filter(divider => divider.index >= 0);
+      insertions.sort((a, b) => b.index - a.index).forEach(divider => {
+        slides.splice(divider.index + 2, 0, { type: divider.type, name: divider.name, fields: ['', '', ''], fontSizes: [24,24,24], layout: [], bodyImage: '' });
+      });
+      position = selectedIndex + 1 + insertions.filter(divider => selectedIndex > divider.index).length;
       render();
       const tooLong = slides.some(slide => slide.layout.some(item => item.overflow) || slide.fields.some(value => new TextEncoder().encode(value).length > 12000));
       $('preview-status').textContent = tooLong ? 'Ada analisis terlalu panjang untuk satu slide. Ringkas isinya lalu simpan kembali sebelum mengunduh.' : '';
