@@ -402,10 +402,6 @@
       renderChart();
     }
   });
-  window.addEventListener("focus", () => {
-    chartBooks.clear();
-    renderChart();
-  });
   function getChartWorkbook(period) {
     if (!chartBooks.has(period)) {
       const pending = buildReportWorkbook(period).then((book) => {
@@ -1120,9 +1116,7 @@
     document.querySelectorAll(".sec").forEach((b) => b.classList.toggle("on", b.dataset.sec === st.sec));
     document.querySelectorAll("#menu button").forEach((b) => b.classList.toggle("on", b.dataset.r === st.report));
     document.querySelectorAll("#tabs button").forEach((b) => { const on = b.dataset.t === st.tab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
-    const my = ++token;
-    cur = await getData();
-    if (my !== token) return; // abaikan hasil lama bila pengguna sudah pindah
+    // Cards and charts both use LAPORAN; the legacy chart endpoint is unnecessary.
     renderCards(); renderChart(); renderNotes();
   }
   /* ---------- Scroll horizontal tanpa scrollbar (roda mouse + geser dengan mouse) ---------- */

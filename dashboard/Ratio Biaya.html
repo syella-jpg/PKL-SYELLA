@@ -257,7 +257,28 @@
   });
 
   /* ---------- Data ---------- */
-  async function getData() {
+  const dashboardData = new Map();
+  window.addEventListener("storage", (event) => {
+    if (event.key === null || /^konimex_/.test(event.key) && event.key !== "konimex_notes") {
+      dashboardData.clear();
+      render();
+    }
+  });
+  function getData() {
+    const key = JSON.stringify([st.report, st.tab, st.period]);
+    if (!dashboardData.has(key)) {
+      const pending = loadData().then((data) => {
+        if (!data && dashboardData.get(key) === pending) dashboardData.delete(key);
+        return data;
+      }).catch((error) => {
+        if (dashboardData.get(key) === pending) dashboardData.delete(key);
+        throw error;
+      });
+      dashboardData.set(key, pending);
+    }
+    return dashboardData.get(key);
+  }
+  async function loadData() {
     if (DATA_URL) {
       try {
         const q = new URLSearchParams({ report: st.report, tab: st.tab, period: st.period });
@@ -269,7 +290,7 @@
     return (DATA[st.report] && DATA[st.report][st.tab]) || null;
   }
   // Dipanggil dari luar setelah file diupload: setDashboardData("Nama Laporan", "Corporate", {cards, chart})
-  window.setDashboardData = (report, tab, obj) => { (DATA[report] = DATA[report] || {})[tab] = obj; render(); };
+  window.setDashboardData = (report, tab, obj) => { (DATA[report] = DATA[report] || {})[tab] = obj; dashboardData.clear(); render(); };
 
   /* ---------- Kartu KPI ---------- */
   function renderCards() {
@@ -413,8 +434,9 @@
     document.querySelectorAll("#menu button").forEach((b) => b.classList.toggle("on", b.dataset.r === st.report));
     document.querySelectorAll("#tabs button").forEach((b) => { const on = b.dataset.t === st.tab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
     const my = ++token;
-    cur = await getData();
+    const next = await getData();
     if (my !== token) return; // abaikan hasil lama bila pengguna sudah pindah
+    cur = next;
     renderCards(); renderChart(); renderNotes();
   }
   /* ---------- Scroll horizontal tanpa scrollbar (roda mouse + geser dengan mouse) ---------- */
