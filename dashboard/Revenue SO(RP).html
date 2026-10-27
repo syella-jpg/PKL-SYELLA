@@ -184,6 +184,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
+<script src="report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="report-templates.js?v=revenue-thousands-20261022"></script>
 <script>
@@ -753,8 +754,15 @@
     })();
     let processed = null;
     let achievementError = "";
-    try { processed = await loadAchievement(selectedPeriod); }
-    catch (error) { achievementError = error && error.message ? error.message : String(error); }
+    const achievementPending = loadAchievement(selectedPeriod).catch((error) => {
+      achievementError = error && error.message ? error.message : String(error);
+      return null;
+    });
+    let previousYearError = "";
+    const previousYearPending = loadPreviousYearRevenue((reportYear - 1) + "-12").catch((error) => {
+      previousYearError = error && error.message ? error.message : String(error);
+      return { totals: new Map(), monthTotals: new Map() };
+    });
     const loadTargetYear = async (year) => {
       let saved = sellOutTargetHistory[String(year)] || null;
       try {
@@ -773,15 +781,10 @@
       loadTargetYear(targetYear),
       loadTargetYear(reportYear)
     ]);
+    processed = await achievementPending;
     const hasAchievement = processed && Array.isArray(processed.rows) && processed.rows.length;
     const hasTarget = targetData && Array.isArray(targetData.rows) && targetData.rows.length;
-    let previousYear = { totals: new Map(), monthTotals: new Map() };
-    let previousYearError = "";
-    try {
-      previousYear = await loadPreviousYearRevenue((reportYear - 1) + "-12");
-    } catch (error) {
-      previousYearError = error && error.message ? error.message : String(error);
-    }
+    const previousYear = await previousYearPending;
     const hasPreviousYear = previousYear.totals.size > 0;
     const hasCurrentTarget = currentTargetData && Array.isArray(currentTargetData.rows) && currentTargetData.rows.length;
     if (!hasAchievement && !hasTarget && !hasCurrentTarget && !hasPreviousYear) {
@@ -1144,7 +1147,7 @@
   hScroll($("tabs"));
   hScroll($("cards"));
 
-  render();
+  if (window.parent === window) render();
 </script>
 <script src="chart-hover.js"></script>
 </body>
