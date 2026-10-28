@@ -96,6 +96,15 @@
     .head { padding-top: 52px; }
     .ctrl { flex-wrap: wrap; margin-right: 0; }
     }
+  .note-creation-credit { display:block; text-align:right; margin:0 0 8px; padding:0; background:none; border:0; box-shadow:none; height:auto; font-size:11px; font-weight:400; line-height:1.5; color:#6b7280; overflow-wrap:anywhere; }
+  .note-edit-credit { display:block; margin-top:4px; font-size:11px; color:#6b7280; }
+  .note footer .note-to-tm-bod { padding:5px 9px; border:1px solid #d8d2f4; border-radius:7px; color:#6450bd; font-size:11px; cursor:pointer; }
+  .note-to-tm-bod:hover { background:#f0edff; }
+  .note-actions { display: inline-flex; align-items: center; gap: 8px; }
+  .note-delete { display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 7px; cursor: pointer; }
+  .note-delete:hover { background: #fff0f0; }
+  .note-edit { display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 7px; color: #6450bd; }
+  .note-edit:hover { background: #f0edff; }
 </style>
 </head>
 <body>
@@ -155,7 +164,8 @@
 
     <section class="notes">
       <h3>Catatan</h3>
-      <div id="notes"></div>
+
+    <div id="notes"></div>
     </section>
   </div>
 </main>
@@ -163,6 +173,9 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script src="report-api-cache.js"></script>
+<script src="analysis-store.js"></script>
+<script src="analysis-to-tm-bod.js"></script>
+<script src="analysis-lock.js"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -377,31 +390,92 @@
 
   /* ---------- Catatan analisis ---------- */
   const NK = "konimex_notes";
-  function loadNotes() { try { return JSON.parse(localStorage.getItem(NK)) || {}; } catch (e) { return {}; } }
-  function saveNotes(o) { try { localStorage.setItem(NK, JSON.stringify(o)); return true; } catch (e) { return false; } }
+  function loadNotes() { return window.AnalysisStore.snapshot(); }
+  async function saveNotes(o) { return window.AnalysisStore.save(o); }
   const nkey = () => st.report + "|" + st.tab;
   let memNotes = {};
+  window.AnalysisLock.configure({field:$("note"),toolbar:$("noteToolbar"),context:()=>({report:st.report,tab:st.tab}),notify:toast,refresh:()=>renderNotes()});
 
+  let editingNote = null;
+  function noteEditorIdentity() {
+    try {
+      const user = JSON.parse(sessionStorage.getItem('konimex_login_user') || 'null');
+      return user && typeof user.username === 'string' ? {username: user.username, role: typeof user.role === 'string' ? user.role : ''} : null;
+    } catch (_) { return null; }
+  }
+  function noteCreationCredit(note) {
+    const person = note.createdBy;
+    const identity = person && typeof person.username === 'string'
+      ? 'Dibuat oleh ' + person.username : 'Dibuat';
+    return '<header class="note-creation-credit">' + esc(identity) + ' · ' + esc(note.date) + '</header>';
+  }
+  function noteEditCredit(note) {
+    if (!note.updatedAt) return '';
+    const person = note.updatedBy;
+    const identity = person && typeof person.username === 'string'
+      ? ' oleh ' + person.username : '';
+    return '<small class="note-edit-credit">Diedit' + esc(identity) + ' · ' + esc(note.updatedAt) + '</small>';
+  }
+  const pencilIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6L16 3Z"/><path d="m14 5 5 5"/></svg>';
+  const trashIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';
   function renderNotes() {
+    window.AnalysisLock.context();
+    if (!window.AnalysisStore.loaded) {
+      $("notes").textContent = "Memuat analisis…";
+      window.AnalysisStore.ready().then(() => renderNotes()).catch((error) => { $("notes").textContent = error.message; });
+      return;
+    }
+    if (editingNote && editingNote.key !== nkey()) { editingNote = null; $("note").value = ""; $("save").textContent = "Simpan"; }
     const all = Object.assign({}, memNotes, loadNotes());
     const list = all[nkey()] || [];
     $("notes").innerHTML = list.length ? list.map((n) =>
-      '<article class="note"><p>' + esc(n.text) + "</p><footer><span>Dibuat: " + esc(n.date) + '</span><button data-id="' + n.id + '">Hapus</button></footer></article>').join("")
+      '<article class="note">' + noteCreationCredit(n) + '<p>' + esc(n.text) + "</p><footer><span>" + '' + noteEditCredit(n) + '</span><span class="note-actions">' + window.AnalysisToTmBod.button(n.id) + '<button class="note-edit" data-action="edit" aria-label="Edit analisis" title="Edit analisis" data-id="' + n.id + '">' + pencilIcon + '</button><button class="note-delete" aria-label="Hapus analisis" title="Hapus analisis" data-id="' + n.id + '">' + trashIcon + '</button></span></footer></article>').join("")
       : '<p class="none">Belum ada catatan untuk laporan ini.</p>';
-    $("notes").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    $("notes").querySelectorAll("button").forEach((b) => b.onclick = async () => {
+      if (b.dataset.action === "tm-bod") {
+        b.disabled = true;
+        try { await window.AnalysisToTmBod.send(b.dataset.id, st.period, toast); }
+        finally { b.disabled = false; }
+        return;
+      }
+      try { await window.AnalysisLock.ensure(); }
+      catch (_) { return; }
       const o = Object.assign({}, memNotes, loadNotes());
+      if (b.dataset.action === "edit") {
+        const note = (o[nkey()] || []).find((n) => String(n.id) === b.dataset.id);
+        if (!note) return;
+        editingNote = {id: String(note.id), key: nkey()};
+        $("note").value = note.text;
+        $("save").textContent = "Simpan perubahan";
+        $("note").focus(); $("note").scrollIntoView({behavior:"smooth",block:"center"});
+        return;
+      }
+      if (editingNote?.id === b.dataset.id) { editingNote = null; $("note").value = ""; $("save").textContent = "Simpan"; }
       o[nkey()] = (o[nkey()] || []).filter((n) => String(n.id) !== b.dataset.id);
-      memNotes = o; saveNotes(o); renderNotes();
+      try { await saveNotes(o); await window.AnalysisLock.release(); memNotes = {}; renderNotes(); }
+      catch (error) { toast(error.message); }
     });
   }
-  $("cancel").onclick = () => { $("note").value = ""; toast("Dibatalkan"); };
-  $("save").onclick = () => {
+  $("cancel").onclick = () => { window.AnalysisLock.release(); editingNote = null; $("save").textContent = "Simpan"; $("note").value = ""; toast("Dibatalkan"); };
+  $("save").onclick = async () => {
+    if (!window.AnalysisStore.loaded) { toast("Analisis belum terhubung ke database. Muat ulang halaman dan periksa koneksi."); return; }
     const text = $("note").value.trim();
     if (!text) { toast("Tulis analisis terlebih dahulu."); $("note").focus(); return; }
+    try { await window.AnalysisLock.ensure(); } catch (_) { return; }
     const date = new Date().toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
     const o = Object.assign({}, memNotes, loadNotes());
-    (o[nkey()] = o[nkey()] || []).unshift({ id: Date.now(), text, date });
-    memNotes = o; saveNotes(o);
+    const list = o[nkey()] = o[nkey()] || [];
+    if (editingNote && editingNote.key === nkey()) {
+      const note = list.find((n) => String(n.id) === editingNote.id);
+      if (!note) { toast("Analisis tidak ditemukan. Muat ulang halaman."); return; }
+      Object.assign(note, {text, updatedAt: date, updatedBy: noteEditorIdentity()});
+    } else list.unshift({id: Date.now(), text, date, createdBy: noteEditorIdentity()});
+    $("save").disabled = true;
+    try { await saveNotes(o); await window.AnalysisLock.release(); }
+    catch (error) { toast(error.message); return; }
+    finally { $("save").disabled = false; }
+    editingNote = null; $("save").textContent = "Simpan";
+    memNotes = {};
     $("note").value = ""; renderNotes(); toast("Catatan tersimpan");
   };
 
@@ -463,5 +537,7 @@
 </script>
 <script src="shared-report-download.js"></script>
 <script src="chart-hover.js"></script>
+<script src="scrollbar-auto-hide.js"></script>
+<script src="sidebar-toggle.js"></script>
 </body>
 </html>

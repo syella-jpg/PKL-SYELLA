@@ -227,18 +227,37 @@
   });
 
   // Validasi sederhana
-  document.getElementById('loginForm').addEventListener('submit', (e) => {
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const user = document.getElementById('user').value.trim();
     if (!user || !pass.value) {
       error.textContent = 'Isi username/email dan password.';
       return;
     }
-    if (user !== 'test 1' || pass.value !== 'test 1') {
+    const validAccount = (user === 'test 1' && pass.value === 'test 1')
+      || (user === 'admin 2' && pass.value === 'admin 2')
+      || (user === 'admin 1' && pass.value === 'admin 1');
+    if (!validAccount) {
       error.textContent = 'Username atau password salah.';
       return;
     }
     error.textContent = '';
+    let transferToken = null;
+    if (user === 'admin 1') {
+      try {
+        const endpoint = location.protocol === 'file:' ? 'http://127.0.0.1:8000/api/report.php?endpoint=tm_bod_analysis_api' : '../api/report.php?endpoint=tm_bod_analysis_api';
+        const response = await fetch(endpoint, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',username:user,password:pass.value})});
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Login admin 1 gagal.');
+        transferToken = result.token;
+      } catch (failure) { error.textContent = failure.message || 'Server login admin 1 tidak dapat dihubungi.'; return; }
+    }
+    try {
+      sessionStorage.setItem('konimex_login_user', JSON.stringify({username: user, role: 'Administrator', transferToken}));
+    } catch (_) {
+      error.textContent = 'Sesi login tidak dapat disimpan. Izinkan penyimpanan browser lalu coba lagi.';
+      return;
+    }
     window.location.href = '../menu/page.html';
   });
 </script>

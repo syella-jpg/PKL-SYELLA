@@ -15,6 +15,11 @@
   } catch (_) {}
   async function loadDraft() {
     previewVersion++;
+    const requestedQuarter=$('quarter').value,requestedYear=$('cover-year').value;
+    try { await window.TmBodIncoming?.load(requestedYear,requestedQuarter); }
+    catch(error) { $('preview-status').textContent=error.message; }
+    if(requestedQuarter!==$('quarter').value || requestedYear!==$('cover-year').value)return;
+    window.TmBodIncoming?.render(sections);
     if (window.TmBodEditor?.initEditor) restoreCustomSlides();
     const values = drafts[$('quarter').value];
     fields.forEach((field, index) => {
@@ -167,7 +172,8 @@
   function savedCustom(q) { return Array.isArray(drafts[customKey(q)]) ? drafts[customKey(q)] : []; }
   function savedValue(section, q, values, customs) {
     if (section.dataset?.customId) return customs.find(item => item.id === section.dataset.customId)?.value || '';
-    return values[sections.indexOf(section)] || '';
+    const value=values[sections.indexOf(section)] || '';
+    return window.TmBodIncoming?.merge(section,value) || value;
   }
   function snapshotSections(ordered, q, values, customs) {
     return ordered.map(item => {
@@ -297,9 +303,33 @@
   }
   sections.forEach(bindSave);
   $('quarter').addEventListener('change', loadDraft);
+  $('cover-year').addEventListener('change',loadDraft);
+  async function refreshIncoming() {
+    try {
+      const q=$('quarter').value,year=$('cover-year').value;
+      const changed=await window.TmBodIncoming?.load(year,q);
+      if(q!==$('quarter').value || year!==$('cover-year').value)return;
+      window.TmBodIncoming?.render(sections);
+      if(changed && !busy) {
+        const values=Array.isArray(drafts[q])?drafts[q]:[],ordered=allSections();
+        const first=ordered.findIndex(section=>hasSavedValue(savedValue(section,q,values,savedCustom(q))));
+        if(first>=0)await openPreview(snapshotSections(ordered,q,values,savedCustom(q)),q,slides.length?Math.min(position,ordered.length-1):first);
+      }
+    } catch (_) { /* Keep the previously loaded analysis visible while offline. */ }
+  }
+  window.addEventListener('storage',event=>{if(event.key==='tm-bod-incoming-updated')refreshIncoming();});
+  window.addEventListener('focus',refreshIncoming);
+  setInterval(()=>{if(!document.hidden)refreshIncoming();},15000);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   $('cover-date').value = today;
   $('cover-year').value = today.slice(0, 4);
+  try {
+    const incomingPeriod=localStorage.getItem('tm-bod-incoming-period');
+    if(/^20\d{2}-(0[1-9]|1[0-2])$/.test(incomingPeriod||'')){
+      $('cover-year').value=incomingPeriod.slice(0,4);
+      $('quarter').value='Q'+Math.ceil(Number(incomingPeriod.slice(5,7))/3);
+    }
+  } catch (_) {}
   loadDraft();
   $('previous-slide').onclick = () => { if (position > 0) { position--; render(); } };
   $('next-slide').onclick = () => { if (position < slides.length - 1) { position++; render(); } };

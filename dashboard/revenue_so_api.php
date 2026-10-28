@@ -87,7 +87,18 @@ $sql = "
     ORDER BY id ASC
 ";
 
-$stmt = $conn->prepare($sql);
+try {
+    $stmt = $conn->prepare($sql);
+} catch (mysqli_sql_exception $error) {
+    error_log('Revenue Selling Out API: '.$error->getMessage());
+    http_response_code(500);
+    $message = (int)$error->getCode() === 1146
+        ? 'Tabel revenue_selling_out tidak ditemukan pada database yang dipakai server PHP. Jika memakai TiDB, atur DB_HOST, DB_PORT, DB_USER, DB_PASSWORD dan DB_NAME lalu restart server PHP. Pastikan skema dan data Revenue Selling Out tersedia pada database tujuan.'
+        : 'Query Revenue Selling Out gagal. Periksa log server dan struktur database.';
+    echo json_encode(['success'=>false,'message'=>$message]);
+    $conn->close();
+    exit;
+}
 if (!$stmt) {
     echo json_encode(['success' => false, 'message' => 'Query gagal: ' . $conn->error]);
     $conn->close();
