@@ -6,10 +6,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     exit;
 }
 $temp = null;
+$designConnection = null;
 try {
     $input = json_decode(file_get_contents('php://input'), true, 32, JSON_THROW_ON_ERROR);
     $slides = $input['slides'] ?? null;
     if (!is_array($slides) || !array_is_list($slides) || count($slides) < 1 || count($slides) > 200) throw new InvalidArgumentException('Diperlukan 1 sampai 200 slide analisis.');
+    $backgrounds=null;$annualDesign=null;
+    if(isset($input['year'])) {
+        require_once __DIR__.'/../includes/database.php';
+        require_once __DIR__.'/../includes/tm_bod_annual.php';
+        require_once __DIR__.'/../includes/tm_bod_design.php';
+        $designYear=filter_var($input['year'],FILTER_VALIDATE_INT);
+        if(!$designYear||$designYear<2026||$designYear>2100)throw new InvalidArgumentException('Tahun desain tidak valid.');
+        $designConnection=openReportConnection();ensureTmBodAnnual($designConnection);
+        $annualTemplate=tmBodActiveTemplate($designConnection,$designYear);
+        $backgrounds=tmBodBackgrounds($designConnection,$annualTemplate,$designYear);$annualDesign=$annualTemplate['design']??null;
+        if(($input['designId']??null)!==($backgrounds['uploadId']??null))throw new InvalidArgumentException('Desain aktif telah berubah. Muat ulang halaman sebelum mengunduh.');
+    }
     $temp = tempnam(sys_get_temp_dir(), 'tm-bod-');
     if (!$temp || !copy(__DIR__ . '/assets/tm-bod/analysis-template.odp', $temp)) throw new RuntimeException('Template tidak tersedia.');
     $zip = new ZipArchive();
@@ -27,9 +40,23 @@ try {
     $manifest = new DOMDocument();
     if (!$manifest->loadXML($zip->getFromName('META-INF/manifest.xml'), LIBXML_NONET)) throw new RuntimeException('Manifest template tidak valid.');
     if (!$base || !$styles) throw new RuntimeException('Template slide analisis tidak valid.');
+    $putDesignBackground = static function ($page,string $data,int $index) use ($doc,$zip,$manifest): void {
+        if(!str_starts_with($data,'data:image/png;base64,'))throw new InvalidArgumentException('Background tidak valid.');
+        $bytes=base64_decode(substr($data,22),true);if($bytes===false||!getimagesizefromstring($bytes))throw new InvalidArgumentException('Gambar background tidak valid.');
+        $path='Pictures/AnnualDesign-'.$index.'.png';$zip->addFromString($path,$bytes);
+        $frame=$doc->createElementNS('urn:oasis:names:tc:opendocument:xmlns:drawing:1.0','draw:frame');
+        foreach(['x'=>'0cm','y'=>'0cm','width'=>'25.4cm','height'=>'14.288cm'] as $key=>$value)$frame->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0','svg:'.$key,$value);
+        $image=$doc->createElementNS('urn:oasis:names:tc:opendocument:xmlns:drawing:1.0','draw:image');
+        $image->setAttributeNS('http://www.w3.org/1999/xlink','xlink:href',$path);$image->setAttributeNS('http://www.w3.org/1999/xlink','xlink:type','simple');$frame->appendChild($image);$page->insertBefore($frame,$page->firstChild);
+        $entry=$manifest->createElementNS('urn:oasis:names:tc:opendocument:xmlns:manifest:1.0','manifest:file-entry');$entry->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:manifest:1.0','manifest:full-path',$path);$entry->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:manifest:1.0','manifest:media-type','image/png');$manifest->documentElement->appendChild($entry);
+    };
     foreach ($slides as $i => $slide) {
         $dividerAssets = ['manufacturing-support' => 'ManufacturingSupport', 'marketing-sales' => 'MarketingSales'];
         $dividerType = $slide['type'] ?? '';
+        if($backgrounds && is_string($dividerType) && isset($dividerAssets[$dividerType])) {
+            $page=$base->cloneNode(false);$page->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:drawing:1.0','draw:name',$dividerType.'-'.($i+1));
+            $putDesignBackground($page,$backgrounds['analysis'],$i);$presentation->appendChild($page);continue;
+        }
         if (is_string($dividerType) && isset($dividerAssets[$dividerType])) {
             $page = $base->cloneNode(false);
             $page->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:drawing:1.0', 'draw:name', $dividerType . '-' . ($i + 1));
@@ -72,6 +99,7 @@ try {
                 }
             }
         }
+        if($backgrounds)$putDesignBackground($page,$backgrounds[$isCover?'cover':'analysis'],$i);
         $presentation->appendChild($page);
         $boxes = $xp->query('./draw:frame/draw:text-box', $page);
         foreach ($values as $k => $value) {
@@ -87,7 +115,8 @@ try {
             $properties->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0', 'fo:font-size', ($size * 0.75) . 'pt');
             $properties->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0', 'fo:font-family', 'Arial');
             $properties->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0', 'fo:font-weight', $k < 2 ? 'bold' : 'normal');
-            if ($isCover) $properties->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0', 'fo:color', '#ffffff');
+            if($annualDesign)$properties->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0','fo:color',$annualDesign[$isCover?'coverColor':'analysisColor']);
+            elseif ($isCover) $properties->setAttributeNS('urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0', 'fo:color', '#ffffff');
             $style->appendChild($properties);
             $styles->appendChild($style);
             $box = $boxes->item($k);
@@ -143,5 +172,6 @@ try {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['message' => $e->getMessage()]);
 } finally {
+    if ($designConnection) $designConnection->close();
     if ($temp && is_file($temp)) unlink($temp);
 }

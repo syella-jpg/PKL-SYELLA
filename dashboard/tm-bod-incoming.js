@@ -3,7 +3,7 @@
  const norm=v=>String(v??'').trim().replace(/\s+/g,' ').toUpperCase();
  let notes=[],generation=0;
  const title=section=>section.querySelector('h4')?.textContent||section.querySelector('h3')?.textContent;
- const selected=section=>notes.filter(note=>String(note.destination).split('|').some(destination=>norm(destination)===norm(title(section))));
+ const selected=section=>notes.filter(note=>Array.isArray(note.destination_ids)&&note.destination_ids.length ? note.destination_ids.includes(section.dataset?.templateId) : String(note.destination).split('|').some(destination=>norm(destination)===norm(title(section))));
  const escape=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  async function load(year,quarter){
   const requestGeneration=++generation;

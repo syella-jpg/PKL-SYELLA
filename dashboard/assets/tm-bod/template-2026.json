@@ -1,0 +1,400 @@
+{
+    "slides": [
+        {
+            "id": "base-0",
+            "title": "Executive Summary",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-1",
+            "title": "Financial Perspective:",
+            "subtitle": "DOI Finished Goods Total (Kx dan MNJ)",
+            "enabled": true
+        },
+        {
+            "id": "base-2",
+            "title": "Financial Perspective:",
+            "subtitle": "UPB KX",
+            "enabled": true
+        },
+        {
+            "id": "base-3",
+            "title": "Financial Perspective:",
+            "subtitle": "UPB MNJ",
+            "enabled": true
+        },
+        {
+            "id": "base-4",
+            "title": "Internal Business Process:",
+            "subtitle": "BRANCH AVAILABILITY (BA)",
+            "enabled": true
+        },
+        {
+            "id": "base-5",
+            "title": "Financial Perspective:",
+            "subtitle": "Stok Near ED FG Kx & MNJ - FARMA",
+            "enabled": true
+        },
+        {
+            "id": "base-6",
+            "title": "Financial Perspective:",
+            "subtitle": "Stok Near ED FG Kx & MNJ - HEC",
+            "enabled": true
+        },
+        {
+            "id": "base-7",
+            "title": "Financial Perspective:",
+            "subtitle": "Stok Near ED FG Kx & MNJ – GB 5",
+            "enabled": true
+        },
+        {
+            "id": "base-8",
+            "title": "Financial Perspective:",
+            "subtitle": "Stok Near ED FG Kx & MNJ – GB 6",
+            "enabled": true
+        },
+        {
+            "id": "base-9",
+            "title": "Financial Perspective:",
+            "subtitle": "Stok Near ED FG Kx & MNJ – ETHICAL",
+            "enabled": true
+        },
+        {
+            "id": "base-10",
+            "title": "Financial Perspective:",
+            "subtitle": "Cost Savings",
+            "enabled": true
+        },
+        {
+            "id": "base-11",
+            "title": "Internal Business Process: Service Level Kx to MNJ",
+            "subtitle": "Service Level Kx to MNJ",
+            "enabled": true
+        },
+        {
+            "id": "base-12",
+            "title": "Issue BB BK :",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-13",
+            "title": "SERVICE LEVEL REASON  JUNE 2026",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-14",
+            "title": "OUT OF STOCK REASON JUNE 2026",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-15",
+            "title": "RECEIVING FGs IN END OF THE MONTH JUNE 2026 REASON",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-16",
+            "title": "Internal Business Process:",
+            "subtitle": "Service Level MNJ to MT",
+            "enabled": true
+        },
+        {
+            "id": "base-17",
+            "title": "Internal Business Process:",
+            "subtitle": "OTF & Launch",
+            "enabled": true
+        },
+        {
+            "id": "base-18",
+            "title": "Recall & Complain",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-19",
+            "title": "Keluhan Justified Farmasi dan Natpro",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-20",
+            "title": "Keluhan Justified Food",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-21",
+            "title": "Rekap keluhan OEM (justified)",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-22",
+            "title": "Financial Perspective:",
+            "subtitle": "KX Revenue Selling In (Rp)",
+            "enabled": true
+        },
+        {
+            "id": "base-23",
+            "title": "Financial Perspective:",
+            "subtitle": "KX Revenue Selling In",
+            "enabled": true
+        },
+        {
+            "id": "base-24",
+            "title": "Financial Perspective:",
+            "subtitle": "KX Revenue Selling Out",
+            "enabled": true
+        },
+        {
+            "id": "base-25",
+            "title": "Rasio Sell Out vs Sell in Kx",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-26",
+            "title": "Risalah TM Q4 2025 :",
+            "subtitle": "Definisi Revenue Selling Out",
+            "enabled": true
+        },
+        {
+            "id": "base-27",
+            "title": "Financial Perspective:",
+            "subtitle": "KX Revenue Selling Out (Rp)",
+            "enabled": true
+        },
+        {
+            "id": "base-28",
+            "title": "Financial Perspective:",
+            "subtitle": "Revenue Divisi Farma (Rp)",
+            "enabled": true
+        },
+        {
+            "id": "base-29",
+            "title": "Financial Perspective:",
+            "subtitle": "Selling Out Farma",
+            "enabled": true
+        },
+        {
+            "id": "base-30",
+            "title": "Rasio Sell Out vs Sell in Div. Farma (unit)",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-31",
+            "title": "Financial Perspective:",
+            "subtitle": "Rasio Biaya & Rasio MCM Farma",
+            "enabled": true
+        },
+        {
+            "id": "base-32",
+            "title": "Financial Perspective:",
+            "subtitle": "HEC Revenue (Rp)",
+            "enabled": true
+        },
+        {
+            "id": "base-33",
+            "title": "Financial Perspective:",
+            "subtitle": "KX Revenue (Rp)",
+            "enabled": true
+        },
+        {
+            "id": "base-34",
+            "title": "Financial Perspective:",
+            "subtitle": "Rasio Biaya & Rasio MCM HEC",
+            "enabled": true
+        },
+        {
+            "id": "base-35",
+            "title": "Financial Perspective:",
+            "subtitle": "GB 5 Revenue (Rp)",
+            "enabled": true
+        },
+        {
+            "id": "base-36",
+            "title": "Rasio Sell Out vs Sell in GB 5 (unit)",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-37",
+            "title": "Rasio Sell Out vs Sell in GB 5 (unit)",
+            "subtitle": "Rasio Biaya & Rasio MCM GB 5",
+            "enabled": true
+        },
+        {
+            "id": "base-38",
+            "title": "Rasio Sell Out vs Sell in GB 5 (unit)",
+            "subtitle": "GB 6 Revenue (Rp)",
+            "enabled": true
+        },
+        {
+            "id": "base-39",
+            "title": "Rasio Sell Out vs Sell in GB 6 (unit)",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-40",
+            "title": "Financial Perspective:",
+            "subtitle": "Rasio Biaya & Rasio MCM GB 6",
+            "enabled": true
+        },
+        {
+            "id": "base-41",
+            "title": "Financial Perspective:",
+            "subtitle": "Ethical Revenue Selling Out (Rp)",
+            "enabled": true
+        },
+        {
+            "id": "base-42",
+            "title": "Rasio Sell Out vs Sell in ETHICAL",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-43",
+            "title": "Financial Perspective:",
+            "subtitle": "Rasio Biaya & Rasio MCM ETHICAL",
+            "enabled": true
+        },
+        {
+            "id": "base-44",
+            "title": "Financial Perspective:",
+            "subtitle": "KX Revenue - MTM",
+            "enabled": true
+        },
+        {
+            "id": "base-45",
+            "title": "Financial Perspective:",
+            "subtitle": "IB Revenue (Rp) IB",
+            "enabled": true
+        },
+        {
+            "id": "base-46",
+            "title": "Financial Perspective:",
+            "subtitle": "Rasio Biaya & EBITDA IB",
+            "enabled": true
+        },
+        {
+            "id": "base-47",
+            "title": "Risalah Meeting",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-48",
+            "title": "Financial Perspective:",
+            "subtitle": "MNJ Revenue (Rp)",
+            "enabled": true
+        },
+        {
+            "id": "base-49",
+            "title": "Internal Bussines MNJ – KWH & KPH 2026",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-50",
+            "title": "Internal Bussines MNJ - CPM 2026",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-51",
+            "title": "Risalah Meeting",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
+            "id": "base-52",
+            "title": "Financial Perspective: Rasio Biaya & Rasio MCM MNJ",
+            "subtitle": "Rasio Biaya & Rasio MCM MNJ",
+            "enabled": true
+        },
+        {
+            "id": "base-53",
+            "title": "STRATEGIC IT DEVELOPMENT",
+            "subtitle": "",
+            "enabled": true
+        }
+    ],
+    "routes": {
+        "Revenue Konimex Selling Out (RP)|Corporate": [
+            "base-27"
+        ],
+        "Revenue Konimex Selling Out (RP)|Pharma": [
+            "base-28"
+        ],
+        "Revenue Konimex Selling Out (RP)|HCE": [
+            "base-32"
+        ],
+        "Revenue Konimex Selling Out (RP)|Food": [
+            "base-35",
+            "base-38"
+        ],
+        "Revenue Konimex Selling Out (RP)|Ethical": [
+            "base-41"
+        ],
+        "Revenue Konimex Selling Out (RP)|International Business": [
+            "base-45"
+        ],
+        "Revenue Konimex Selling Out (RP)|MTM": [
+            "base-44"
+        ],
+        "Revenue Konimex Selling In (RP)|Korporat": [
+            "base-22"
+        ],
+        "Revenue Konimex Selling In (RP)|Ekspor": [
+            "base-45"
+        ],
+        "MCM Konimex Sell In (RP)|Pharma": [
+            "base-31"
+        ],
+        "MCM Konimex Sell In (RP)|HCE": [
+            "base-34"
+        ],
+        "MCM Konimex Sell In (RP)|Food": [
+            "base-37",
+            "base-40"
+        ],
+        "MCM Konimex Sell In (RP)|Ethical": [
+            "base-43"
+        ],
+        "MCM Konimex Sell In (RP)|EBITDA IB": [
+            "base-46"
+        ],
+        "Ratio Biaya (Biaya vs Selling in)|Pharma": [
+            "base-31"
+        ],
+        "Ratio Biaya (Biaya vs Selling in)|HCE": [
+            "base-34"
+        ],
+        "Ratio Biaya (Biaya vs Selling in)|Food": [
+            "base-37",
+            "base-40"
+        ],
+        "Ratio Biaya (Biaya vs Selling in)|Ethical": [
+            "base-43"
+        ],
+        "Revenue Konimex Sell Out (Unit)|Corporate": [
+            "base-24"
+        ],
+        "Revenue Konimex Sell Out (Unit)|Pharma": [
+            "base-29"
+        ],
+        "Revenue Konimex Sell Out (Unit)|Food": [
+            "base-36",
+            "base-39"
+        ],
+        "Revenue Konimex Sell Out (Unit)|Ethical": [
+            "base-42"
+        ]
+    }
+}

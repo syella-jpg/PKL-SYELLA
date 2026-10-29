@@ -1,16 +1,30 @@
-(() => {
+(async () => {
+  await window.TmBodAnnualReady;
   const $ = id => document.getElementById(id);
   const panel = $('ppt-preview');
+  const previewToggle = $('toggle-ppt-preview');
+  let previewVisible = false;
+  function applyPreviewVisibility() {
+    panel.hidden = !previewVisible;
+    $('report-workspace').classList.toggle('with-preview', previewVisible);
+    previewToggle.setAttribute('aria-expanded', String(previewVisible));
+    previewToggle.title = previewVisible ? 'Sembunyikan preview PPT' : 'Tampilkan preview PPT';
+  }
+  previewToggle.onclick = () => {
+    previewVisible = !previewVisible;
+    applyPreviewVisibility();
+  };
+  applyPreviewVisibility();
   const sections = Array.from(document.querySelectorAll('main section.analysis'));
   const fields = sections.flatMap(section => Array.from(section.querySelectorAll('textarea')));
   const saveButtons = sections.map(section => section.querySelector('.section-save'));
   const statuses = sections.map(section => section.querySelector('.section-save-status'));
   function disableSaving(disabled) { saveButtons.forEach(button => { button.disabled = disabled; }); }
   const readValue = value => window.TmBodEditor ? window.TmBodEditor.read(value) : { text: typeof value === 'string' ? value : '', html: '', image: '' };
-  const storageKey = 'tm-bod-sections-v1';
+  const storageKey = 'tm-bod-sections-v2-' + (window.TmBodAnnual?.year || '2026');
   let drafts = {};
   try {
-    const stored = JSON.parse(localStorage.getItem(storageKey));
+    const stored = JSON.parse(localStorage.getItem(storageKey) || ((window.TmBodAnnual?.year || '2026') === '2026' ? localStorage.getItem('tm-bod-sections-v1') : 'null'));
     if (stored && typeof stored === 'object' && !Array.isArray(stored)) drafts = stored;
   } catch (_) {}
   async function loadDraft() {
@@ -21,6 +35,14 @@
     if(requestedQuarter!==$('quarter').value || requestedYear!==$('cover-year').value)return;
     window.TmBodIncoming?.render(sections);
     if (window.TmBodEditor?.initEditor) restoreCustomSlides();
+    const qKey=$('quarter').value;
+    if(Array.isArray(drafts[qKey])) {
+      const savedIds=drafts[qKey+'-section-ids'] || window.TmBodAnnual?.baselineIds || sections.map((section,i)=>'base-'+i);
+      const byId=new Map([...savedIds.map((id,i)=>[id,drafts[qKey][i]]),...Object.entries(drafts[qKey+'-section-values']||{})]);
+      drafts[qKey+'-section-values']=Object.fromEntries(byId);
+      drafts[qKey]=sections.map(section=>byId.get(section.dataset.templateId)||'');
+      drafts[qKey+'-section-ids']=sections.map(section=>section.dataset.templateId);
+    }
     const values = drafts[$('quarter').value];
     fields.forEach((field, index) => {
       const value = Array.isArray(values) ? values[index] : '';
@@ -28,7 +50,7 @@
       setSectionLocked(sections[index], hasSavedValue(value));
     });
     slides = [];
-    panel.hidden = false;
+    applyPreviewVisibility();
     const placeholder = document.createElement('div');
     placeholder.className = 'preview-placeholder';
     placeholder.textContent = 'Klik Simpan pada salah satu kotak analisis untuk melihat slide di sini.';
@@ -38,7 +60,7 @@
     $('previous-slide').disabled = true;
     $('next-slide').disabled = true;
     $('preview-download').disabled = true;
-    $('report-workspace').classList.remove('with-preview');
+    applyPreviewVisibility();
     statuses.forEach(status => { status.textContent = ''; });
     $('report-search')?.dispatchEvent(new Event('input'));
     const q = $('quarter').value;
@@ -94,16 +116,17 @@
       Object.entries({ href, x, y, width, height }).forEach(([key, value]) => node.setAttribute(key, value));
       svg.append(node);
     }
+    const backgrounds=window.TmBodAnnual?.backgrounds,design=window.TmBodAnnual?.design;
     if (['manufacturing-support', 'marketing-sales'].includes(slide.type)) {
-      image(`assets/tm-bod/${slide.type}.png`, 0, 0, 960, 540);
+      image(backgrounds?.analysis || `assets/tm-bod/${slide.type}.png`, 0, 0, 960, 540);
     } else {
-    image(slide.type === 'cover' ? 'assets/tm-bod/cover-background.png' : 'assets/tm-bod/slide-background.png', 0, 0, 960, 540);
-    if (slide.type !== 'cover') image('assets/tm-bod/slide-logo.png', 33, 8, 140, 83);
+    image((slide.type === 'cover' ? backgrounds?.cover : backgrounds?.analysis) || (slide.type === 'cover' ? 'assets/tm-bod/cover-background.png' : 'assets/tm-bod/slide-background.png'), 0, 0, 960, 540);
+    if (slide.type !== 'cover' && !backgrounds) image('assets/tm-bod/slide-logo.png', 33, 8, 140, 83);
     if (slide.bodyImage) image(slide.bodyImage, 34, 158, 820, 310);
     slide.layout.forEach((layout, index) => {
       if (index === 2 && slide.bodyImage) return;
       const text = document.createElementNS(ns, 'text');
-      Object.entries({ x: layout.x, y: layout.y + layout.size, 'font-family': 'Arial, sans-serif', 'font-size': layout.size, fill: slide.type === 'cover' ? '#fff' : '#111', 'font-weight': index < 2 ? 'bold' : 'normal' }).forEach(([key, value]) => text.setAttribute(key, value));
+      Object.entries({ x: layout.x, y: layout.y + layout.size, 'font-family': 'Arial, sans-serif', 'font-size': layout.size, fill: slide.type === 'cover' ? (design?.coverColor||'#fff') : (design?.analysisColor||'#111'), 'font-weight': index < 2 ? 'bold' : 'normal' }).forEach(([key, value]) => text.setAttribute(key, value));
       layout.lines.forEach((line, lineIndex) => {
         const span = document.createElementNS(ns, 'tspan');
         span.setAttribute('x', layout.x);
@@ -121,8 +144,8 @@
   }
   async function openPreview(savedSections, savedQuarter, selectedIndex) {
     const version = ++previewVersion;
-    panel.hidden = false;
-    $('report-workspace').classList.add('with-preview');
+    applyPreviewVisibility();
+    applyPreviewVisibility();
     $('preview-download').disabled = true;
     try {
       const restoredSlides = await Promise.all(savedSections.map(async ({ title, subtitle, value, rich }) => {
@@ -166,7 +189,7 @@
   // Base values keep their original indices; inserted slides use stable IDs.
   const customKey = q => q + '-custom-slides';
   let customSections = [];
-  const baseId = section => 'base-' + sections.indexOf(section);
+  const baseId = section => section.dataset.templateId || 'base-' + sections.indexOf(section);
   function allSections() { return window.TmBodEditor?.initEditor ? Array.from(document.querySelectorAll('main section.analysis')) : sections; }
   function sectionId(section) { return section.dataset?.customId || baseId(section); }
   function savedCustom(q) { return Array.isArray(drafts[customKey(q)]) ? drafts[customKey(q)] : []; }
@@ -241,7 +264,7 @@
         if (!title) { status.textContent = 'Isi judul slide terlebih dahulu.'; section.querySelector('.slide-title').focus(); return; }
         const record = customs.find(item => item.id === section.dataset.customId); record.title = title; record.value = value;
       } else values[sections.indexOf(section)] = value;
-      const next = { ...drafts, [q]: values, [customKey(q)]: customs };
+      const next = { ...drafts, [q]: values, [q+'-section-ids']:sections.map(section=>section.dataset.templateId||baseId(section)), [q+'-section-values']:{...(drafts[q+'-section-values']||{}),...Object.fromEntries(sections.map((section,i)=>[section.dataset.templateId||baseId(section),values[i]]))}, [customKey(q)]: customs };
       try { localStorage.setItem(storageKey, JSON.stringify(next)); drafts = next; }
       catch (_) { status.textContent = 'Gagal menyimpan di browser. Periksa ruang penyimpanan lalu coba kembali.'; return; }
       const ordered = allSections();
@@ -303,7 +326,7 @@
   }
   sections.forEach(bindSave);
   $('quarter').addEventListener('change', loadDraft);
-  $('cover-year').addEventListener('change',loadDraft);
+  $('cover-year').addEventListener('change',()=>{const year=$('cover-year').value;if(/^20\d{2}$/.test(year)&&Number(year)>=2026)window.TmBodAnnual.navigateYear(year);});
   async function refreshIncoming() {
     try {
       const q=$('quarter').value,year=$('cover-year').value;
@@ -322,14 +345,7 @@
   setInterval(()=>{if(!document.hidden)refreshIncoming();},15000);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   $('cover-date').value = today;
-  $('cover-year').value = today.slice(0, 4);
-  try {
-    const incomingPeriod=localStorage.getItem('tm-bod-incoming-period');
-    if(/^20\d{2}-(0[1-9]|1[0-2])$/.test(incomingPeriod||'')){
-      $('cover-year').value=incomingPeriod.slice(0,4);
-      $('quarter').value='Q'+Math.ceil(Number(incomingPeriod.slice(5,7))/3);
-    }
-  } catch (_) {}
+  if (!window.TmBodAnnual) $('cover-year').value = today.slice(0, 4);
   loadDraft();
   $('previous-slide').onclick = () => { if (position > 0) { position--; render(); } };
   $('next-slide').onclick = () => { if (position < slides.length - 1) { position++; render(); } };
@@ -345,7 +361,7 @@
         throw new Error('Untuk mengunduh presentasi, buka halaman melalui server aplikasi (PHP). Simpan dan preview tetap dapat digunakan dari file lokal.');
       }
       const endpoint = new URL('../api/report.php?endpoint=tm_bod_download', location.href);
-      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slides: slides.map(({ type, fields, fontSizes, bodyImage }) => ({ type, fields, fontSizes, bodyImage })) }) });
+      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year:Number($('cover-year').value), designId:window.TmBodAnnual?.backgrounds?.uploadId||null, slides: slides.map(({ type, fields, fontSizes, bodyImage }) => ({ type, fields, fontSizes, bodyImage })) }) });
       if (!response.ok) {
         let message = `Unduhan gagal (HTTP ${response.status}).`;
         try { message = (await response.json()).message || message; } catch (_) {}
