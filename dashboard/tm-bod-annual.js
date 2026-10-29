@@ -17,8 +17,9 @@
   const response=await fetch(url,options);const result=await response.json();if(!response.ok||!result.success)throw new Error(result.message||'Template gagal dimuat.');return result;
  }
  const initial=Array.from(document.querySelectorAll('main section.analysis'));
- const original=new Map(initial.map((section,index)=>{section.dataset.templateId='base-'+index;return [section.dataset.templateId,section];}));
- const baselineIds=initial.map(section=>section.dataset.templateId);
+ let baselineIndex=0;
+ const original=new Map(initial.map(section=>{if(!section.dataset.templateId)section.dataset.templateId='base-'+baselineIndex++;return [section.dataset.templateId,section];}));
+ const baselineIds=initial.map(section=>section.dataset.templateId).filter(id=>/^base-\d+$/.test(id));
  const status=document.createElement('p');status.style.cssText='margin:12px 28px;font-size:12px;color:#6b7280';
  $('report-workspace').before(status);
  function navigateYear(next){const url=new URL(location.href);url.searchParams.set('year',next);url.searchParams.set('quarter',$('quarter').value);location.href=url.href;}

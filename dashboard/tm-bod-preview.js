@@ -19,7 +19,17 @@
   const fields = sections.flatMap(section => Array.from(section.querySelectorAll('textarea')));
   const saveButtons = sections.map(section => section.querySelector('.section-save'));
   const statuses = sections.map(section => section.querySelector('.section-save-status'));
-  function disableSaving(disabled) { saveButtons.forEach(button => { button.disabled = disabled; }); }
+  function hasAnalysisContent(value) {
+    const content = readValue(value);
+    return !!(content.text.replace(/[\s\u200B-\u200D\uFEFF]/g, '') || content.images?.length || content.image);
+  }
+  function updateSaveState(section, disabled = false) {
+    const field = section.querySelector('textarea');
+    section.querySelector('.section-save').disabled = disabled || !hasAnalysisContent(field.richEditor ? field.richEditor.get() : field.value);
+  }
+  function disableSaving(disabled) {
+    document.querySelectorAll('main section.analysis').forEach(section => updateSaveState(section, disabled));
+  }
   const readValue = value => window.TmBodEditor ? window.TmBodEditor.read(value) : { text: typeof value === 'string' ? value : '', html: '', image: '' };
   const storageKey = 'tm-bod-sections-v2-' + (window.TmBodAnnual?.year || '2026');
   let drafts = {};
@@ -27,12 +37,30 @@
     const stored = JSON.parse(localStorage.getItem(storageKey) || ((window.TmBodAnnual?.year || '2026') === '2026' ? localStorage.getItem('tm-bod-sections-v1') : 'null'));
     if (stored && typeof stored === 'object' && !Array.isArray(stored)) drafts = stored;
   } catch (_) {}
+  let loadingContent = false, loadGeneration = 0;
+  async function persistDraft(next, q, action = 'save') {
+    if (!window.TmBodContentStore) throw new Error('Modul database belum dimuat. Muat ulang halaman.');
+    await window.TmBodContentStore.save($('cover-year').value, q, next, action);
+    drafts = next;
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch (_) { /* Database is authoritative; browser storage is only a cache. */ }
+  }
   async function loadDraft() {
     previewVersion++;
     const requestedQuarter=$('quarter').value,requestedYear=$('cover-year').value;
+    const generation = ++loadGeneration;
+    loadingContent = true;
+    disableSaving(true);
+    let loadWarning = '';
+    try {
+      if (!window.TmBodContentStore) throw new Error('Modul database belum dimuat. Muat ulang halaman.');
+      const content = await window.TmBodContentStore.load(requestedYear, requestedQuarter);
+      if (generation !== loadGeneration) return;
+      if (content) Object.assign(drafts, content);
+    } catch (error) { loadWarning = error.message; }
+    if (generation !== loadGeneration) return;
     try { await window.TmBodIncoming?.load(requestedYear,requestedQuarter); }
     catch(error) { $('preview-status').textContent=error.message; }
-    if(requestedQuarter!==$('quarter').value || requestedYear!==$('cover-year').value)return;
+    if(generation !== loadGeneration || requestedQuarter!==$('quarter').value || requestedYear!==$('cover-year').value)return;
     window.TmBodIncoming?.render(sections);
     if (window.TmBodEditor?.initEditor) restoreCustomSlides();
     const qKey=$('quarter').value;
@@ -61,11 +89,14 @@
     $('next-slide').disabled = true;
     $('preview-download').disabled = true;
     applyPreviewVisibility();
-    statuses.forEach(status => { status.textContent = ''; });
+    statuses.forEach(status => { status.textContent = loadWarning ? loadWarning + ' Isi browser ditampilkan sebagai cadangan.' : ''; });
     $('report-search')?.dispatchEvent(new Event('input'));
     const q = $('quarter').value;
     const customs = savedCustom(q);
     const ordered = allSections();
+    await showPreviousQuarter(ordered, requestedYear, requestedQuarter);
+    if(generation !== loadGeneration || requestedQuarter!==$('quarter').value || requestedYear!==$('cover-year').value)return;
+    loadingContent = false; disableSaving(false);
     const firstSaved = ordered.findIndex(section => hasSavedValue(savedValue(section, q, Array.isArray(values) ? values : [], customs)));
     if (firstSaved >= 0) await openPreview(snapshotSections(ordered, q, Array.isArray(values) ? values : [], customs), q, firstSaved);
   }
@@ -207,7 +238,7 @@
     });
   }
   async function deleteCustomSlide(section) {
-    if (busy) return;
+    if (busy || loadingContent) return;
     const q = $('quarter').value;
     const before = allSections();
     const selectedIndex = Math.max(0, before.indexOf(section) - 1);
@@ -219,8 +250,10 @@
       records.push({ id: item.dataset.customId, after: sectionId(ordered[index - 1]), title: saved?.title || 'Slide baru', value: saved?.value || '' });
     });
     const next = { ...drafts, [customKey(q)]: records };
-    try { localStorage.setItem(storageKey, JSON.stringify(next)); drafts = next; }
-    catch (_) { section.querySelector('.section-save-status').textContent = 'Slide belum dihapus karena penyimpanan browser gagal. Coba kembali.'; return; }
+    busy = true; disableSaving(true); $('quarter').disabled = true;
+    try { await persistDraft(next, q); }
+    catch (error) { section.querySelector('.section-save-status').textContent = error.message; return; }
+    finally { busy = false; disableSaving(false); $('quarter').disabled = false; }
     records.forEach(record => { const item = customSections.find(item => item.dataset.customId === record.id); item.dataset.after = record.after; });
     if (section.nextElementSibling?.classList.contains('add-slide-row')) section.nextElementSibling.remove();
     section.remove(); customSections = customSections.filter(item => item !== section);
@@ -229,6 +262,68 @@
     try { await openPreview(snapshotSections(ordered, q, values, records), q, Math.min(selectedIndex, ordered.length - 1)); }
     finally { busy = false; disableSaving(false); $('quarter').disabled = false; }
     $('report-search')?.dispatchEvent(new Event('input'));
+  }
+  let previousGeneration = 0;
+  async function showPreviousQuarter(ordered, year, q) {
+    if (!window.TmBodPrevious) return;
+    const generation = ++previousGeneration;
+    ordered.forEach(section => section.querySelector('.previous-quarter')?.remove());
+    const previous = window.TmBodPrevious.period(year, q);
+    const data = window.TmBodPrevious.stored(localStorage, previous.year);
+    let incoming = [], unavailable = false, contentUnavailable = false;
+    try {
+      const content = await window.TmBodContentStore.load(previous.year, previous.quarter);
+      if (content) Object.assign(data, content);
+    } catch (_) { contentUnavailable = true; }
+    try { incoming = await window.TmBodIncoming?.fetchNotes(previous.year, previous.quarter) || []; }
+    catch (_) { unavailable = true; }
+    if (generation !== previousGeneration || year !== $('cover-year').value || q !== $('quarter').value) return;
+    ordered.forEach(section => {
+      const local = window.TmBodPrevious.value(data, previous.quarter, sectionId(section), window.TmBodAnnual?.baselineIds);
+      const value = window.TmBodIncoming?.merge(section, local, incoming) || local;
+      const rich = readValue(value);
+      const filled = !!(rich.text.trim() || rich.html || rich.images?.length || rich.image);
+      const panel = document.createElement('div'); panel.className = 'previous-quarter';
+      const heading = document.createElement('h5'); heading.textContent = `Isi kuartal sebelumnya — ${previous.quarter} ${previous.year}`;
+      const content = document.createElement('div'); content.className = 'previous-quarter-content';
+      if (rich.html) content.innerHTML = rich.html; // readValue sanitizes saved rich text.
+      else { content.textContent = rich.text || 'Belum ada isi pada kuartal sebelumnya.'; content.style.whiteSpace = 'pre-wrap'; }
+      (rich.images || (rich.image ? [rich.image] : [])).forEach(src => {
+        const image = document.createElement('img'); image.src = src; image.alt = 'Gambar analisis kuartal sebelumnya'; content.append(image);
+      });
+      panel.append(heading, content);
+      if (unavailable || contentUnavailable) {
+        const warning = document.createElement('p'); warning.textContent = 'Sebagian isi kuartal sebelumnya belum dapat dimuat dari database. Cadangan browser ditampilkan jika tersedia.'; panel.append(warning);
+      }
+      if (filled) {
+        const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'btn save'; copy.textContent = 'Gunakan kembali';
+        const confirmation = document.createElement('div'); confirmation.hidden = true;
+        const explanation = document.createElement('p'); explanation.textContent = 'Isi editor saat ini akan diganti. Isi kuartal sebelumnya tetap tersimpan.';
+        const yes = document.createElement('button'); yes.type = 'button'; yes.className = 'btn save'; yes.textContent = 'Ganti isi editor';
+        const no = document.createElement('button'); no.type = 'button'; no.className = 'btn cancel'; no.textContent = 'Batal';
+        confirmation.append(explanation, yes, no); panel.append(copy, confirmation);
+        const apply = () => {
+          if (busy || loadingContent || year !== $('cover-year').value || q !== $('quarter').value) return;
+          const field = section.querySelector('textarea');
+          if (field.richEditor?.pending()) return;
+          setSectionLocked(section, false);
+          if (field.richEditor) field.richEditor.set(rich); else field.value = rich.text;
+          confirmation.hidden = true;
+          field.dispatchEvent(new Event('input', { bubbles: true }));
+          section.querySelector('.section-save-status').textContent = `Isi ${previous.quarter} disalin. Sesuaikan lalu klik Simpan untuk menyimpan ${q}.`;
+          section.querySelector('.rich-editor')?.focus();
+        };
+        copy.onclick = () => {
+          if (busy || loadingContent) return;
+          const field = section.querySelector('textarea');
+          const current = readValue(field.richEditor ? field.richEditor.get() : field.value);
+          if (current.text.trim() || current.html || current.images?.length) confirmation.hidden = false;
+          else apply();
+        };
+        yes.onclick = apply; no.onclick = () => { confirmation.hidden = true; };
+      }
+      section.append(panel);
+    });
   }
   function hasSavedValue(value) { return value !== null && typeof value === 'object' || typeof value === 'string' && value.trim() !== ''; }
   function setSectionLocked(section, locked) {
@@ -246,11 +341,12 @@
     const field = section.querySelectorAll('textarea')[0];
     if (window.TmBodEditor?.initEditor) {
       const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'btn cancel edit-slide'; edit.textContent = 'Edit'; edit.hidden = true;
-      edit.onclick = () => { if (busy) return; setSectionLocked(section, false); status.textContent = ''; (section.querySelector('.slide-title') || section.querySelector('.rich-editor')).focus(); };
+      edit.onclick = () => { if (busy || loadingContent) return; setSectionLocked(section, false); status.textContent = ''; (section.querySelector('.slide-title') || section.querySelector('.rich-editor')).focus(); };
       button.parentElement.append(edit);
     }
     button.onclick = async () => {
-      if (busy || section._locked) return;
+      if (busy || loadingContent || section._locked) return;
+      if (!hasAnalysisContent(field.richEditor ? field.richEditor.get() : field.value)) { updateSaveState(section); return; }
       if (field.richEditor?.pending()) { status.textContent = 'Tunggu sampai gambar selesai dimuat, lalu klik Simpan.'; return; }
       const q = $('quarter').value;
       const values = fields.map((_, index) => Array.isArray(drafts[q]) ? drafts[q][index] || '' : '');
@@ -265,25 +361,33 @@
         const record = customs.find(item => item.id === section.dataset.customId); record.title = title; record.value = value;
       } else values[sections.indexOf(section)] = value;
       const next = { ...drafts, [q]: values, [q+'-section-ids']:sections.map(section=>section.dataset.templateId||baseId(section)), [q+'-section-values']:{...(drafts[q+'-section-values']||{}),...Object.fromEntries(sections.map((section,i)=>[section.dataset.templateId||baseId(section),values[i]]))}, [customKey(q)]: customs };
-      try { localStorage.setItem(storageKey, JSON.stringify(next)); drafts = next; }
-      catch (_) { status.textContent = 'Gagal menyimpan di browser. Periksa ruang penyimpanan lalu coba kembali.'; return; }
+      busy = true; disableSaving(true); $('quarter').disabled = true;
+      customSections.forEach(item => { item.querySelector('.section-save').disabled = true; });
+      status.textContent = 'Menyimpan ke database…';
+      try { await persistDraft(next, q); }
+      catch (error) { status.textContent = error.message; return; }
+      finally {
+        busy = false; disableSaving(false); $('quarter').disabled = false;
+        customSections.forEach(item => { updateSaveState(item); });
+      }
       const ordered = allSections();
       const savedSections = snapshotSections(ordered, q, values, customs);
       busy = true; disableSaving(true); customSections.forEach(item => { item.querySelector('.section-save').disabled = true; });
       $('quarter').disabled = true;
       setSectionLocked(section, true);
-      status.textContent = '';
+      status.textContent = 'Tersimpan di database.';
       try { await openPreview(savedSections, q, ordered.indexOf(section)); }
-      finally { busy = false; disableSaving(false); customSections.forEach(item => { item.querySelector('.section-save').disabled = false; }); $('quarter').disabled = false; }
+      finally { busy = false; disableSaving(false); customSections.forEach(item => { updateSaveState(item); }); $('quarter').disabled = false; }
     };
-    field.addEventListener('input', () => { status.textContent = 'Ada perubahan. Klik Simpan pada kotak ini untuk memperbarui preview.'; });
+    field.addEventListener('input', () => { updateSaveState(section, busy || loadingContent); status.textContent = 'Ada perubahan. Klik Simpan pada kotak ini untuk memperbarui preview.'; });
+    updateSaveState(section);
   }
   function addControl(section) {
     if (section.nextElementSibling?.classList.contains('add-slide-row')) return;
     const row = document.createElement('div'); row.className = 'add-slide-row';
     const button = document.createElement('button'); button.type = 'button'; button.textContent = '+ Tambah slide';
     button.onclick = () => {
-      if (busy) return;
+      if (busy || loadingContent) return;
       if (allSections().length >= 190) { alert('Jumlah slide sudah mencapai batas.'); return; }
       const item = createCustom({ id: 'custom-' + crypto.randomUUID(), after: sectionId(section), title: '', value: '' }, section);
       if ($('report-search')) { $('report-search').value = ''; $('report-search').dispatchEvent(new Event('input')); }
@@ -350,7 +454,7 @@
   $('previous-slide').onclick = () => { if (position > 0) { position--; render(); } };
   $('next-slide').onclick = () => { if (position < slides.length - 1) { position++; render(); } };
   $('preview-download').onclick = async () => {
-    if (busy) return;
+    if (busy || loadingContent) return;
     busy = true;
     $('preview-download').disabled = true;
     disableSaving(true);

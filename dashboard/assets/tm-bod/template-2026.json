@@ -205,6 +205,12 @@
             "enabled": true
         },
         {
+            "id": "section-hec-sell-ratio-unit",
+            "title": "Rasio Sell Out vs Sell in HEC (unit)",
+            "subtitle": "",
+            "enabled": true
+        },
+        {
             "id": "base-34",
             "title": "Financial Perspective:",
             "subtitle": "Rasio Biaya & Rasio MCM HEC",

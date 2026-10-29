@@ -17,18 +17,12 @@
         section.hidden = !terms.every(term => content.includes(term));
         if (!section.hidden) matches++;
       });
-      $('clear-search').hidden = !search.value;
       $('search-result').textContent = !query
         ? `${sections.length} bagian laporan tersedia.`
         : matches ? `${matches} dari ${sections.length} bagian ditemukan.`
           : 'Tidak ada bagian yang cocok. Coba kata kunci lain.';
     }
     search.addEventListener('input', filterReports);
-    $('clear-search').addEventListener('click', () => {
-      search.value = '';
-      filterReports();
-      search.focus();
-    });
     document.querySelector('main').addEventListener('input', event => { if (event.target.matches('textarea, .slide-title')) filterReports(); });
     filterReports();
   }

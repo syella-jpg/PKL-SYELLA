@@ -78,6 +78,7 @@
   .btn { height: 36px; padding: 0 26px; border-radius: 10px; font-size: 13px; font-weight: 600; }
   .btn.cancel { border: 1.5px solid #9ca3af; background: #fff; color: #374151; }
   .btn.save { border: 0; background: var(--green); color: #fff; }
+  .section-save:disabled { opacity:.45; cursor:not-allowed; }
   .notes { margin: 28px 8px 0; max-width: 760px; }
   .note { background: #fff; border: 1px solid #e5e3f7; border-left: 5px solid var(--side); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 2px 5px rgba(0,0,0,.06); }
   .note p { font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -144,6 +145,13 @@
   .editor-image .image-remove { position:absolute; right:3px; top:3px; width:26px; height:26px; padding:0; border-radius:50%; background:#fff; color:#b91c1c; font-size:22px; line-height:1; box-shadow:0 1px 5px #ccc; }
   .analysis textarea[hidden], .editor-image[hidden] { display:none; }
   .add-slide-row { margin:14px 8px 0; max-width:none; display:flex; justify-content:center; }
+  .add-slide-row[hidden] { display:none; }
+  .previous-quarter { margin-top:20px; padding:16px; border:1px solid #dedbea; border-radius:12px; background:#fff; }
+  .previous-quarter h5 { margin:0 0 12px; font-size:13px; color:#58516d; }
+  .previous-quarter-content { max-height:280px; overflow:auto; overflow-wrap:anywhere; font-size:13px; line-height:1.6; }
+  .previous-quarter-content img { display:block; max-width:100%; max-height:220px; object-fit:contain; margin-top:10px; }
+  .previous-quarter .btn { display:inline-flex; align-items:center; justify-content:center; min-height:40px; margin-top:14px; height:auto; padding:10px 20px; border-radius:10px; line-height:1.4; white-space:normal; cursor:pointer; }
+  .previous-quarter p { font-size:12px; color:#64748b; margin:8px 0; }
   .add-slide-row button { padding:8px 20px; border:1px dashed #9b8cff; border-radius:9px; background:#faf9ff; color:#4a3bd4; font:600 13px Arial,sans-serif; }
   .slide-locked .rich-editor { background:#f7f7fb; }
   .slide-locked .editor-toolbar button:disabled { opacity:.45; cursor:default; }
@@ -222,7 +230,6 @@
     <label for="report-search">Cari laporan</label>
     <div class="search-controls">
       <input id="report-search" type="search" placeholder="Cari judul atau isi analisis…" aria-describedby="search-result" autocomplete="off">
-      <button id="clear-search" type="button" hidden>Hapus pencarian</button>
     </div>
     <p id="search-result" role="status" aria-live="polite" aria-atomic="true"></p>
   </div>
@@ -454,6 +461,12 @@
     <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
     <p class="section-save-status" role="status" aria-live="polite"></p>
   </section>
+  <section class="analysis" data-template-id="section-hec-sell-ratio-unit">
+    <h3>Rasio Sell Out vs Sell in HEC (unit) </h3>
+    <textarea placeholder="Tulis isi di sini..."></textarea>
+    <div class="acts"><button class="btn save section-save" type="button">Simpan</button></div>
+    <p class="section-save-status" role="status" aria-live="polite"></p>
+  </section>
   <section class="analysis">
     <h3>Financial Perspective: </h3>
     <h4>Rasio Biaya & Rasio MCM HEC</h4>
@@ -607,10 +620,13 @@
 <script src="tm-bod-editor.js"></script>
 <script src="tm-bod-incoming.js"></script>
 <script src="tm-bod-annual.js"></script>
+<script src="tm-bod-content-store.js"></script>
+<script src="tm-bod-previous.js"></script>
 <script src="tm-bod-preview.js"></script>
 <script src="tm-bod.js"></script>
 <script src="shared-report-download.js"></script>
 <script src="scrollbar-auto-hide.js"></script>
 <script src="sidebar-toggle.js"></script>
+<script src="profile-menu.js"></script>
 </body>
 </html>
