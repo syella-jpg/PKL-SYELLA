@@ -196,6 +196,7 @@
 
 <script src="report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="bod-kx-sell-in.js"></script>
 <script src="report-templates.js?v=revenue-thousands-20261022"></script>
 <script src="analysis-store.js"></script>
 <script src="analysis-to-tm-bod.js"></script>
@@ -1110,7 +1111,7 @@
         }
       }
     });
-    const workbookSheetNames = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    const workbookSheetNames = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX SELL IN", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
     for (let r = 2; r < data.length; r++) {
       for (let c = 2; c < 14; c++) {
         const address = XLSX.utils.encode_cell({ r, c });
@@ -1155,6 +1156,7 @@
     addReportTitle(workbook, selectedPeriod);
     appendMcmReportTable(workbook, selectedPeriod);
     await replaceBodMnjTemplateSheet(workbook, selectedPeriod);
+    await replaceBodKxSellInSheet(workbook, selectedPeriod);
     fillMcmEthicalTarget(workbook, selectedPeriod);
     appendSellingInReportTable(workbook, selectedPeriod);
     appendRatioBiayaReportTable(workbook, selectedPeriod);
