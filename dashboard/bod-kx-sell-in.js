@@ -1,7 +1,7 @@
 (function(global){
  const endpoint=location.protocol==='file:'?'http://127.0.0.1:8000/api/report.php?endpoint=bod_kx_sell_in_api':new URL('../api/report.php?endpoint=bod_kx_sell_in_api',document.currentScript.src).href;
  const months=['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGU','SEP','OKT','NOV','DES'];
- const labels=[['gb1','GB 1'],['gb2','GB 2'],['gb3','GB 3'],['gb4','GB 4'],['pharma','TOT. FARMASI'],['gb5','Biskuit'],['gb6','Candy'],['ethical','Ethical'],['solonat','Ekstraksi Solonat'],['ib_pharma','IB Farmasi'],['ib_food','IB Food'],['kodc','KODC'],['toll_in','Toll In'],['sales','TOTAL SALES']];
+ const layout={"!ref":"A1:P84","A1":{"t":"s","v":"SUMBER DATA : ERP KONIMEX"},"A3":{"t":"s","v":"REALISASI PENJUALAN KONIMEX"},"A4":{"t":"s","v":"TAHUN 2026 ( RP )"},"C5":{"t":"z"},"D5":{"t":"s","v":"JAN"},"E5":{"t":"s","v":"FEB"},"F5":{"t":"s","v":"Mar"},"G5":{"t":"s","v":"Apr"},"H5":{"t":"s","v":"May"},"I5":{"t":"s","v":"Jun"},"J5":{"t":"s","v":"Jul"},"K5":{"t":"s","v":"Aug"},"L5":{"t":"s","v":"Sep"},"M5":{"t":"s","v":"Oct"},"N5":{"t":"s","v":"Nov"},"O5":{"t":"s","v":"Dec"},"P5":{"t":"s","v":"JAN-DES"},"A6":{"t":"s","v":"1.1"},"B6":{"t":"s","v":"GB 1"},"C6":{"t":"z"},"A7":{"t":"s","v":"1.2"},"B7":{"t":"s","v":"GB 2"},"C7":{"t":"z"},"A8":{"t":"s","v":"1.3"},"B8":{"t":"s","v":"GB 3"},"C8":{"t":"z"},"A9":{"t":"s","v":"1.4"},"B9":{"t":"s","v":"GB 4"},"C9":{"t":"z"},"A11":{"t":"z"},"B11":{"t":"s","v":"FARMASI"},"C11":{"t":"z"},"A12":{"t":"z"},"B12":{"t":"s","v":"Biskuit"},"C12":{"t":"z"},"A13":{"t":"z"},"B13":{"t":"s","v":"Candy"},"C13":{"t":"z"},"A14":{"t":"z"},"B14":{"t":"s","v":"Ethical"},"C14":{"t":"z"},"A15":{"t":"z"},"B15":{"t":"s","v":"Ekstraksi Solonat"},"C15":{"t":"z"},"A16":{"t":"z"},"B16":{"t":"s","v":"IB Farmasi"},"C16":{"t":"z"},"A17":{"t":"z"},"B17":{"t":"s","v":"IB Food"},"C17":{"t":"z"},"A18":{"t":"z"},"B18":{"t":"s","v":"KODC"},"C18":{"t":"z"},"A19":{"t":"z"},"B19":{"t":"s","v":"Toll In"},"C19":{"t":"z"},"B20":{"t":"s","v":"TOTAL SALES"},"C20":{"t":"z"},"A22":{"t":"s","v":"FM (GB 1 s/d GB 4 + ETH + EKSTRAKSI SOLONAT + IB FM)"},"B22":{"t":"z"},"C22":{"t":"z"},"D22":{"t":"z"},"E22":{"t":"z"},"F22":{"t":"z"},"G22":{"t":"z"},"H22":{"t":"z"},"I22":{"t":"z"},"J22":{"t":"z"},"K22":{"t":"z"},"L22":{"t":"z"},"M22":{"t":"z"},"N22":{"t":"z"},"O22":{"t":"z"},"P22":{"t":"z"},"A23":{"t":"s","v":"FD (GB 5 + GB 6 + IB FD)"},"B23":{"t":"z"},"C23":{"t":"z"},"D23":{"t":"z"},"E23":{"t":"z"},"F23":{"t":"z"},"G23":{"t":"z"},"H23":{"t":"z"},"I23":{"t":"z"},"J23":{"t":"z"},"K23":{"t":"z"},"L23":{"t":"z"},"M23":{"t":"z"},"N23":{"t":"z"},"O23":{"t":"z"},"P23":{"t":"z"},"A24":{"t":"s","v":"TOTAL SELL IN"},"B24":{"t":"z"},"C24":{"t":"z"},"D24":{"t":"z"},"E24":{"t":"z"},"F24":{"t":"z"},"G24":{"t":"z"},"H24":{"t":"z"},"I24":{"t":"z"},"J24":{"t":"z"},"K24":{"t":"z"},"L24":{"t":"z"},"M24":{"t":"z"},"N24":{"t":"z"},"O24":{"t":"z"},"P24":{"t":"z"},"A27":{"t":"s","v":"TARGET SELL IN (SUMBER DATA DARI DEMAND PLANNING)"},"A28":{"t":"s","v":"TAHUN 2026 ( RP )"},"C29":{"t":"z"},"D29":{"t":"s","v":"JAN"},"E29":{"t":"s","v":"FEB"},"F29":{"t":"s","v":"Mar"},"G29":{"t":"s","v":"Apr"},"H29":{"t":"s","v":"May"},"I29":{"t":"s","v":"Jun"},"J29":{"t":"s","v":"Jul"},"K29":{"t":"s","v":"Aug"},"L29":{"t":"s","v":"Sep"},"M29":{"t":"s","v":"Oct"},"N29":{"t":"s","v":"Nov"},"O29":{"t":"s","v":"Dec"},"P29":{"t":"s","v":"JAN-DES"},"A30":{"t":"s","v":"1.1"},"B30":{"t":"s","v":"GB 1"},"C30":{"t":"z"},"A31":{"t":"s","v":"1.2"},"B31":{"t":"s","v":"GB 2"},"C31":{"t":"z"},"A32":{"t":"s","v":"1.3"},"B32":{"t":"s","v":"GB 3"},"C32":{"t":"z"},"A33":{"t":"s","v":"1.4"},"B33":{"t":"s","v":"GB 4"},"C33":{"t":"z"},"A35":{"t":"z"},"B35":{"t":"s","v":"FARMASI"},"C35":{"t":"z"},"A36":{"t":"z"},"B36":{"t":"s","v":"Biskuit"},"C36":{"t":"z"},"A37":{"t":"z"},"B37":{"t":"s","v":"Candy"},"C37":{"t":"z"},"A38":{"t":"z"},"B38":{"t":"s","v":"Ethical"},"C38":{"t":"z"},"A39":{"t":"z"},"B39":{"t":"s","v":"Ekstraksi Solonat"},"C39":{"t":"z"},"A40":{"t":"z"},"B40":{"t":"s","v":"IB Farmasi"},"C40":{"t":"z"},"A41":{"t":"z"},"B41":{"t":"s","v":"IB Food"},"C41":{"t":"z"},"A42":{"t":"z"},"B42":{"t":"s","v":"KODC"},"C42":{"t":"z"},"A43":{"t":"z"},"B43":{"t":"s","v":"Toll In"},"C43":{"t":"z"},"B44":{"t":"s","v":"TOTAL SALES"},"C44":{"t":"z"},"A47":{"t":"s","v":"REALISASI PENJUALAN KONIMEX"},"A48":{"t":"s","v":"TAHUN 2025 ( RP )"},"C49":{"t":"s","v":"S/D SEP"},"D49":{"t":"s","v":"JAN"},"E49":{"t":"s","v":"FEB"},"F49":{"t":"s","v":"Mar"},"G49":{"t":"s","v":"Apr"},"H49":{"t":"s","v":"May"},"I49":{"t":"s","v":"Jun"},"J49":{"t":"s","v":"Jul"},"K49":{"t":"s","v":"Aug"},"L49":{"t":"s","v":"Sep"},"M49":{"t":"s","v":"Oct"},"N49":{"t":"s","v":"Nov"},"O49":{"t":"s","v":"Dec"},"P49":{"t":"s","v":"JAN-DES"},"A50":{"t":"s","v":"1.1"},"B50":{"t":"s","v":"GB 1"},"C50":{"t":"z"},"A51":{"t":"s","v":"1.2"},"B51":{"t":"s","v":"GB 2"},"C51":{"t":"z"},"A52":{"t":"s","v":"1.3"},"B52":{"t":"s","v":"GB 3"},"C52":{"t":"z"},"A53":{"t":"s","v":"1.4"},"B53":{"t":"s","v":"GB 4"},"C53":{"t":"z"},"A55":{"t":"z"},"B55":{"t":"s","v":"TOT. FARMASI"},"C55":{"t":"z"},"A56":{"t":"z"},"B56":{"t":"s","v":"Biskuit"},"C56":{"t":"z"},"A57":{"t":"z"},"B57":{"t":"s","v":"Candy"},"C57":{"t":"z"},"A58":{"t":"z"},"B58":{"t":"s","v":"Ethical"},"C58":{"t":"z"},"A59":{"t":"z"},"B59":{"t":"s","v":"Ekstraksi Solonat"},"C59":{"t":"z"},"A60":{"t":"z"},"B60":{"t":"s","v":"IB Farmasi"},"C60":{"t":"z"},"A61":{"t":"z"},"B61":{"t":"s","v":"IB Food"},"C61":{"t":"z"},"A62":{"t":"z"},"B62":{"t":"s","v":"KODC"},"C62":{"t":"z"},"A63":{"t":"z"},"B63":{"t":"s","v":"Toll In"},"C63":{"t":"z"},"B64":{"t":"s","v":"TOTAL SALES"},"C64":{"t":"z"},"D64":{"t":"z"},"E64":{"t":"z"},"F64":{"t":"z"},"G64":{"t":"z"},"H64":{"t":"z"},"I64":{"t":"z"},"J64":{"t":"z"},"K64":{"t":"z"},"L64":{"t":"z"},"M64":{"t":"z"},"N64":{"t":"z"},"O64":{"t":"z"},"P64":{"t":"z"},"E65":{"t":"z"},"F65":{"t":"z"},"G65":{"t":"z"},"H65":{"t":"z"},"I65":{"t":"z"},"J65":{"t":"z"},"K65":{"t":"z"},"L65":{"t":"z"},"M65":{"t":"z"},"N65":{"t":"z"},"O65":{"t":"z"},"A67":{"t":"s","v":"TARGET SELL IN (SUMBER DATA DARI DEMAND PLANNING)"},"A68":{"t":"s","v":"TAHUN 2025 ( RP )"},"C69":{"t":"z"},"D69":{"t":"s","v":"JAN"},"E69":{"t":"s","v":"FEB"},"F69":{"t":"s","v":"Mar"},"G69":{"t":"s","v":"Apr"},"H69":{"t":"s","v":"May"},"I69":{"t":"s","v":"Jun"},"J69":{"t":"s","v":"Jul"},"K69":{"t":"s","v":"Aug"},"L69":{"t":"s","v":"Sep"},"M69":{"t":"s","v":"Oct"},"N69":{"t":"s","v":"Nov"},"O69":{"t":"s","v":"Dec"},"P69":{"t":"s","v":"JAN-DES"},"A70":{"t":"s","v":"1.1"},"B70":{"t":"s","v":"GB 1"},"C70":{"t":"z"},"A71":{"t":"s","v":"1.2"},"B71":{"t":"s","v":"GB 2"},"C71":{"t":"z"},"A72":{"t":"s","v":"1.3"},"B72":{"t":"s","v":"GB 3"},"C72":{"t":"z"},"A73":{"t":"s","v":"1.4"},"B73":{"t":"s","v":"GB 4"},"C73":{"t":"z"},"A75":{"t":"z"},"B75":{"t":"s","v":"FARMASI"},"C75":{"t":"z"},"A76":{"t":"z"},"B76":{"t":"s","v":"Biskuit"},"C76":{"t":"z"},"A77":{"t":"z"},"B77":{"t":"s","v":"Candy"},"C77":{"t":"z"},"A78":{"t":"z"},"B78":{"t":"s","v":"Ethical"},"C78":{"t":"z"},"A79":{"t":"z"},"B79":{"t":"s","v":"Ekstraksi Solonat"},"C79":{"t":"z"},"A80":{"t":"z"},"B80":{"t":"s","v":"IB Farmasi"},"C80":{"t":"z"},"A81":{"t":"z"},"B81":{"t":"s","v":"IB Food"},"C81":{"t":"z"},"A82":{"t":"z"},"B82":{"t":"s","v":"KODC"},"C82":{"t":"z"},"A83":{"t":"z"},"B83":{"t":"s","v":"Toll In"},"C83":{"t":"z"},"B84":{"t":"s","v":"TOTAL SALES"},"C84":{"t":"z"},"D84":{"t":"z"},"E84":{"t":"z"},"F84":{"t":"z"},"G84":{"t":"z"},"H84":{"t":"z"},"I84":{"t":"z"},"J84":{"t":"z"},"K84":{"t":"z"},"L84":{"t":"z"},"M84":{"t":"z"},"N84":{"t":"z"},"O84":{"t":"z"},"P84":{"t":"z"},"!merges":[{"s":{"r":21,"c":0},"e":{"r":21,"c":1}},{"s":{"r":22,"c":0},"e":{"r":22,"c":1}},{"s":{"r":23,"c":0},"e":{"r":23,"c":1}}],"!cols":[{"wch":7},{"wch":28},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18},{"wch":18}]};
  const groups={pharma:['gb1','gb2','gb3','gb4'],ib:['ib_pharma','ib_food'],sales:['gb1','gb2','gb3','gb4','gb5','gb6','ethical','solonat','ib_pharma','ib_food','kodc','toll_in']};
  const sum=values=>{const present=values.filter(v=>v!==null);return present.length?present.reduce((a,b)=>a+b,0):null;};
  const numeric=value=>value===null||value===undefined||value===''?null:Number(value);
@@ -25,19 +25,51 @@
  };
  global.fillBodKxSellInMonthly=function(workbook,period,records){
   const year=Number(period.slice(0,4)),month=Number(period.slice(5,7)),utils=global.XLSX.utils;
-  const sheet=utils.aoa_to_sheet([]);sheet['!merges']=[];
-  sheet['!cols']=[{wch:6},{wch:26},...Array.from({length:14},()=>({wch:17}))];
-  for(const [index,targetYear] of [year,year-1].entries()){
-   const first=index*23;
-   utils.sheet_add_aoa(sheet,[['REALISASI PENJUALAN KONIMEX'],['TAHUN '+targetYear+' ( RP )'],['','','S/D '+months[month-1],...months,'JAN-DES']],{origin:{r:first,c:0}});
-   sheet['!merges'].push({s:{r:first,c:0},e:{r:first,c:15}},{s:{r:first+1,c:0},e:{r:first+1,c:15}});
-   labels.forEach(([code,label],i)=>{
-    const r=first+3+i;utils.sheet_add_aoa(sheet,[[i<4?'1.'+(i+1):'',label]],{origin:{r,c:0}});
-    const values=months.map((_,m)=>amount(records,targetYear,m+1,code,'rupiah'));
-    values.forEach((value,m)=>setNumber(sheet,r,m+3,value));
-    setNumber(sheet,r,2,sum(values.slice(0,month)),`SUM(D${r+1}:${utils.encode_col(month+2)}${r+1})`);
-    setNumber(sheet,r,15,sum(values),`SUM(D${r+1}:O${r+1})`);
-   });
+  const sheet=JSON.parse(JSON.stringify(layout));
+  const text=(address,value)=>{sheet[address]={...(sheet[address]||{}),t:'s',v:value};delete sheet[address].f;};
+  const blocks=[{year,first:6,header:5,yearRow:4,target:false},
+   {year,first:30,header:29,yearRow:28,target:true},
+   {year:year-1,first:50,header:49,yearRow:48,target:false},
+   {year:year-1,first:70,header:69,yearRow:68,target:true}];
+  const formula=(row,column,value,range,expression)=>{
+   setNumber(sheet,row-1,column,value);
+   const cell=sheet[utils.encode_cell({r:row-1,c:column})];
+   cell.f=`IF(COUNT(${range})=0,"",${expression||`SUM(${range})`})`;
+   if(value===null){cell.t='s';cell.v='';}
+  };
+  const rowValues=new Map();
+  for(const block of blocks){
+   const {first}=block;
+   text('A'+block.yearRow,'TAHUN '+block.year+' ( RP )');text('C'+block.header,'S/D '+months[month-1]);
+   const mapping=[['gb1',first],['gb2',first+1],['gb3',first+2],['gb4',first+3],['pharma',first+5],
+    ['gb5',first+6],['gb6',first+7],['ethical',first+8],['solonat',first+9],['ib_pharma',first+10],
+    ['ib_food',first+11],['kodc',first+12],['toll_in',first+13],['sales',first+14]];
+   for(const [code,row] of mapping){
+    const values=months.map((_,m)=>block.target?null:amount(records,block.year,m+1,code,'rupiah'));
+    rowValues.set(row,values);
+    values.forEach((value,m)=>{
+     const c=m+3,col=utils.encode_col(c);
+     if(code==='pharma')formula(row,c,value,`${col}${first}:${col}${first+3}`);
+     else if(code==='sales')formula(row,c,value,`${col}${first+5}:${col}${first+13}`);
+     else setNumber(sheet,row-1,c,value);
+    });
+    formula(row,2,sum(values.slice(0,month)),`D${row}:${utils.encode_col(month+2)}${row}`);
+    formula(row,15,sum(values),`D${row}:O${row}`);
+    if(['ib_pharma','ib_food','sales'].includes(code))for(let c=2;c<=15;c++)sheet[utils.encode_cell({r:row-1,c})].z='#,##0';
+   }
+  }
+  // FM and FD follow the supplied business groupings, rather than TOTAL SALES.
+  for(const [row,sources] of [[22,[11,14,15,16]],[23,[12,13,17]],[24,[22,23]]]){
+   const values=months.map((_,m)=>sum(sources.map(source=>rowValues.get(source)?.[m]??null)));
+   rowValues.set(row,values);
+   values.forEach((value,m)=>{const c=m+3,col=utils.encode_col(c),refs=sources.map(source=>col+source).join(',');formula(row,c,value,refs);});
+   formula(row,2,sum(values.slice(0,month)),`D${row}:${utils.encode_col(month+2)}${row}`);
+   formula(row,15,sum(values),`D${row}:O${row}`);
+  }
+  // Repair the circular running-total row in the supplied layout.
+  for(let c=3;c<=14;c++)formula(65,c,sum((rowValues.get(64)||[]).slice(0,c-2)),`D64:${utils.encode_col(c)}64`);
+  for(const [address,cell] of Object.entries(sheet)){
+   if(address[0]!=='!'&&(cell.t==='n'||cell.f)){cell.z='#,##0';delete cell.w;}
   }
   const name='BOD KX SELL IN';
   if(!workbook.SheetNames.includes(name))workbook.SheetNames.push(name);
@@ -52,7 +84,7 @@
     if(rows[r].some(v=>/^(REVENUE TAHUN|TARGET TAHUN)/.test(normalize(v))))break;
     const label=normalize(rows[r][1]);let code;
     const gb=/^TOTAL GB ([1-6])$/.exec(label);
-    if(gb)code='gb'+gb[1];else if(label==='TOTAL ETHICAL')code='ethical';else if(label==='IB')code='ib';else continue;
+    if(gb)code='gb'+gb[1];else if(label==='TOTAL ETHICAL')code='ethical';else if(label==='IB')code='ib';else if(label==='TOTAL TOLL IN')code='toll_in';else if(label==='TOTAL EXTRAKSI SOLONAT')code='solonat';else if(label==='TOTAL KODC')code='kodc';else continue;
     const values=months.map((_,m)=>amount(records,targetYear,m+1,code,'units'));
     values.forEach((value,m)=>setNumber(unit,r,m+3,value));
     setNumber(unit,r,2,sum(values.slice(0,month)),`SUM(D${r+1}:${utils.encode_col(month+2)}${r+1})`);

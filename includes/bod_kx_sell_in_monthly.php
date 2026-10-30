@@ -37,7 +37,7 @@ function parseBodKxSellInMonthly(Worksheet $sheet, string $period): array {
         elseif(str_contains($label,'ETHICAL'))$code='ethical';
         elseif(str_contains($label,'TOLL IN'))$code='toll_in';
         elseif(str_contains($label,'SOLONAT'))$code='solonat';
-        elseif(str_contains($label,'KODC'))$code='kodc';
+        elseif(str_contains($label,'KODC')||str_contains($label,'KONIMEX DIAGNOSTIC CENTER'))$code='kodc';
         if(!$code)continue; // The grand Sub Total and item detail rows are excluded.
         if(isset($result[$code]))throw new InvalidArgumentException('Baris Sub Total '.$code.' berulang; periksa file.');
         $result[$code]=['product'=>$code,'units'=>$number($row[$unit]??null),'rupiah'=>$number($row[$rupiah]??null)];
