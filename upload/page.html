@@ -771,9 +771,9 @@
     setBusy(true);
     try {
       if (sectionSelect.value === "BOD KX Sell In") {
-        await uploadBodKxSellInFile(chosen, periodSelect.value);
+        const saved = await uploadBodKxSellInFile(chosen, periodSelect.value);
         barFill.style.width = "100%";
-        setMsg("BOD KX SELL IN berhasil disimpan untuk " + periodSelect.value + ".", "ok");
+        setMsg(saved.kind === "target" ? "Target SELL IN tahun " + saved.year + " berhasil disimpan dari nilai ROD per GB untuk Januari–Desember." : "BOD KX SELL IN berhasil disimpan untuk " + periodSelect.value + ".", "ok");
         clearFile(); sectionSelect.value = "";
         return;
       }

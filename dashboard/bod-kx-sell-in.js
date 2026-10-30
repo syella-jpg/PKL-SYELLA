@@ -21,10 +21,12 @@
  global.uploadBodKxSellInFile=async(file,period)=>{
   const body=new FormData();body.append('file',file);body.append('period',period);
   const response=await fetch(endpoint,{method:'POST',body});const result=await response.json();
-  if(!response.ok||!result.success)throw new Error(result.message||'Sub Total BOD KX SELL IN gagal disimpan.');
+  if(!response.ok||!result.success)throw new Error(result.message||'BOD KX SELL IN gagal disimpan.');
+  return result;
  };
- global.fillBodKxSellInMonthly=function(workbook,period,records){
+ global.fillBodKxSellInMonthly=function(workbook,period,records,targetRecords=[]){
   const year=Number(period.slice(0,4)),month=Number(period.slice(5,7)),utils=global.XLSX.utils;
+  const targetMonthly=targetRecords.map(row=>({...row,report_period:row.report_year+'-'+String(row.month).padStart(2,'0')}));
   const sheet=JSON.parse(JSON.stringify(layout));
   const text=(address,value)=>{sheet[address]={...(sheet[address]||{}),t:'s',v:value};delete sheet[address].f;};
   const blocks=[{year,first:6,header:5,yearRow:4,target:false},
@@ -34,8 +36,8 @@
   const formula=(row,column,value,range,expression)=>{
    setNumber(sheet,row-1,column,value);
    const cell=sheet[utils.encode_cell({r:row-1,c:column})];
-   cell.f=`IF(COUNT(${range})=0,"",${expression||`SUM(${range})`})`;
-   if(value===null){cell.t='s';cell.v='';}
+   cell.f=expression||`SUM(${range})`;
+   if(value===null){cell.t='n';cell.v=0;}
   };
   const rowValues=new Map();
   for(const block of blocks){
@@ -45,7 +47,7 @@
     ['gb5',first+6],['gb6',first+7],['ethical',first+8],['solonat',first+9],['ib_pharma',first+10],
     ['ib_food',first+11],['kodc',first+12],['toll_in',first+13],['sales',first+14]];
    for(const [code,row] of mapping){
-    const values=months.map((_,m)=>block.target?null:amount(records,block.year,m+1,code,'rupiah'));
+    const values=months.map((_,m)=>amount(block.target?targetMonthly:records,block.year,m+1,code,'rupiah'));
     rowValues.set(row,values);
     values.forEach((value,m)=>{
      const c=m+3,col=utils.encode_col(c);
@@ -92,9 +94,95 @@
    }
   }
  };
+ global.fillSellingInReportTargets=function(workbook,period){
+  const report=workbook.Sheets.LAPORAN,source=workbook.Sheets['BOD KX SELL IN'],utils=global.XLSX.utils;
+  if(!report||!source)return;
+  const normalize=v=>String(v??'').trim().toUpperCase().replace(/\s+/g,' ');
+  const reportRows=utils.sheet_to_json(report,{header:1,defval:'',raw:true});
+  const first=reportRows.findIndex(row=>/^REVENUE KONIMEX \(SELLING IN\)/.test(normalize(row[0])));
+  if(first<0)return;
+  const sourceRows=utils.sheet_to_json(source,{header:1,defval:'',raw:true});
+  const year=Number(period.slice(0,4));
+  const mapping={'GB 1':'GB 1','GB 2':'GB 2','GB 3':'GB 3','GB 4':'GB 4','BISKUIT':'BISKUIT','CANDY':'CANDY','ETHICAL':'ETHICAL','EKSTRAKSI SOLONAT':'EKSTRAKSI SOLONAT','KODC':'KODC','TOLL IN':'TOLL IN','IB FARMA':'IB FARMASI','IB FOOD':'IB FOOD'};
+  const reportByLabel=new Map();
+  for(let r=first+3;r<=first+21;r++)reportByLabel.set(normalize(reportRows[r]?.[1]),r);
+  const columns=[{targetYear:year-1,heading:'TARGET SELL IN',links:[[2,15],[3,2]]},{targetYear:year,heading:'TARGET SELL IN',links:[[6,15],[7,2]]},{targetYear:year-1,heading:'REALISASI PENJUALAN KONIMEX',links:[[4,15],[5,2]]},{targetYear:year,heading:'REALISASI PENJUALAN KONIMEX',links:[[8,2]]}];
+  for(const {targetYear,heading,links} of columns){
+   const start=sourceRows.findIndex((row,r)=>normalize(row[0]).startsWith(heading)&&normalize(sourceRows[r+1]?.[0])===`TAHUN ${targetYear} ( RP )`);
+   if(start<0)continue;
+   const sourceByLabel=new Map();
+   for(let r=start+3;r<sourceRows.length;r++){
+    if(/^(REALISASI PENJUALAN|TARGET SELL IN)/.test(normalize(sourceRows[r]?.[0])))break;
+    const label=normalize(sourceRows[r]?.[1]);if(label)sourceByLabel.set(label,r);
+   }
+   for(const [label,sourceLabel] of Object.entries(mapping)){
+    const row=reportByLabel.get(label),sourceRow=sourceByLabel.get(sourceLabel);
+    if(row===undefined||sourceRow===undefined)continue;
+    for(const [column,sourceColumn] of links){
+     const ref=utils.encode_cell({r:sourceRow,c:sourceColumn}),address=utils.encode_cell({r:row,c:column}),value=source[ref]?.v;
+     report[address]={...(report[address]||{}),t:'n',v:typeof value==='number'?value/1000:0,f:"'BOD KX SELL IN'!"+ref+'/1000',z:'#,##0'};delete report[address].w;
+    }
+   }
+   for(const [label,children] of [['PHARMA',['GB 1','GB 4']],['HCE',['GB 2','GB 3']],['EKSPOR',['IB FARMA','IB FOOD']]]){
+    const row=reportByLabel.get(label),childRows=children.map(name=>reportByLabel.get(name));
+    if(row===undefined||childRows.some(r=>r===undefined))continue;
+    for(const [column] of links){
+     const address=utils.encode_cell({r:row,c:column}),refs=childRows.map(r=>utils.encode_cell({r,c:column}));
+     report[address]={...(report[address]||{}),t:'n',v:refs.reduce((sum,ref)=>sum+(Number(report[ref]?.v)||0),0),f:`SUM(${refs[0]}:${refs[1]})`,z:'#,##0'};delete report[address].w;
+    }
+   }
+  }
+  const ib=workbook.Sheets.IB;
+  if(ib){
+   const ibRange=utils.decode_range(ib['!ref']||'A1');
+   const ibRows=utils.sheet_to_json(ib,{header:1,defval:'',raw:true,range:{s:{r:0,c:0},e:ibRange.e}});
+   for(const [targetYear,fullYearColumn] of [[year-1,2],[year,6]]){
+    const header=ibRows.findIndex((row,r)=>r>0&&normalize(ibRows[r-1]?.[1])==='1 USD = RP'&&normalize(row[1]).replace(/\s/g,'')==='RP(000)'&&Number(row[4])===targetYear);
+    if(header<0)continue;
+    const totalColumn=ibRows[header].findIndex(v=>['TOTAL FY','FULL YEAR'].includes(normalize(v)));
+    const ytdColumn=ibRows[header].findIndex(v=>normalize(v).startsWith('YTD '));
+    if(totalColumn<0||ytdColumn<0)throw new Error('Kolom TOTAL FY atau YTD pada blok RP (000) IB tidak ditemukan.');
+    const sources={exist:{},new:{}};let section='';
+    for(let r=header+1;r<Math.min(ibRows.length,header+20);r++){
+     const title=normalize(ibRows[r]?.[1]);
+     if(title.startsWith('EXPORT')||title==='1 USD = RP')break;
+     if(title==='REVENUE EXIST')section='exist';else if(title==='REVENUE NEW')section='new';
+     const label=normalize(ibRows[r]?.[2]);
+     if(section&&['TARGET IB FM','TARGET IB FD','AKTUAL IB FM','AKTUAL IB FD'].includes(label))sources[section][label]=r;
+    }
+    const ibLinks=[['IB FARMA','TARGET IB FM',[[fullYearColumn,totalColumn],[fullYearColumn+1,ytdColumn]]],['IB FOOD','TARGET IB FD',[[fullYearColumn,totalColumn],[fullYearColumn+1,ytdColumn]]]];
+    if(targetYear===year)ibLinks.push(['IB FARMA','AKTUAL IB FM',[[8,ytdColumn]]],['IB FOOD','AKTUAL IB FD',[[8,ytdColumn]]]);
+    for(const [label,sourceLabel,links] of ibLinks){
+     const row=reportByLabel.get(label),exist=sources.exist[sourceLabel],fresh=sources.new[sourceLabel];
+     if(row===undefined||exist===undefined||fresh===undefined)continue;
+     for(const [column,sourceColumn] of links){
+      const refs=[exist,fresh].map(r=>utils.encode_cell({r,c:sourceColumn})),address=utils.encode_cell({r:row,c:column});
+      // IB's rupiah block is already in RP (000), the report's unit.
+      report[address]={...(report[address]||{}),t:'n',v:refs.reduce((sum,ref)=>sum+(Number(ib[ref]?.v)||0),0),f:refs.map(ref=>"'IB'!"+ref).join('+'),z:'#,##0'};delete report[address].w;
+     }
+    }
+    const exportRow=reportByLabel.get('EKSPOR'),children=['IB FARMA','IB FOOD'].map(label=>reportByLabel.get(label));
+    if(exportRow!==undefined&&children.every(r=>r!==undefined))for(const column of [fullYearColumn,fullYearColumn+1,...(targetYear===year?[8]:[])]){
+     const refs=children.map(r=>utils.encode_cell({r,c:column})),address=utils.encode_cell({r:exportRow,c:column});
+     report[address]={...(report[address]||{}),t:'n',v:refs.reduce((sum,ref)=>sum+(Number(report[ref]?.v)||0),0),f:`SUM(${refs[0]}:${refs[1]})`,z:'#,##0'};delete report[address].w;
+    }
+   }
+  }
+  for(const [label,row] of reportByLabel){
+   if(!label)continue;
+   const achievement=utils.encode_cell({r:row,c:8});
+   for(const [column,denominatorColumn,growth] of [[9,6,false],[10,5,true]]){
+    const denominator=utils.encode_cell({r:row,c:denominatorColumn}),address=utils.encode_cell({r:row,c:column});
+    const numerator=report[achievement]?.v,divisor=report[denominator]?.v;
+    const valid=typeof numerator==='number'&&typeof divisor==='number'&&divisor!==0;
+    report[address]={...(report[address]||{}),t:valid?'n':'s',v:valid?numerator/divisor-(growth?1:0):'',f:`${achievement}/${denominator}${growth?'-1':''}`,z:'0.00%'};
+    delete report[address].w;
+   }
+  }
+ };
  global.replaceBodKxSellInSheet=async(workbook,period)=>{
   const response=await fetch(endpoint+'&'+new URLSearchParams({period}),{cache:'no-store'});const result=await response.json();
   if(!response.ok||!result.success)throw new Error(result.message||'Sub Total BOD KX SELL IN gagal dimuat.');
-  global.fillBodKxSellInMonthly(workbook,period,Array.isArray(result.data)?result.data:[]);
+  global.fillBodKxSellInMonthly(workbook,period,Array.isArray(result.data)?result.data:[],Array.isArray(result.targets)?result.targets:[]);
  };
 })(window);

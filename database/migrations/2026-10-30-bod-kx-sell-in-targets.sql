@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS `BOD KX SELL IN target` (
+    report_year SMALLINT UNSIGNED NOT NULL,
+    month TINYINT UNSIGNED NOT NULL,
+    product VARCHAR(30) NOT NULL,
+    rupiah DECIMAL(24,6) NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (report_year, month, product)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

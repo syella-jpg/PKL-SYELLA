@@ -63,3 +63,23 @@ for(const [address,cell] of Object.entries(sheet)){
 }
 console.log('PASS new BOD layout, existing data remapping, target isolation, FM/FD/TOTAL SELL IN and repaired formula references');
 if(process.env.BOD_LAYOUT_TEST_OUTPUT)fs.writeFileSync(process.env.BOD_LAYOUT_TEST_OUTPUT,XLSX.write(book,{type:'buffer',bookType:'ods'}));
+const unitBefore=JSON.stringify(unit),actualBefore=sheet.D6.v;
+context.window.fillBodKxSellInMonthly(book,'2026-02',records,[
+ {report_year:'2026',month:'1',product:'gb1',rupiah:'100'},
+ {report_year:'2026',month:'2',product:'gb1',rupiah:'200'},
+ {report_year:'2026',month:'1',product:'gb2',rupiah:'50'},
+ {report_year:'2026',month:'1',product:'gb5',rupiah:'25'},
+ {report_year:'2026',month:'1',product:'ethical',rupiah:'0'},
+ {report_year:'2025',month:'12',product:'gb1',rupiah:'40'}
+]);
+const targetSheet=book.Sheets['BOD KX SELL IN'];
+assert.equal(targetSheet.D30.v,100);assert.equal(targetSheet.E30.v,200);assert.equal(targetSheet.C30.v,300);assert.equal(targetSheet.P30.v,300);
+assert.equal(targetSheet.D35.v,150);assert.equal(targetSheet.D36.v,25);assert.equal(targetSheet.D38.v,0);assert.equal(targetSheet.D44.v,175);
+assert.equal(targetSheet.O70.v,40);assert.equal(targetSheet.D70.v,undefined);
+assert.equal(targetSheet.D6.v,actualBefore);assert.equal(JSON.stringify(unit),unitBefore);assert.equal(book.Sheets.LAPORAN,report);
+console.log('PASS ROD targets in year-specific target tables, GB subtotal/YTD/full-year, actuals and UNIT unchanged');
+assert.equal(targetSheet.C30.f,'SUM(D30:E30)');
+assert.equal(targetSheet.P30.f,'SUM(D30:O30)');
+assert.equal(targetSheet.D35.f,'SUM(D30:D33)');
+for(const cell of Object.values(targetSheet))if(cell?.f)assert.ok(!/IF\(|COUNT\(/.test(cell.f));
+console.log('PASS simple SUM formulas with period-aware YTD and full-year ranges');

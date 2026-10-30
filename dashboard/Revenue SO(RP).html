@@ -196,7 +196,7 @@
 
 <script src="report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="bod-kx-sell-in.js"></script>
+<script src="bod-kx-sell-in.js?v=ib-actual-ytd-20261030"></script>
 <script src="report-templates.js?v=revenue-thousands-20261022"></script>
 <script src="analysis-store.js"></script>
 <script src="analysis-to-tm-bod.js"></script>
@@ -1159,6 +1159,7 @@
     await replaceBodKxSellInSheet(workbook, selectedPeriod);
     fillMcmEthicalTarget(workbook, selectedPeriod);
     appendSellingInReportTable(workbook, selectedPeriod);
+    fillSellingInReportTargets(workbook, selectedPeriod);
     appendRatioBiayaReportTable(workbook, selectedPeriod);
     appendSellOutSellInRatioTable(workbook, selectedPeriod);
     appendSellOutSellInUnitRatioTable(workbook, selectedPeriod);
