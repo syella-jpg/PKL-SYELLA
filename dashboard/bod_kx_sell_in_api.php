@@ -34,8 +34,8 @@ try{
  ensureBodKxTargets($conn);
  if($method==='POST'&&$isTarget){
   $conn->begin_transaction();$q=$conn->prepare('DELETE FROM `BOD KX SELL IN target` WHERE report_year=?');$q->bind_param('i',$year);$q->execute();$q->close();
-  $q=$conn->prepare('INSERT INTO `BOD KX SELL IN target` (report_year,month,product,rupiah) VALUES (?,?,?,?)');
-  foreach($records as $record){$q->bind_param('iiss',$year,$record['month'],$record['product'],$record['rupiah']);$q->execute();}$q->close();$conn->commit();
+  $q=$conn->prepare('INSERT INTO `BOD KX SELL IN target` (report_year,month,product,rupiah,units) VALUES (?,?,?,?,?)');
+  foreach($records as $record){$q->bind_param('iisss',$year,$record['month'],$record['product'],$record['rupiah'],$record['units']);$q->execute();}$q->close();$conn->commit();
   echo json_encode(['success'=>true,'kind'=>'target','year'=>$year,'count'=>count($records)]);
  }elseif($method==='POST'){
   $conn->begin_transaction();$q=$conn->prepare('DELETE FROM bod_kx_sell_in_monthly WHERE report_period=?');$q->bind_param('s',$period);$q->execute();$q->close();
@@ -45,7 +45,7 @@ try{
  }else{
   $year=(int)substr($period,0,4);$first=($year-1).'-01';$last=$year.'-12';
   $q=$conn->prepare('SELECT report_period,product,units,rupiah FROM bod_kx_sell_in_monthly WHERE report_period BETWEEN ? AND ? ORDER BY report_period,product');$q->bind_param('ss',$first,$last);$q->execute();$rows=$q->get_result()->fetch_all(MYSQLI_ASSOC);$q->close();
-  $prior=$year-1;$q=$conn->prepare('SELECT report_year,month,product,rupiah FROM `BOD KX SELL IN target` WHERE report_year BETWEEN ? AND ? ORDER BY report_year,month,product');$q->bind_param('ii',$prior,$year);$q->execute();$targets=$q->get_result()->fetch_all(MYSQLI_ASSOC);$q->close();echo json_encode(['success'=>true,'data'=>$rows,'targets'=>$targets]);
+  $prior=$year-1;$q=$conn->prepare('SELECT report_year,month,product,rupiah,units FROM `BOD KX SELL IN target` WHERE report_year BETWEEN ? AND ? ORDER BY report_year,month,product');$q->bind_param('ii',$prior,$year);$q->execute();$targets=$q->get_result()->fetch_all(MYSQLI_ASSOC);$q->close();echo json_encode(['success'=>true,'data'=>$rows,'targets'=>$targets]);
  }
 }catch(Throwable $e){if($conn){try{$conn->rollback();}catch(Throwable $ignored){}}error_log('BOD KX SELL IN monthly: '.$e->getMessage());http_response_code($e instanceof InvalidArgumentException?400:500);echo json_encode(['success'=>false,'message'=>$e instanceof InvalidArgumentException?$e->getMessage():'Sub Total BOD KX SELL IN gagal disimpan. Periksa koneksi database dan log server.']);}
 finally{if($book)$book->disconnectWorksheets();if($conn)$conn->close();}

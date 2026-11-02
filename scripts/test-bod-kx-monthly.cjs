@@ -83,3 +83,15 @@ assert.equal(targetSheet.P30.f,'SUM(D30:O30)');
 assert.equal(targetSheet.D35.f,'SUM(D30:D33)');
 for(const cell of Object.values(targetSheet))if(cell?.f)assert.ok(!/IF\(|COUNT\(/.test(cell.f));
 console.log('PASS simple SUM formulas with period-aware YTD and full-year ranges');
+for(const year of [2026,2027]){
+ const targetUnit=XLSX.utils.aoa_to_sheet([[`TARGET SELL OUT TAHUN ${year}`],['','TOTAL GB 1',777,888],[`TARGET SELL IN TAHUN ${year}`],['NO','PRODUK','YTD FEB'],...['TOTAL GB 1','TOTAL GB 2','TOTAL GB 3','TOTAL GB 4','TOTAL GB 5','TOTAL GB 6','TOTAL ETHICAL','IB'].map(name=>['',name]),[`REVENUE TAHUN ${year-1} (SELL OUT)`],['','TOTAL GB 1',123,456]]);
+ const b={SheetNames:['UNIT'],Sheets:{UNIT:targetUnit}};
+ const targets=[{report_year:year,month:1,product:'gb1',units:'20',rupiah:'9999'},{report_year:year,month:2,product:'gb1',units:'0',rupiah:'8888'},{report_year:year,month:3,product:'gb1',units:'30',rupiah:'7777'},{report_year:year,month:1,product:'ethical',units:'5',rupiah:'6666'},{report_year:year-1,month:1,product:'gb1',units:'999',rupiah:'5555'}];
+ context.window.fillBodKxSellInMonthly(b,year+'-02',[],targets);
+ assert.equal(targetUnit.D5.v,20);assert.equal(targetUnit.E5.v,0);assert.equal(targetUnit.F5.v,30);assert.equal(targetUnit.C5.v,20);assert.equal(targetUnit.P5.v,50);
+ assert.equal(targetUnit.D5.z,'#,##0');assert.equal(targetUnit.C5.z,'#,##0');assert.equal(targetUnit.P5.z,'#,##0');
+ assert.equal(targetUnit.C5.f,'SUM(D5:E5)');assert.equal(targetUnit.P5.f,'SUM(D5:O5)');assert.equal(targetUnit.D11.v,5);assert.equal(targetUnit.D6.v,undefined);assert.equal(targetUnit.D12.v,undefined);
+ assert.equal(targetUnit.C2.v,777);assert.equal(targetUnit.D2.v,888);assert.equal(targetUnit.C14.v,123);assert.equal(targetUnit.D14.v,456);
+ assert.equal(b.Sheets['BOD KX SELL IN'].D30.v,9999);
+}
+console.log('PASS target UNIT Sell In uses only monthly ROD units, year/GB/Ethical mapping, simple YTD/annual sums, zero/blank and other blocks/Rupiah preserved');

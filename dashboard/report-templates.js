@@ -1161,6 +1161,7 @@
     writeQtyTotals(readQtyTotals(sourceRows), 2, month);
     const previousRows = await loadUnitYear(year - 1, 12);
     if (Array.isArray(previousRows)) writeQtyTotals(readQtyTotals(previousRows), 60, month);
+    global.updateUnitTargetLayout(sheet, period);
     const index = workbook.SheetNames.indexOf("UNIT");
     if (index < 0) global.XLSX.utils.book_append_sheet(workbook, sheet, "UNIT");
     else workbook.Sheets.UNIT = sheet;

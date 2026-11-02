@@ -78,12 +78,26 @@
   workbook.Sheets[name]=sheet;
   const unit=workbook.Sheets.UNIT;if(!unit)return;
   const normalize=v=>String(v||'').trim().toUpperCase().replace(/\s+/g,' ');
+  const unitRows=utils.sheet_to_json(unit,{header:1,defval:'',raw:true,range:{s:{r:0,c:0},e:utils.decode_range(unit['!ref']||'A1').e}});
+  const targetStart=unitRows.findIndex(row=>row.some(v=>normalize(v)===`TARGET SELL IN TAHUN ${year}`));
+  if(targetStart>=0)for(let r=targetStart+2;r<unitRows.length;r++){
+   if(unitRows[r].some(v=>/^(REVENUE TAHUN|TARGET(?: SELL OUT| SELL IN)? TAHUN)/.test(normalize(v))))break;
+   const label=normalize(unitRows[r][1]),gb=/^TOTAL GB ([1-6])$/.exec(label);
+   const code=gb?'gb'+gb[1]:label==='TOTAL ETHICAL'?'ethical':label==='IB'?'ib':null;if(!code)continue;
+   const values=months.map((_,m)=>amount(targetMonthly,year,m+1,code,'units'));
+   values.forEach((value,m)=>setNumber(unit,r,m+3,value));
+   setNumber(unit,r,2,sum(values.slice(0,month)),`SUM(D${r+1}:${utils.encode_col(month+2)}${r+1})`);
+   setNumber(unit,r,15,sum(values),`SUM(D${r+1}:O${r+1})`);
+   for(let c=2;c<=15;c++){
+    const cell=unit[utils.encode_cell({r,c})];if(cell){cell.z='#,##0';delete cell.w;}
+   }
+  }
   for(const targetYear of [year,year-1]){
    const rows=utils.sheet_to_json(unit,{header:1,defval:'',raw:true});
    const start=rows.findIndex(row=>row.some(v=>normalize(v)===`REVENUE TAHUN ${targetYear} (SELL IN)`));
    if(start<0)continue;
    for(let r=start+2;r<rows.length;r++){
-    if(rows[r].some(v=>/^(REVENUE TAHUN|TARGET TAHUN)/.test(normalize(v))))break;
+    if(rows[r].some(v=>/^(REVENUE TAHUN|TARGET(?: SELL OUT| SELL IN)? TAHUN)/.test(normalize(v))))break;
     const label=normalize(rows[r][1]);let code;
     const gb=/^TOTAL GB ([1-6])$/.exec(label);
     if(gb)code='gb'+gb[1];else if(label==='TOTAL ETHICAL')code='ethical';else if(label==='IB')code='ib';else if(label==='TOTAL TOLL IN')code='toll_in';else if(label==='TOTAL EXTRAKSI SOLONAT')code='solonat';else if(label==='TOTAL KODC')code='kodc';else continue;
