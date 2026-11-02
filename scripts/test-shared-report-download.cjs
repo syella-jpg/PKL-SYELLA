@@ -5,15 +5,16 @@ const html=fs.readFileSync('dashboard/Revenue SO(RP).html','utf8');
 const start=html.indexOf('  // Serve the exact same workbook builder');
 const end=html.indexOf('  $("dl").onclick',start);
 (async()=>{
- let listener,result,builtPeriod,chartPeriod,ratioPeriod;
+ let listener,result,builtPeriod,chartPeriod,ratioPeriod,unitPeriod;
  const parent={postMessage:(message)=>{result=message;}};
  const source={window:{parent,addEventListener:(name,fn)=>{listener=fn;}},location:{protocol:'http:',origin:'http://localhost'},
-  buildRatioBiayaChartWorkbook:async(period)=>{ratioPeriod=period;return {shared:true};},buildReportWorkbook:async(period)=>{builtPeriod=period;return {shared:true};},buildSellingInChartWorkbook:async(period)=>{chartPeriod=period;return {shared:true};},XLSX:{write:(book,options)=>{assert.equal(book.shared,true);assert.equal(options.bookType,'ods');return new ArrayBuffer(8);}},ArrayBuffer};
+  buildRatioUnitChartWorkbook:async(period)=>{unitPeriod=period;return {shared:true};},buildRatioBiayaChartWorkbook:async(period)=>{ratioPeriod=period;return {shared:true};},buildReportWorkbook:async(period)=>{builtPeriod=period;return {shared:true};},buildSellingInChartWorkbook:async(period)=>{chartPeriod=period;return {shared:true};},XLSX:{write:(book,options)=>{assert.equal(book.shared,true);assert.equal(options.bookType,'ods');return new ArrayBuffer(8);}},ArrayBuffer};
  vm.createContext(source);vm.runInContext(html.slice(start,end),source);
  await listener({source:parent,origin:'http://localhost',data:{type:'corporate-report-build',requestId:'r1',period:'2026-09'}});
  assert.equal(builtPeriod,'2026-09');assert.equal(result.buffer.byteLength,8);
  await listener({source:parent,origin:'http://localhost',data:{type:'corporate-report-build',requestId:'chart1',period:'2027-02',scope:'selling-in-chart'}});assert.equal(chartPeriod,'2027-02');assert.equal(builtPeriod,'2026-09');
  await listener({source:parent,origin:'http://localhost',data:{type:'corporate-report-build',requestId:'ratio1',period:'2027-09',scope:'ratio-biaya-chart'}});assert.equal(ratioPeriod,'2027-09');assert.equal(builtPeriod,'2026-09');
+ await listener({source:parent,origin:'http://localhost',data:{type:'corporate-report-build',requestId:'unit1',period:'2027-09',scope:'ratio-unit-chart'}});assert.equal(unitPeriod,'2027-09');assert.equal(builtPeriod,'2026-09');
  result=null;await listener({source:{},origin:'http://localhost',data:{type:'corporate-report-build',requestId:'r2',period:'2026-09'}});assert.equal(result,null);
  await listener({source:parent,origin:'http://localhost',data:{type:'corporate-report-build',requestId:'r3',period:'bad'}});assert.match(result.error,/Periode/);
  for(const kind of ['revenue','tm','selling-in']){

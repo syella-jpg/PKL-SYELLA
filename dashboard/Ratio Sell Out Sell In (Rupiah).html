@@ -201,6 +201,7 @@
 <script src="report-templates.js?v=revenue-thousands-20261022"></script>
 <script src="shared-report-download.js?v=ratio-chart-20261102"></script>
 
+<script src="sell-out-in-unit-chart.js?v=rupiah-kpi-20261102"></script>
 <script src="analysis-store.js"></script>
 <script src="analysis-to-tm-bod.js"></script>
 <script src="analysis-lock.js"></script>
@@ -325,14 +326,23 @@
     return dashboardData.get(key);
   }
   const chartBooks = new Map();
-  async function loadData() { return null; }
+  async function loadData() {
+    const period=st.period,tab=st.tab;
+    if(!chartBooks.has(period))chartBooks.set(period,window.loadCorporateReportBuffer(period).then(buffer=>XLSX.read(buffer,{type:'array'})).catch(error=>{chartBooks.delete(period);throw error;}));
+    return window.sellOutInUnitChartData(await chartBooks.get(period),tab,period,'RUPIAH');
+  }
   // Dipanggil dari luar setelah file diupload: setDashboardData("Nama Laporan", "Corporate", {cards, chart})
   window.setDashboardData = (report, tab, obj) => { (DATA[report] = DATA[report] || {})[tab] = obj; dashboardData.clear(); render(); };
 
   /* ---------- Kartu KPI ---------- */
-  function renderCards() { $("cards").innerHTML = ""; }
+  function renderCards() {
+    const year=Number(st.period.slice(0,4)),month=monthName().toUpperCase();
+    const labels=[`Ratio YTD ${month} ${year-1}`,`Ratio YTD ${month} ${year}`,`Growth YTD ${month}`,`Target Ratio ${year}`];
+    const percent=value=>typeof value==='number'&&Number.isFinite(value)?(value*100).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'—';
+    $("cards").innerHTML=labels.map((label,i)=>'<div class="kpi"><p>'+esc(label)+'</p><b>'+esc(percent(cur?.ratios?.[i]))+'</b></div>').join('');
+  }
   function renderChart() {
-    $("chart").innerHTML='<div class="empty">Data RATIO SELL OUT VS SELL IN (RUPIAH) tersedia melalui tombol Unduh Data di sheet LAPORAN.</div>';
+    $("chart").innerHTML=cur?window.sellOutInUnitChartSvg(cur):'<div class="empty">Data RUPIAH belum tersedia untuk periode ini.</div>';
   }
 
   function downloadChartImage() {
@@ -511,6 +521,7 @@
     document.querySelectorAll("#menu button").forEach((b) => b.classList.toggle("on", b.dataset.r === st.report));
     document.querySelectorAll("#tabs button").forEach((b) => { const on = b.dataset.t === st.tab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
     const my = ++token;
+    cur=null;renderCards();
     $("chart").innerHTML='<div class="empty">Memuat grafik…</div>';
     let next;
     try { next = await getData(); }

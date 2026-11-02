@@ -1,0 +1,37 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),XLSX=require('/tmp/target-sheetjs.js');const ctx={window:{XLSX}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dashboard/sell-out-in-unit-chart.js','utf8'),ctx);
+const tabs=['FARMASI','HCE','BISKUIT','CANDY','ETHICAL'];
+const rows=[['RATIO SELL OUT VS SELL IN (RUPIAH)'],['','FARMASI',999,999,999,999,999,999],['RATIO SELL OUT VS SELL IN (UNIT)'],[],[],...tabs.map((t,i)=>['',t,10+i,20+i,.1,30+i,40+i,-.2]),['MTM CONTRIBUTION'],['','Other',999,999]];
+const book={Sheets:{LAPORAN:XLSX.utils.aoa_to_sheet(rows)}},before=JSON.stringify(book);
+for(const[ i,tab]of tabs.entries())for(const period of ['2026-09','2027-02']){
+ const data=ctx.window.sellOutInUnitChartData(book,tab,period);assert.deepEqual(Array.from(data.values),[10+i,20+i,30+i,40+i]);assert.deepEqual(Array.from(data.growth),[.1,-.2]);const svg=ctx.window.sellOutInUnitChartSvg(data);
+ assert.equal((svg.match(/width="36"/g)||[]).length,4);assert.ok(svg.includes('Growth 10,00%'));assert.ok(svg.includes('Growth -20,00%'));assert.ok(svg.includes('SELL OUT - RP'));assert.ok(svg.includes('SELL IN - RP'));
+ assert.ok(svg.includes(period==='2026-09'?'YTD SEPTEMBER 2025':'YTD FEBRUARI 2026'));assert.ok(!/NaN|Infinity/.test(svg));
+}
+assert.equal(ctx.window.sellOutInUnitChartData(book,'Other','2026-09'),null);assert.equal(JSON.stringify(book),before);
+for(const values of [[0,0,0,0],[-10,10,-20,0],[null,20,30,null]])assert.ok(!/NaN|Infinity/.test(ctx.window.sellOutInUnitChartSvg({values,growth:[null,null],period:'2027-02',tab:'HCE'})));
+const page=fs.readFileSync('dashboard/Ratio Sell Out Sell In (Unit).html','utf8');for(const m of page.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g))if(m[1].trim())new vm.Script(m[1]);
+console.log('PASS Unit chart five tabs, correct table and four YTD bars, two groups, current-year Growth labels, flexible periods, zero/negative/missing, unchanged source and page syntax');
+const moneyRows=[['RATIO SELL OUT VS SELL IN (RUPIAH)'],[],[],['','FARMASI',100,150,.5,200,250,.25],['RATIO SELL OUT VS SELL IN (UNIT)'],[],[],['','FARMASI',1,2,1,3,4,.33]];
+const moneyBook={Sheets:{LAPORAN:XLSX.utils.aoa_to_sheet(moneyRows)}};
+const money=ctx.window.sellOutInUnitChartData(moneyBook,'FARMASI','2027-09','RUPIAH');assert.deepEqual(Array.from(money.values),[100,150,200,250]);assert.deepEqual(Array.from(money.growth),[.5,.25]);
+const moneySvg=ctx.window.sellOutInUnitChartSvg(money);assert.ok(moneySvg.includes('RP (000)'));assert.ok(moneySvg.includes('Growth 50,00%'));assert.ok(moneySvg.includes('Growth 25,00%'));assert.ok(!moneySvg.includes('>UNIT</text>'));
+const moneyPage=fs.readFileSync('dashboard/Ratio Sell Out Sell In (Rupiah).html','utf8');assert.ok(!moneyPage.includes('async function loadData() { return null; }'));assert.ok(moneyPage.includes("tab,period,'RUPIAH'"));for(const m of moneyPage.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g))if(m[1].trim())new vm.Script(m[1]);
+console.log('PASS Rupiah page connects actual workbook reader/renderer, isolates Rupiah from Unit, four bars, both Growth labels and correct currency unit');
+const moneySheet=moneyBook.Sheets.LAPORAN;moneySheet.I4={t:'n',v:1.25};moneySheet.J4={t:'n',v:1.1};moneySheet.K4={t:'n',v:-.12};moneySheet.L4={t:'n',v:0};moneySheet['!ref']='A1:L8';
+const kpi=ctx.window.sellOutInUnitChartData(moneyBook,'FARMASI','2027-09','RUPIAH');assert.deepEqual(Array.from(kpi.ratios),[1.25,1.1,-.12,0]);
+const cardContext={st:{period:'2027-09'},cur:kpi,monthName:()=> 'September',esc:v=>String(v),$:()=>cardContext.cards,cards:{innerHTML:''}};vm.createContext(cardContext);
+const cardStart=moneyPage.indexOf('  function renderCards()'),cardEnd=moneyPage.indexOf('  function renderChart()',cardStart);
+vm.runInContext(moneyPage.slice(cardStart,cardEnd)+'\nrenderCards();',cardContext);
+assert.equal((cardContext.cards.innerHTML.match(/class="kpi"/g)||[]).length,4);
+for(const value of ['125,00%','110,00%','-12,00%','0,00%','Ratio YTD SEPTEMBER 2026','Ratio YTD SEPTEMBER 2027','Target Ratio 2027'])assert.ok(cardContext.cards.innerHTML.includes(value),value);
+cardContext.cur=null;vm.runInContext('renderCards()',cardContext);assert.equal((cardContext.cards.innerHTML.match(/—/g)||[]).length,4);
+console.log('PASS Rupiah four KPI cards from I/J/K/L, dynamic period, percentages, negative/zero and missing data');
+const unitSheet=book.Sheets.LAPORAN;unitSheet.I6={t:'n',v:.95};unitSheet.J6={t:'n',v:1.05};unitSheet.K6={t:'n',v:-.01};unitSheet['!ref']='A1:K12';
+const unitKpi=ctx.window.sellOutInUnitChartData(book,'FARMASI','2027-02');assert.deepEqual(Array.from(unitKpi.ratios),[.95,1.05,-.01]);
+const unitPage=fs.readFileSync('dashboard/Ratio Sell Out Sell In (Unit).html','utf8');
+const unitCardContext={st:{period:'2027-02'},cur:unitKpi,monthName:()=> 'Februari',esc:v=>String(v),$:()=>unitCardContext.cards,cards:{innerHTML:''}};vm.createContext(unitCardContext);
+vm.runInContext(unitPage.slice(unitPage.indexOf('  function renderCards()'),unitPage.indexOf('  function renderChart()'))+'\nrenderCards();',unitCardContext);
+assert.equal((unitCardContext.cards.innerHTML.match(/class="kpi"/g)||[]).length,3);
+for(const value of ['95,00%','105,00%','-1,00%','Ratio YTD FEBRUARI 2026','Ratio YTD FEBRUARI 2027'])assert.ok(unitCardContext.cards.innerHTML.includes(value),value);
+assert.ok(!unitCardContext.cards.innerHTML.includes('Target Ratio'));unitCardContext.cur=null;vm.runInContext('renderCards()',unitCardContext);assert.equal((unitCardContext.cards.innerHTML.match(/—/g)||[]).length,3);
+console.log('PASS Unit three KPI cards from I/J/K, dynamic periods, percentages, negatives and missing data');

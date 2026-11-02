@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-for(const [page,prefix] of [['Revenue KX SI.html','Revenue_KX_SI_'],['Ratio Biaya.html','Ratio_Biaya_']]){
+for(const [page,prefix] of [['Revenue KX SI.html','Revenue_KX_SI_'],['Ratio Biaya.html','Ratio_Biaya_'],['Ratio Sell Out Sell In (Unit).html','Ratio_Sell_Out_Sell_In_Unit_']]){
 const html=fs.readFileSync('dashboard/'+page,'utf8'),start=html.indexOf('  function downloadChartImage()'),end=html.indexOf('  $("downloadChart").onclick =',start);
 const attributes={},clone={setAttribute:(k,v)=>attributes[k]=v},svg={viewBox:{baseVal:{width:800,height:470}},cloneNode:()=>clone};
 let clicked=false,notice='',revoked=0;const link={click(){clicked=true;}};

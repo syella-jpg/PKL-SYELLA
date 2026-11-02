@@ -1211,6 +1211,17 @@
     fillRatioBiayaGrowth(workbook);
     return workbook;
   }
+  async function buildRatioUnitChartWorkbook(period) {
+    const workbook=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([]),'LAPORAN');
+    await replaceUnitTemplateSheet(workbook,period);
+    await replaceBodKxSellInSheet(workbook,period);
+    appendSellOutSellInUnitRatioTable(workbook,period);
+    fillSellOutInUnitSellOut(workbook,period);
+    fillSellOutInUnitSellIn(workbook,period);
+    fillSellOutInUnitRatios(workbook);
+    return workbook;
+  }
   // Serve the exact same workbook builder to sidebar download buttons.
   window.addEventListener("message", async (event) => {
     if (window.parent === window || event.source !== window.parent) return;
@@ -1223,7 +1234,8 @@
       if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(request.period)) throw new Error("Periode laporan tidak valid.");
       const workbook = request.scope === 'selling-in-chart'
         ? await buildSellingInChartWorkbook(request.period) : request.scope === 'ratio-biaya-chart'
-          ? await buildRatioBiayaChartWorkbook(request.period) : await buildReportWorkbook(request.period);
+          ? await buildRatioBiayaChartWorkbook(request.period) : request.scope === 'ratio-unit-chart'
+            ? await buildRatioUnitChartWorkbook(request.period) : await buildReportWorkbook(request.period);
       if (!workbook) throw new Error("Laporan belum dapat dibuat. Periksa data dan koneksi API untuk periode " + request.period + ".");
       const buffer = XLSX.write(workbook, {type:"array",bookType:"ods",cellStyles:true});
       window.parent.postMessage({...reply,buffer}, destination, [buffer]);
