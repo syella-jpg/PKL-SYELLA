@@ -32,7 +32,11 @@
     const method = String(options?.method || input?.method || 'GET').toUpperCase();
     if (method !== 'GET' && (isReport || /\/(?:upload|api)\//.test(url.pathname))) {
       const response = await nativeFetch(input, options);
-      if (response.ok) invalidate();
+      // Analysis lock status/renewal does not change report data. Invalidating here
+      // makes embedded chart builders trigger one another indefinitely.
+      const isAnalysisLock = url.searchParams.get('endpoint') === 'analysis_locks_api'
+        || /\/analysis_locks_api(?:\.php)?$/.test(url.pathname);
+      if (response.ok && !isAnalysisLock) invalidate();
       return response;
     }
     if (!isReport) return nativeFetch(input, options);

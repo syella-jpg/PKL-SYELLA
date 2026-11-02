@@ -19,5 +19,13 @@ function storage() { const data = new Map(); return {get length(){return data.si
  const record=JSON.parse(sessionStorage.getItem(key));record.time=0;sessionStorage.setItem(key,JSON.stringify(record));
  await fetch(url);assert.equal(calls,6,'expired data is reloaded');
  fail=true;await assert.rejects(fetch(url+'?year=2027'));fail=false;await fetch(url+'?year=2027');assert.equal(calls,8);
+ const revision=localStorage.getItem('konimex_report_revision');
+ await fetch('http://localhost/api/report.php?endpoint=analysis_locks_api',{method:'POST'});
+ assert.equal(localStorage.getItem('konimex_report_revision'),revision,'lock router must not invalidate report data');
+ await fetch('http://localhost/dashboard/analysis_locks_api.php',{method:'POST'});
+ assert.equal(localStorage.getItem('konimex_report_revision'),revision,'direct lock status must not invalidate report data');
+ const beforeRead=calls;await fetch(url);assert.equal(calls,beforeRead,'lock activity keeps existing chart data cached');
+ await fetch('http://localhost/api/report.php?endpoint=bod_kx_sell_in_api',{method:'POST'});
+ assert.notEqual(localStorage.getItem('konimex_report_revision'),revision,'real report uploads still invalidate data');
  console.log('PASS shared requests, cross-menu cache, query isolation, upload invalidation, reload, expiry, retry');
 })().catch(error=>{console.error(error);process.exitCode=1});

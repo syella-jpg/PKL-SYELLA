@@ -12,7 +12,7 @@
     if (quarter && /^20\d{2}$/.test(String(year))) return `${year}-${String(Number(quarter[1])*3).padStart(2,'0')}`;
     throw new Error('Pilih periode laporan terlebih dahulu.');
   }
-  function build(period) {
+  function build(period, options = {}) {
     return new Promise((resolve, reject) => {
       const frame = document.createElement('iframe');
       frame.hidden = true; frame.setAttribute('aria-hidden', 'true');
@@ -28,7 +28,7 @@
       };
       const timer = setTimeout(() => { cleanup(); reject(new Error('Pembuatan laporan terlalu lama. Periksa koneksi server lalu coba lagi.')); }, 180000);
       window.addEventListener('message', receive);
-      frame.onload = () => frame.contentWindow.postMessage({type:'corporate-report-build',requestId,period}, builderUrl.protocol === 'file:' ? '*' : builderUrl.origin);
+      frame.onload = () => frame.contentWindow.postMessage({type:'corporate-report-build',requestId,period,scope:options.scope||'full'}, builderUrl.protocol === 'file:' ? '*' : builderUrl.origin);
       frame.onerror = () => { cleanup(); reject(new Error('Halaman pembuat laporan gagal dimuat.')); };
       frame.src = builderUrl.href;
       document.body.append(frame);
@@ -44,7 +44,7 @@
       const period = selectedPeriod(), buffer = await build(period);
       const url = URL.createObjectURL(new Blob([buffer], {type:'application/vnd.oasis.opendocument.spreadsheet'}));
       const link = document.createElement('a'); link.href = url;
-      link.download = `Revenue Konimex Selling Out (RP) - ${period}.ods`;
+      link.download = `${button.dataset?.downloadName || 'Revenue Konimex Selling Out (RP)'} - ${period}.ods`;
       document.body.append(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch (error) {

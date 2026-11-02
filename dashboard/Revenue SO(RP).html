@@ -194,7 +194,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script src="report-api-cache.js"></script>
+<script src="report-api-cache.js?v=lock-status-20261102"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="ratio-biaya-report.js?v=ratio-growth-20261102"></script>
 <script src="bod-kx-sell-in.js?v=ib-actual-ytd-20261030"></script>
@@ -1178,6 +1178,29 @@
     fillUnitSellOutPrior(workbook, selectedPeriod, true);
     return workbook;
   }
+  // Use the same Selling In formulas without requiring unrelated report sources for its chart.
+  async function buildSellingInChartWorkbook(period) {
+    const workbook=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([]),'LAPORAN');
+    await replaceIBTemplateSheet(workbook,period);
+    await replaceBodKxSellInSheet(workbook,period);
+    appendSellingInReportTable(workbook,period);
+    fillSellingInReportTargets(workbook,period);
+    return workbook;
+  }
+  async function buildRatioBiayaChartWorkbook(period) {
+    const workbook=await buildSellingInChartWorkbook(period);
+    await replaceBodMnjTemplateSheet(workbook,period);
+    appendRatioBiayaReportTable(workbook,period);
+    fillRatioBiayaPriorActual(workbook,period);
+    fillRatioBiayaCurrentActual(workbook,period);
+    fillRatioBiayaBudget(workbook,period);
+    fillRatioBiayaPriorYtd(workbook);
+    fillRatioBiayaCurrentYtd(workbook);
+    fillRatioBiayaTarget(workbook);
+    fillRatioBiayaGrowth(workbook);
+    return workbook;
+  }
   // Serve the exact same workbook builder to sidebar download buttons.
   window.addEventListener("message", async (event) => {
     if (window.parent === window || event.source !== window.parent) return;
@@ -1188,7 +1211,9 @@
     const reply = {type:"corporate-report-result",requestId:request.requestId};
     try {
       if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(request.period)) throw new Error("Periode laporan tidak valid.");
-      const workbook = await buildReportWorkbook(request.period);
+      const workbook = request.scope === 'selling-in-chart'
+        ? await buildSellingInChartWorkbook(request.period) : request.scope === 'ratio-biaya-chart'
+          ? await buildRatioBiayaChartWorkbook(request.period) : await buildReportWorkbook(request.period);
       if (!workbook) throw new Error("Laporan belum dapat dibuat. Periksa data dan koneksi API untuk periode " + request.period + ".");
       const buffer = XLSX.write(workbook, {type:"array",bookType:"ods",cellStyles:true});
       window.parent.postMessage({...reply,buffer}, destination, [buffer]);
