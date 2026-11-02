@@ -196,6 +196,7 @@
 
 <script src="report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="ratio-biaya-report.js?v=ratio-growth-20261102"></script>
 <script src="bod-kx-sell-in.js?v=ib-actual-ytd-20261030"></script>
 <script src="report-templates.js?v=revenue-thousands-20261022"></script>
 <script src="analysis-store.js"></script>
@@ -1161,6 +1162,14 @@
     appendSellingInReportTable(workbook, selectedPeriod);
     fillSellingInReportTargets(workbook, selectedPeriod);
     appendRatioBiayaReportTable(workbook, selectedPeriod);
+    fillRatioBiayaPriorActual(workbook, selectedPeriod);
+    fillRatioBiayaCurrentActual(workbook, selectedPeriod);
+    fillRatioBiayaBudget(workbook, selectedPeriod);
+    fillRatioBiayaPriorFullYear(workbook);
+    fillRatioBiayaPriorYtd(workbook);
+    fillRatioBiayaCurrentYtd(workbook);
+    fillRatioBiayaTarget(workbook);
+    fillRatioBiayaGrowth(workbook);
     appendSellOutSellInRatioTable(workbook, selectedPeriod);
     appendSellOutSellInUnitRatioTable(workbook, selectedPeriod);
     appendMtmContributionReportTable(workbook, selectedPeriod);
