@@ -1165,6 +1165,7 @@
     const index = workbook.SheetNames.indexOf("UNIT");
     if (index < 0) global.XLSX.utils.book_append_sheet(workbook, sheet, "UNIT");
     else workbook.Sheets.UNIT = sheet;
+    await global.replaceUnitSellOutTargets(workbook, period);
   };
 
   // SheetJS memakai ! secara internal dan mengubahnya menjadi titik saat ekspor ODS.
