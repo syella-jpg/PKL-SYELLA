@@ -776,7 +776,7 @@
       if (sectionSelect.value === "TARGET UNIT SELL OUT") {
         const saved=await uploadUnitSellOutTargets(chosen,periodSelect.value);
         barFill.style.width="100%";
-        setMsg("Target UNIT SELL OUT tahun "+saved.year+" berhasil disimpan untuk "+saved.groups.map(g=>g.toUpperCase().replace('GB','GB ')).join(', ')+(saved.groups.includes("ethical")?". ETHICAL diambil dari TARGET GMEB: Existing Product (Unit) dan New Product (Unit).":saved.groups.includes("ib")?". IB diambil dari TARGET HRU SALES REVENUE (UNIT).":". EXIST = kategori A+B+C; NP = kategori D."),"ok");
+        setMsg("Target UNIT SELL OUT tahun "+saved.year+" berhasil disimpan untuk "+saved.groups.map(g=>g.toUpperCase().replace('GB','GB ')).join(', ')+(saved.groups.includes("ethical")?". ETHICAL diambil dari TARGET GMEB: Existing Product (Unit) dan New Product (Unit).":saved.groups.includes("ib")?". IB diambil dari gabungan TARGET HRU SALES REVENUE (UNIT) + NEW BUSINESS PRODUCT (UNIT), dengan selisih kumulatif per bulan.":". EXIST = kategori A+B+C; NP = kategori D."),"ok");
         clearFile();sectionSelect.value="";
         return;
       }
