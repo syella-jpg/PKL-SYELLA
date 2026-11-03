@@ -421,7 +421,7 @@ try {
         if (!$mtmData) throw new Exception('Bagian finansial MTM belum dikenali. Pastikan file memuat KPI Revenue (Rp), Revenue Existing, Revenue New Product, header Januari–Desember, serta baris Target dan Aktual di bawah Increase Revenue.');
 
         $conn->begin_transaction();
-        $delete = $conn->prepare('DELETE FROM mtm_monthly_values WHERE report_period = ?');
+        $delete = $conn->prepare('DELETE FROM mtm_monthly_values WHERE report_period = ? AND metric_code <> \'APPENDIX\'');
         if (!$delete) throw new Exception('Gagal menyiapkan penggantian data MTM: ' . $conn->error);
         $delete->bind_param('s', $period);
         if (!$delete->execute()) throw new Exception('Data MTM lama gagal diganti: ' . $delete->error);

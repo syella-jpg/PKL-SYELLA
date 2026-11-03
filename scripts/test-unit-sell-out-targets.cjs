@@ -13,3 +13,22 @@ for(const year of [2026,2027]){
 const upload=fs.readFileSync('upload/page.html','utf8');assert.ok(upload.includes('sectionSelect.value === "TARGET UNIT SELL OUT"'));assert.ok(upload.includes('uploadUnitSellOutTargets(chosen,periodSelect.value)'));
 for(const p of ['upload/page.html','dashboard/Revenue SO(RP).html','dashboard/Rev SO(UNIT).html'])for(const match of fs.readFileSync(p,'utf8').matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g))if(match[1].trim())new vm.Script(match[1]);
 console.log('PASS TARGET UNIT monthly Existing/New/Total, simple YTD/FY sums, year/month, blank/zero, partial groups preserve other GB/Ethical/IB/blocks, integer formatting, upload routing and page syntax');
+for(const year of [2026,2027]){
+ const sheet=XLSX.utils.aoa_to_sheet([[`TARGET SELL OUT TAHUN ${year}`],['NO','PRODUK'],['','EXIST GB 1',99,88],['','NP GB 1',77,66],['','TOTAL GB 1',55,44],['','EXIST ETHICAL',33,22],['','IB'],[`TARGET SELL IN TAHUN ${year}`],['','IB',11,10]]),book={Sheets:{UNIT:sheet}},before=JSON.parse(JSON.stringify(sheet));
+ const records=Array.from({length:12},(_,m)=>({report_year:year,product:'ib',kind:'total',month:m+1,units:String((m+1)*10)}));records.push({report_year:year-1,product:'ib',kind:'total',month:1,units:'99999'});
+ ctx.window.fillUnitSellOutTargets(book,year+'-02',records);
+ assert.equal(sheet.D7.v,10);assert.equal(sheet.E7.v,20);assert.equal(sheet.C7.v,30);assert.equal(sheet.P7.v,780);assert.equal(sheet.C7.f,'SUM(D7:E7)');assert.equal(sheet.P7.f,'SUM(D7:O7)');assert.equal(sheet.D7.z,'#,##0');
+ for(const[a,cell]of Object.entries(before)){if(/^[C-P]7$/.test(a))continue;assert.equal(JSON.stringify(sheet[a]),JSON.stringify(cell),a);}
+ records[1].units=null;ctx.window.fillUnitSellOutTargets(book,year+'-02',records);assert.equal(sheet.E7.v,'');assert.equal(sheet.C7.v,'');assert.equal(sheet.C7.f,undefined);assert.equal(sheet.P7.v,'');assert.equal(sheet.P7.f,undefined);
+}
+console.log('PASS HRU IB monthly target mapping, flexible year/month, YTD/FY sums, integer display, blank completeness and all GB/Ethical/Sell In unchanged');
+for(const year of [2026,2027]){
+ const sheet=XLSX.utils.aoa_to_sheet([[`TARGET SELL OUT TAHUN ${year}`],['NO','PRODUK'],['','EXIST GB 1',99,88],['','EXIST ETHICAL'],['','NP ETHICAL'],['','TOTAL ETHICAL'],['','IB',77,66],[`TARGET SELL IN TAHUN ${year}`],['','TOTAL ETHICAL',55,44]]),book={Sheets:{UNIT:sheet}},before=JSON.parse(JSON.stringify(sheet));
+ const records=[];for(let month=1;month<=12;month++)for(const kind of ['existing','new'])records.push({report_year:year,product:'ethical',kind,month,units:String(month*(kind==='existing'?10:2))});
+ records.push({report_year:year-1,product:'ethical',kind:'existing',month:1,units:'99999'});
+ ctx.window.fillUnitSellOutTargets(book,year+'-02',records);
+ assert.equal(sheet.D4.v,10);assert.equal(sheet.E4.v,20);assert.equal(sheet.D5.v,2);assert.equal(sheet.D6.v,12);assert.equal(sheet.C4.v,30);assert.equal(sheet.C5.v,6);assert.equal(sheet.C6.v,36);assert.equal(sheet.P6.v,936);
+ assert.equal(sheet.C4.f,'SUM(D4:E4)');assert.equal(sheet.D6.f,'SUM(D4,D5)');assert.equal(sheet.C6.f,'SUM(D6:E6)');assert.equal(sheet.P6.f,'SUM(D6:O6)');assert.equal(sheet.D4.z,'#,##0');
+ for(const[a,cell]of Object.entries(before)){if(/^[C-P][456]$/.test(a))continue;assert.equal(JSON.stringify(sheet[a]),JSON.stringify(cell),a);}
+}
+console.log('PASS Ethical Existing/New/Total monthly TARGET, YTD/FY simple sums, dynamic period, integer format, and GB/IB/Sell In preserved');

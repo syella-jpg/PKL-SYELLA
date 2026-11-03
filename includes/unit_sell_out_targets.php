@@ -3,17 +3,19 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+require_once __DIR__.'/unit_sell_out_ib_targets.php';
+require_once __DIR__.'/unit_sell_out_ethical_targets.php';
 
 class UnitSellOutTargetFilter implements IReadFilter {
     public function readCell($columnAddress, $row, $worksheetName = ''): bool {
-        return $row <= 1000 && Coordinate::columnIndexFromString($columnAddress) <= 20;
+        return $row <= 1000 && Coordinate::columnIndexFromString($columnAddress) <= (strtoupper(trim($worksheetName))==='GMEB'?27:(strtoupper(trim($worksheetName))==='HRU'?26:20));
     }
 }
 function readUnitSellOutTargetBook(string $path): Spreadsheet {
     $reader=IOFactory::createReaderForFile($path);
     if(!($reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Ods)&&!($reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Xlsx))throw new InvalidArgumentException('Gunakan workbook ODS atau XLSX.');
-    $names=array_values(array_filter($reader->listWorksheetNames($path),fn($name)=>preg_match('/^TARGET\s+GB\s*[1-6]$/i',trim($name))));
-    if(!$names)throw new InvalidArgumentException('Sheet TARGET GB 1–6 tidak ditemukan. Sheet BUDGET tidak digunakan.');
+    $names=array_values(array_filter($reader->listWorksheetNames($path),fn($name)=>preg_match('/^(?:TARGET\s+GB\s*[1-6]|HRU|GMEB)$/i',trim($name))));
+    if(!$names)throw new InvalidArgumentException('Sheet TARGET GB 1–6, HRU, atau GMEB tidak ditemukan. Sheet BUDGET tidak digunakan.');
     $reader->setLoadSheetsOnly($names);$reader->setReadFilter(new UnitSellOutTargetFilter());$reader->setReadDataOnly(true);$reader->setReadEmptyCells(false);
     return $reader->load($path);
 }
@@ -72,6 +74,8 @@ function parseUnitSellOutTargets(Spreadsheet $book,int $year): array {
             $result[]=['report_year'=>$year,'product'=>'gb'.$gb,'kind'=>$kind,'month'=>$month,'units'=>$total===null?null:number_format($total,6,'.','')];
         }
     }
+    foreach($book->getAllSheets() as $sheet)if($norm($sheet->getTitle())==='HRU')$result=array_merge($result,parseUnitSellOutIbTargets($sheet,$year));
+    foreach($book->getAllSheets() as $sheet)if($norm($sheet->getTitle())==='GMEB')$result=array_merge($result,parseUnitSellOutEthicalTargets($sheet,$year));
     if(!$result)throw new InvalidArgumentException('Sheet TARGET GB yang sesuai tidak ditemukan.');
     return $result;
 }

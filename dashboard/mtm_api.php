@@ -50,7 +50,7 @@ $data = [];
 foreach (['REVENUE', 'EXISTING', 'NEW_PRODUCT'] as $metric) {
     $data[$metric] = ['TARGET' => array_fill(0, 12, null), 'ACTUAL' => array_fill(0, 12, null)];
 }
-$stmt = $conn->prepare('SELECT report_period, metric_code, value_type, month_number, amount FROM mtm_monthly_values WHERE report_period LIKE CONCAT(?, "-%") ORDER BY report_period DESC, month_number ASC');
+$stmt = $conn->prepare('SELECT report_period, metric_code, value_type, month_number, amount FROM mtm_monthly_values WHERE report_period LIKE CONCAT(?, "-%") AND metric_code IN ("REVENUE","EXISTING","NEW_PRODUCT") ORDER BY report_period DESC, month_number ASC');
 if (!$stmt) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Tabel data MTM belum tersedia.']);

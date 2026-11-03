@@ -200,9 +200,10 @@
 <script src="sell-out-in-unit-report.js?v=ratios-20261102"></script>
 <script src="sell-out-in-rupiah-report.js?v=ratio-growth-20261102"></script>
 <script src="bod-kx-sell-in.js?v=unit-target-integers-20261102"></script>
-<script src="unit-sell-out-targets.js?v=20261103"></script>
+<script src="unit-sell-out-targets.js?v=ethical-gmeb-20261103"></script>
 <script src="unit-target-layout.js?v=20261102"></script>
-<script src="report-templates.js?v=target-unit-upload-20261103"></script>
+<script src="mtm-appendix.js?v=right-percent-cells-20261103"></script>
+<script src="report-templates.js?v=mtm-appendix-20261103"></script>
 <script src="analysis-store.js"></script>
 <script src="analysis-to-tm-bod.js"></script>
 <script src="analysis-lock.js"></script>
@@ -1238,7 +1239,7 @@
           ? await buildRatioBiayaChartWorkbook(request.period) : request.scope === 'ratio-unit-chart'
             ? await buildRatioUnitChartWorkbook(request.period) : await buildReportWorkbook(request.period);
       if (!workbook) throw new Error("Laporan belum dapat dibuat. Periksa data dan koneksi API untuk periode " + request.period + ".");
-      const buffer = XLSX.write(workbook, {type:"array",bookType:"ods",cellStyles:true});
+      const buffer = window.writeMtmOds ? window.writeMtmOds(workbook) : XLSX.write(workbook, {type:"array",bookType:"ods",cellStyles:true});
       window.parent.postMessage({...reply,buffer}, destination, [buffer]);
     } catch (error) { window.parent.postMessage({...reply,error:error.message || "Unduh laporan gagal."}, destination); }
   });
@@ -1250,7 +1251,7 @@
       if (!workbook) return;
       chartBooks.set(period, Promise.resolve(workbook));
       const filename = (st.report + " - " + period + ".ods").replace(/[\\/:*?"<>|]/g, "");
-      XLSX.writeFile(workbook, filename, { bookType: "ods", cellStyles: true });
+      window.saveMtmOds(workbook, filename);
     } catch (error) { toast(error.message || "Unduh laporan gagal."); }
   };
 

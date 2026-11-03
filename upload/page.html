@@ -200,9 +200,10 @@
 
 <script src="../dashboard/report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="../dashboard/unit-sell-out-targets.js?v=20261103"></script>
+<script src="../dashboard/unit-sell-out-targets.js?v=ethical-gmeb-20261103"></script>
 <script src="../dashboard/bod-kx-sell-in.js"></script>
-<script src="../dashboard/report-templates.js?v=revenue-thousands-20261022"></script>
+<script src="../dashboard/mtm-appendix.js?v=ytd-idr-qty-20261103"></script>
+<script src="../dashboard/report-templates.js?v=mtm-appendix-20261103"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -775,7 +776,7 @@
       if (sectionSelect.value === "TARGET UNIT SELL OUT") {
         const saved=await uploadUnitSellOutTargets(chosen,periodSelect.value);
         barFill.style.width="100%";
-        setMsg("Target UNIT SELL OUT tahun "+saved.year+" berhasil disimpan untuk "+saved.groups.map(g=>g.toUpperCase().replace('GB','GB ')).join(', ')+". EXIST = kategori A+B+C; NP = kategori D.","ok");
+        setMsg("Target UNIT SELL OUT tahun "+saved.year+" berhasil disimpan untuk "+saved.groups.map(g=>g.toUpperCase().replace('GB','GB ')).join(', ')+(saved.groups.includes("ethical")?". ETHICAL diambil dari TARGET GMEB: Existing Product (Unit) dan New Product (Unit).":saved.groups.includes("ib")?". IB diambil dari TARGET HRU SALES REVENUE (UNIT).":". EXIST = kategori A+B+C; NP = kategori D."),"ok");
         clearFile();sectionSelect.value="";
         return;
       }
@@ -806,6 +807,15 @@
         setMsg("BIAYA berhasil disimpan untuk " + periodSelect.value + ". " + target + " dan realisasi masuk ke REVENUE EDP MNJ.", "ok");
         clearFile(); sectionSelect.value = "";
         return;
+      }
+      if(sectionSelect.value === "MTM"){
+        const candidate=XLSX.read(await chosen.arrayBuffer(),{type:'array',cellStyles:true});
+        if(window.isMtmAppendix(candidate)){
+          const saved=await uploadMtmAppendix(chosen,periodSelect.value);
+          barFill.style.width="100%";
+          setMsg("File lampiran MTM "+saved.year+" tersimpan utuh. Tabel ditambahkan setelah LAMPIRAN : MTM "+saved.year+". Gunakan tombol Unduh Data di dashboard untuk mengunduh laporan.","ok");
+          clearFile();sectionSelect.value="";return;
+        }
       }
       const isUnitRevenue = sectionSelect.value === "UNIT & Revenue";
       const isRevenueSO = sectionSelect.value === "Revenue Konimex Selling Out";
@@ -867,7 +877,6 @@
       }
       const processedRows = processed && processed.rows;
       const period = periodSelect.value;
-      let mtmDownloadNote = "";
       const targetStorageYear = isTarget && Number.isInteger(Number(processed.year))
         ? Number(processed.year)
         : Number(period.slice(0, 4));
@@ -888,28 +897,6 @@
         }
       }
       if (!isTarget) await send(sectionSelect.value, chosen, period);
-      if (isMtm) {
-        // Setelah API memastikan data tersimpan, susun sheet dari database dan
-        // unduh langsung. Format selalu memakai tahun berjalan atau tahun upload
-        // (jika upload berada di tahun mendatang); tahun sebelumnya masuk blok bawah.
-        const reportYear = Number(period.slice(0, 4));
-        const downloadYear = Math.max(new Date().getFullYear(), reportYear);
-        const downloadPeriod = downloadYear + period.slice(4);
-        try {
-          if (!window.XLSX || typeof window.replaceMtmTemplateSheet !== "function") {
-            throw new Error("Pembuat sheet MTM belum tersedia di halaman ini.");
-          }
-          const workbook = XLSX.utils.book_new();
-          await window.replaceMtmTemplateSheet(workbook, downloadPeriod);
-          XLSX.writeFile(workbook, "MTM - " + downloadPeriod + ".ods", { bookType: "ods", cellStyles: true });
-          mtmDownloadNote = " File MTM periode " + downloadPeriod + " mulai diunduh.";
-        } catch (downloadError) {
-          // Upload sudah tersimpan; kegagalan membuat unduhan tidak boleh
-          // dilaporkan sebagai kegagalan penyimpanan.
-          mtmDownloadNote = " Data sudah tersimpan, tetapi unduhan otomatis gagal: "
-            + (downloadError.message || "kesalahan saat membuat file") + ".";
-        }
-      }
       if (isEthical) {
         // Database menjadi penyimpanan utama; cache lokal hanya membantu
         // halaman unduh yang sedang dibuka di browser yang sama.
@@ -961,7 +948,7 @@
           : isEthical
             ? "Data Ethical " + (ethicalData.year || "") + " berhasil disimpan ke database ETHICAL. Cache browser diperbarui untuk unduhan di perangkat ini."
           : isMtm
-            ? "Data MTM bagian Increase Revenue berhasil disimpan ke database untuk periode " + period + "." + mtmDownloadNote
+            ? "Data MTM bagian Increase Revenue berhasil disimpan ke database untuk periode " + period + "."
           : LOCAL_FILE_MODE
             ? "Berhasil: \"" + chosen.name + "\" diproses dan disimpan di browser untuk periode " + period + "."
             : isEdpMnjRevenue

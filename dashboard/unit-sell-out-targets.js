@@ -22,10 +22,10 @@
    const cell=sheet[utils.encode_cell({r,c})]||(sheet[utils.encode_cell({r,c})]={});delete cell.f;delete cell.F;delete cell.w;
    Object.assign(cell,{t:value===null?'s':'n',v:value===null?'':value,z:'#,##0'});if(formula)cell.f=formula;
   };
-  for(let gb=1;gb<=6;gb++){
-   const selected=records.filter(row=>Number(row.report_year)===year&&row.product==='gb'+gb);if(!selected.length)continue;
+  for(const [product,suffix]of [...Array.from({length:6},(_,i)=>['gb'+(i+1),'GB '+(i+1)]),['ethical','ETHICAL']]){
+   const selected=records.filter(row=>Number(row.report_year)===year&&row.product===product);if(!selected.length)continue;
    for(const[kind,label]of [['existing','EXIST'],['new','NP']]){
-    const r=destinations.get(label+' GB '+gb);if(r===undefined)continue;
+    const r=destinations.get(label+' '+suffix);if(r===undefined)continue;
     const values=Array.from({length:12},(_,m)=>{
      const v=selected.find(row=>row.kind===kind&&Number(row.month)===m+1)?.units;
      return v===null||v===undefined||v===''?null:Number(v);
@@ -34,7 +34,7 @@
     put(r,2,sum(values.slice(0,month)),`SUM(D${r+1}:${utils.encode_col(month+2)}${r+1})`);
     put(r,15,sum(values),`SUM(D${r+1}:O${r+1})`);
    }
-   const total=destinations.get('TOTAL GB '+gb),children=['EXIST','NP'].map(prefix=>destinations.get(prefix+' GB '+gb));
+   const total=destinations.get('TOTAL '+suffix),children=['EXIST','NP'].map(prefix=>destinations.get(prefix+' '+suffix));
    if(total===undefined||children.some(r=>r===undefined))continue;
    for(let c=3;c<=14;c++){
     const refs=children.map(r=>utils.encode_cell({r,c}));
@@ -43,6 +43,20 @@
    put(total,2,sum(children.map(r=>sheet[utils.encode_cell({r,c:2})]?.v)),`SUM(D${total+1}:${utils.encode_col(month+2)}${total+1})`);
    put(total,15,sum(children.map(r=>sheet[utils.encode_cell({r,c:15})]?.v)),`SUM(D${total+1}:O${total+1})`);
   }
+  const ib=records.filter(row=>Number(row.report_year)===year&&row.product==='ib'&&row.kind==='total');
+  const ibRow=destinations.get('IB');
+  if(ib.length&&ibRow!==undefined){
+   const values=Array.from({length:12},(_,m)=>{
+    const v=ib.find(row=>Number(row.month)===m+1)?.units;
+    return v===null||v===undefined||v===''?null:Number(v);
+   });
+   values.forEach((v,m)=>put(ibRow,m+3,v));
+   const complete=values=>values.every(v=>typeof v==='number'&&Number.isFinite(v))?sum(values):null;
+   const ytd=complete(values.slice(0,month)),total=complete(values);
+   put(ibRow,2,ytd,ytd===null?undefined:`SUM(D${ibRow+1}:${utils.encode_col(month+2)}${ibRow+1})`);
+   put(ibRow,15,total,total===null?undefined:`SUM(D${ibRow+1}:O${ibRow+1})`);
+  }
+
  };
  global.replaceUnitSellOutTargets=async(workbook,period)=>{
   const response=await fetch(endpoint+'&'+new URLSearchParams({period})),result=await response.json();

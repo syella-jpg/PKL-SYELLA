@@ -731,6 +731,7 @@
     const existingIndex = workbook.SheetNames.indexOf("MTM");
     if (existingIndex < 0) global.XLSX.utils.book_append_sheet(workbook, sourceSheet, "MTM");
     else workbook.Sheets.MTM = sourceSheet;
+    await global.replaceMtmAppendices(workbook, period);
   };
   global.replaceEthicalTemplateSheet = async function (workbook, period, hjpData) {
     const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(period || ""));
