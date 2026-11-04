@@ -202,6 +202,7 @@
 <script src="bod-kx-sell-in.js?v=unit-target-integers-20261102"></script>
 <script src="unit-sell-out-targets.js?v=ethical-gmeb-20261103"></script>
 <script src="unit-target-layout.js?v=20261102"></script>
+<script src="mtm-contribution-report.js?v=budget-growth-20261104"></script>
 <script src="mtm-appendix.js?v=right-percent-cells-20261103"></script>
 <script src="report-templates.js?v=mtm-appendix-20261103"></script>
 <script src="analysis-store.js"></script>
@@ -1185,6 +1186,10 @@
     fillSellOutInUnitSellIn(workbook, selectedPeriod);
     fillSellOutInUnitRatios(workbook);
     appendMtmContributionReportTable(workbook, selectedPeriod);
+    fillMtmContributionRevenue(workbook, selectedPeriod);
+    fillMtmContributionBudgetFY(workbook, selectedPeriod);
+    fillMtmContributionBudgetYtd(workbook, selectedPeriod);
+    fillMtmContributionBudgetGrowth(workbook);
     appendUnitSellOutReportTable(workbook, selectedPeriod);
     fillUnitSellOutPrior(workbook, selectedPeriod);
     fillUnitSellOutPrior(workbook, selectedPeriod, true);
