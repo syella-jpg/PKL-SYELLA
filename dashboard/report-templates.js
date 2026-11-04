@@ -528,7 +528,8 @@
     const sourceSheet = sourceBook.Sheets[sourceBook.SheetNames[0]];
     if (!sourceSheet) throw new Error("Sheet MTM tidak ditemukan pada template.");
     const fetchYearMtm = async (sourceYear) => {
-      const endpoint = new URL("mtm_api.php?year=" + sourceYear, apiBase).href;
+      const sourcePeriod = sourceYear === year ? period : sourceYear + "-12";
+      const endpoint = new URL("mtm_api.php?" + new URLSearchParams({year:String(sourceYear),period:sourcePeriod}), apiBase).href;
       const response = await fetchReportApi(endpoint, { cache: "no-store" });
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload || payload.success !== true) {
@@ -610,10 +611,10 @@
       if (left[index] === null && right[index] === null) return null;
       return (Number(left[index]) || 0) + (Number(right[index]) || 0);
     });
-    const metricValues = (target, actual, previousYear) => {
+    const metricValues = (target, actual, previousYear, uploadedRolling = null) => {
       const cutoff = previousYear ? 12 : month;
       const actualInPeriod = actual.map((value, index) => index < cutoff && value !== null ? value : null);
-      const rolling = target.map((value, index) => index < cutoff && actual[index] !== null ? (Number(value) || 0) : 0);
+      const rolling = uploadedRolling || target.map((value, index) => index < cutoff && actual[index] !== null ? (Number(value) || 0) : 0);
       const sum = (values) => values.reduce((total, value) => total + (Number(value) || 0), 0);
       return {
         "T. AWAL": target,
@@ -621,7 +622,7 @@
         AKTUAL: actualInPeriod,
         summary: {
           targetTotal: sum(target),
-          targetCum: previousYear ? sum(target.slice(0, month)) : sum(rolling),
+          targetCum: previousYear ? sum(target.slice(0, month)) : sum(rolling.slice(0, month)),
           actualTotal: sum(actualInPeriod),
           actualCum: sum(actualInPeriod.slice(0, month))
         }
@@ -632,10 +633,14 @@
       const newTarget = valuesFor(data, "NEW_PRODUCT", "TARGET");
       const existingActual = valuesFor(data, "EXISTING", "ACTUAL");
       const newActual = valuesFor(data, "NEW_PRODUCT", "ACTUAL");
+      const readRolling = metric => Array.isArray(data?.[metric]?.ROLLING) ? valuesFor(data, metric, "ROLLING") : null;
+      const existingRolling = readRolling("EXISTING"), newRolling = readRolling("NEW_PRODUCT");
+      const revenueRolling = readRolling("REVENUE") || (existingRolling || newRolling ? sumMonthly(existingRolling || Array(12).fill(null), newRolling || Array(12).fill(null)) : null);
+      const prefer = (source, fallback) => source.map((value,index) => value === null ? fallback[index] : value);
       return {
-        REVENUE: metricValues(sumMonthly(existingTarget, newTarget), sumMonthly(existingActual, newActual), previousYear),
-        EXISTING: metricValues(existingTarget, existingActual, previousYear),
-        "NEW PRODUCT": metricValues(newTarget, newActual, previousYear)
+        REVENUE: metricValues(prefer(valuesFor(data,"REVENUE","TARGET"),sumMonthly(existingTarget,newTarget)), prefer(valuesFor(data,"REVENUE","ACTUAL"),sumMonthly(existingActual,newActual)), previousYear, revenueRolling),
+        EXISTING: metricValues(existingTarget, existingActual, previousYear, existingRolling),
+        "NEW PRODUCT": metricValues(newTarget, newActual, previousYear, newRolling)
       };
     };
     const setCellNumber = (row, column, value) => {
@@ -858,20 +863,15 @@
     sheet.B112 = { ...(sheet.B112 || {}), t: "s", v: "LAMPIRAN : EXPORT " + (year - 2) };
     const revenueApi = new URL("revenue_ibfm_api.php", apiBase).href;
     try {
-      const response = await fetchReportApi(revenueApi + "?" + new URLSearchParams({ year: String(year), month: String(month) }), { cache: "no-store" });
+      const response = await fetchReportApi(revenueApi + "?" + new URLSearchParams({ year: String(year), month: String(month), period: String(period) }), { cache: "no-store" });
       const payload = await response.json();
       const data = payload && payload.success && payload.data;
-      if (!response.ok || !data || !data.period) {
+      if (!response.ok || !data) {
         throw new Error((payload && payload.message) || "Data IB belum tersedia untuk periode " + year + ". Unggah raw data melalui bagian IB.");
       }
       if (Number(data.usdRate) > 0 && Number.isFinite(Number(data.usdRate))) {
         usdRates[year] = Number(data.usdRate);
         setUsdRate("C20", year);
-      }
-      const hasFoodData = [data.targetFd, data.actualFd, data.newTargetFd, data.newActualFd].some((values) => Array.isArray(values)
-        && values.some((value) => value !== null && value !== undefined && Number.isFinite(Number(value))));
-      if (!hasFoodData) {
-        throw new Error("Baris IB FD masih kosong karena nilai TARGET/REALISASI pada sheet IAP belum masuk. Unggah ulang raw data yang berisi nilai IAP.");
       }
       {
         const put = (address, value) => {
@@ -886,9 +886,15 @@
           values.forEach((value, index) => put(String.fromCharCode(70 + index) + row, value));
           put("R" + row, total);
         };
-        const addMonthly = (first, second) => Array.from({ length: 12 }, (_, index) =>
-          (Number(first && first[index]) || 0) + (Number(second && second[index]) || 0));
-        const sumThroughMonth = (values, endMonth) => values.slice(0, endMonth).reduce((sum, value) => sum + (Number(value) || 0), 0);
+        const numeric = value => typeof value === "number" && Number.isFinite(value);
+        const addMonthly = (first, second) => Array.from({ length: 12 }, (_, index) => {
+          const values = [first?.[index], second?.[index]].filter(numeric);
+          return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+        });
+        const sumThroughMonth = (values, endMonth) => {
+          const present = values.slice(0, endMonth).filter(numeric);
+          return present.length ? present.reduce((sum, value) => sum + value, 0) : null;
+        };
         write(8, data.target, data.ytd && data.ytd.target, data.fullYear && data.fullYear.target);
         write(11, data.actual, data.ytd && data.ytd.actual, data.fullYear && data.fullYear.actual);
         write(9, data.targetFd, data.ytd && data.ytd.targetFd, data.fullYear && data.fullYear.targetFd);
@@ -943,19 +949,16 @@
         // pada sheet IB yang sama (baris 41–56), tanpa membuat sheet tambahan.
         if (exportYear >= 2026) {
           const previousYear = exportYear - 1;
-          const previousResponse = await fetchReportApi(revenueApi + "?" + new URLSearchParams({ year: String(previousYear), month: String(month) }), { cache: "no-store" });
+          const previousResponse = await fetchReportApi(revenueApi + "?" + new URLSearchParams({ year: String(previousYear), month: String(month), period: previousYear + "-12" }), { cache: "no-store" });
           const previousPayload = await previousResponse.json();
           const previousData = previousPayload && previousPayload.success && previousPayload.data;
-          if (!previousResponse.ok || !previousData || !previousData.period) {
+          if (!previousResponse.ok || !previousData) {
             throw new Error((previousPayload && previousPayload.message) || "Data IB periode " + previousYear + " belum tersedia untuk tabel bawah.");
           }
           if (Number(previousData.usdRate) > 0 && Number.isFinite(Number(previousData.usdRate))) {
             usdRates[previousYear] = Number(previousData.usdRate);
             setUsdRate("C58", previousYear);
           }
-          const hasPreviousFoodData = [previousData.targetFd, previousData.actualFd, previousData.newTargetFd, previousData.newActualFd].some((values) => Array.isArray(values)
-            && values.some((value) => value !== null && value !== undefined && Number.isFinite(Number(value))));
-          if (!hasPreviousFoodData) throw new Error("Data IB FD periode " + previousYear + " belum tersedia untuk tabel bawah.");
           const writePrevious = (row, values, ytd, fullYear) => {
             put("D" + row, ytd);
             values.forEach((value, index) => put(String.fromCharCode(70 + index) + row, value));

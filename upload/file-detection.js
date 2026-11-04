@@ -40,6 +40,8 @@
     const aliases = ['JANUARI|JANUARY|JAN','FEBRUARI|FEBRUARY|FEB','MARET|MARCH|MAR','APRIL|APR','MEI|MAY','JUNI|JUNE|JUN','JULI|JULY|JUL','AGUSTUS|AUGUST|AGT|AGS|AUG','SEPTEMBER|SEP','OKTOBER|OCTOBER|OKT|OCT','NOVEMBER|NOPEMBER|NOV|NOP','DESEMBER|DECEMBER|DES|DEC'];
     const monthsIn = input => aliases.flatMap((a,i) => new RegExp('\\b(?:'+a+')\\b').test(input) ? [i+1] : []);
     let months = monthsIn(file);
+    const isoPeriod = file.match(/\b(20\d{2})-(0[1-9]|1[0-2])(?!\d)/);
+    if (!months.length && isoPeriod && Number(isoPeriod[1]) === year) months = [Number(isoPeriod[2])];
     const numericPeriod = file.match(/(?:^|[^\d])(0?[1-9]|1[0-2])[-/](20\d{2})(?!\d)/);
     if (!months.length && numericPeriod && Number(numericPeriod[2]) === year) months = [Number(numericPeriod[1])];
     if (!months.length) months = monthsIn(labels.filter(l => /^(?:BULAN|PERIODE)\s/.test(l) && !/S\s*\/\s*D/.test(l)).join(' '));

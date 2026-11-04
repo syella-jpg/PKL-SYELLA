@@ -101,7 +101,14 @@
   .btn:disabled { opacity: .55; cursor: not-allowed; }
   .btn:focus-visible { outline: 3px solid rgba(227,30,36,.35); outline-offset: 2px; }
 
+  .template-help { margin-top: 18px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; display: flex; align-items: center; gap: 16px; }
+  .template-help[hidden] { display: none; }
+  .template-help strong { font-size: 12px; }
+  .template-help p { font-size: 11px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
+  #downloadTemplate { flex-shrink: 0; padding: 10px 12px; border: 1px solid #e31e24; border-radius: 9px; color: #c8141a; background: #fff; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+  #downloadTemplate:disabled { opacity: .55; cursor: wait; }
   @media (max-width: 520px) {
+    .template-help { align-items: flex-start; flex-direction: column; }
     header { padding: 0 14px; }
     .user span.t { display: none; }
     .card { padding: 26px 20px 28px; border-radius: 20px; }
@@ -166,6 +173,11 @@
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </div>
 
+    <div class="template-help" id="templateHelp" hidden>
+      <div><strong id="templateTitle">Template laporan</strong><p id="templateDescription"></p></div>
+      <button type="button" id="downloadTemplate">Unduh Template Excel</button>
+    </div>
+
     <span class="label" id="fileLabel">File Dokumen</span>
     <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
       <input type="file" id="file" accept=".xlsx,.ods" hidden>
@@ -211,7 +223,7 @@
 <script src="../dashboard/unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
 <script src="../dashboard/bod-kx-sell-in.js"></script>
 <script src="../dashboard/mtm-appendix.js?v=ytd-idr-qty-20261103"></script>
-<script src="../dashboard/report-templates.js?v=mtm-appendix-20261103"></script>
+<script src="../dashboard/report-templates.js?v=ib-mtm-period-history-20261104"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -260,6 +272,7 @@
     sectionSelect.setAttribute("aria-expanded", "false");
   }
   function updateIbRateField() {
+    updateTemplateDownload();
     const isIb = sectionSelect.value.trim().toUpperCase() === "IB";
     $("ibRateWrap").hidden = !isIb;
     $("ibRate").disabled = !isIb;
@@ -296,6 +309,36 @@
   });
   document.addEventListener("click", (event) => {
     if (!$("bagianWrap").contains(event.target)) closeSectionOptions();
+  });
+
+  function updateTemplateDownload() {
+    const section = sectionSelect.value.trim(), period = periodSelect.value;
+    const visible = ["IB", "MTM"].includes(section) && /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
+    $("templateHelp").hidden = !visible;
+    if (!visible) return;
+    $("templateTitle").textContent = "Template " + section + " · " + period;
+    $("templateDescription").textContent = section === "IB"
+      ? "Melanjutkan data IB tersimpan pada tahun yang sama; Januari dimulai kosong. Tiga sheet: IB Farma, IB Food, dan MCM. Isi Target dan Realisasi dalam USD secara kumulatif."
+      : "Melanjutkan data MTM tersimpan pada tahun yang sama. Target Awal ditampilkan Januari–Desember; Januari mereset Rolling dan Aktual. Isi Target Awal, Target Rolling, dan Aktual bulanan dalam Rupiah penuh.";
+  }
+  periodSelect.addEventListener("change", updateTemplateDownload);
+  $("downloadTemplate").addEventListener("click", async () => {
+    const section = sectionSelect.value.trim(), period = periodSelect.value;
+    if (!["IB", "MTM"].includes(section) || !period) return;
+    const button = $("downloadTemplate");
+    button.disabled = true;
+    try {
+      const base = LOCAL_FILE_MODE ? "http://127.0.0.1:8000/api/report.php" : "../api/report.php";
+      const response = await fetch(base + "?" + new URLSearchParams({ endpoint: "report_input_template", section, period }));
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.message || "Template gagal diunduh.");
+      }
+      const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
+      link.href = url; link.download = "Template_" + section + "_" + period + ".xlsx";
+      link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { setMsg(error.message || "Template gagal diunduh.", "error"); }
+    finally { button.disabled = false; }
   });
 
   // Header
@@ -619,6 +662,7 @@
     sectionSelect.value = "";
     updateIbRateField();
     periodSelect.value = "";
+    updateTemplateDownload();
     $("detectionChoices").replaceChildren();
     $("detectionStatus").textContent = "Mengenali file…";
     try {
@@ -660,6 +704,7 @@
     } catch (error) {
       if (id === detectionId) $("detectionStatus").textContent = "File belum dapat dikenali. Pilih bagian dan periode secara manual.";
     } finally {
+      if (id === detectionId) updateTemplateDownload();
       if (id === detectionId) { detecting = false; btn.disabled = busy; }
     }
   }
@@ -842,21 +887,21 @@
         const saved=await uploadUnitSellOutTargets(chosen,periodSelect.value);
         barFill.style.width="100%";
         setMsg("Target UNIT SELL OUT tahun "+saved.year+" berhasil disimpan untuk "+saved.groups.map(g=>g.toUpperCase().replace('GB','GB ')).join(', ')+(saved.groups.includes("ethical")?". ETHICAL diambil dari TARGET GMEB: Existing Product (Unit) dan New Product (Unit).":saved.groups.includes("ib")?". IB diambil dari gabungan TARGET HRU SALES REVENUE (UNIT) + NEW BUSINESS PRODUCT (UNIT), dengan selisih kumulatif per bulan.":". EXIST = kategori A+B+C; NP = kategori D."),"ok");
-        clearFile();sectionSelect.value="";
+        clearFile();sectionSelect.value=""; updateIbRateField();
         return;
       }
       if (sectionSelect.value === "BOD KX Sell In") {
         const saved = await uploadBodKxSellInFile(chosen, periodSelect.value);
         barFill.style.width = "100%";
         setMsg(saved.kind === "target" ? "Target SELL IN tahun " + saved.year + " berhasil disimpan dari nilai ROD per GB untuk Januari–Desember." : "BOD KX SELL IN berhasil disimpan untuk " + periodSelect.value + ".", "ok");
-        clearFile(); sectionSelect.value = "";
+        clearFile(); sectionSelect.value = ""; updateIbRateField();
         return;
       }
       if (sectionSelect.value === "BOD MNJ") {
         await uploadBodMnjFile(chosen, periodSelect.value);
         barFill.style.width = "100%";
         setMsg("BOD MNJ berhasil disimpan untuk " + periodSelect.value + ". Unduhan menampilkan tahun terpilih di atas dan tahun sebelumnya di bawah.", "ok");
-        clearFile(); sectionSelect.value = "";
+        clearFile(); sectionSelect.value = ""; updateIbRateField();
         return;
       }
       if (sectionSelect.value === "BIAYA") {
@@ -870,7 +915,7 @@
         barFill.style.width = "100%";
         const target = periodSelect.value.startsWith("2025-") ? "Target rolling" : "Target";
         setMsg("BIAYA berhasil disimpan untuk " + periodSelect.value + ". " + target + " dan realisasi masuk ke REVENUE EDP MNJ.", "ok");
-        clearFile(); sectionSelect.value = "";
+        clearFile(); sectionSelect.value = ""; updateIbRateField();
         return;
       }
       if(sectionSelect.value === "MTM"){
@@ -879,7 +924,7 @@
           const saved=await uploadMtmAppendix(chosen,periodSelect.value);
           barFill.style.width="100%";
           setMsg("File lampiran MTM "+saved.year+" tersimpan utuh. Tabel ditambahkan setelah LAMPIRAN : MTM "+saved.year+". Gunakan tombol Unduh Data di dashboard untuk mengunduh laporan.","ok");
-          clearFile();sectionSelect.value="";return;
+          clearFile();sectionSelect.value=""; updateIbRateField();return;
         }
       }
       const isUnitRevenue = sectionSelect.value === "UNIT & Revenue";

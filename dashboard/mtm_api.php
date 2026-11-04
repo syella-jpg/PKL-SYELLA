@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/mtm_template_history.php';
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
@@ -38,6 +39,13 @@ if (!preg_match('/^\d{4}$/', $year)) {
     exit;
 }
 
+$requestedPeriod = $_GET['period'] ?? ($year.'-12');
+if (!is_string($requestedPeriod) || !preg_match('/^'.preg_quote($year,'/').'-(0[1-9]|1[0-2])$/D', $requestedPeriod)) {
+    http_response_code(400);
+    echo json_encode(['success'=>false,'message'=>'Periode MTM tidak sesuai dengan tahun yang dipilih.']);
+    exit;
+}
+
 $conn = openReportConnection();
 if ($conn->connect_error) {
     http_response_code(500);
@@ -50,33 +58,26 @@ $data = [];
 foreach (['REVENUE', 'EXISTING', 'NEW_PRODUCT'] as $metric) {
     $data[$metric] = ['TARGET' => array_fill(0, 12, null), 'ACTUAL' => array_fill(0, 12, null)];
 }
-$stmt = $conn->prepare('SELECT report_period, metric_code, value_type, month_number, amount FROM mtm_monthly_values WHERE report_period LIKE CONCAT(?, "-%") AND metric_code IN ("REVENUE","EXISTING","NEW_PRODUCT") ORDER BY report_period DESC, month_number ASC');
-if (!$stmt) {
+try {
+    $records = loadMtmTemplateHistory($conn, $requestedPeriod, false);
+} catch (Throwable $error) {
+    error_log('Read MTM snapshot: '.$error->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Tabel data MTM belum tersedia.']);
+    echo json_encode(['success'=>false,'message'=>'Data MTM gagal dibaca. Periksa koneksi database.']);
     $conn->close();
     exit;
 }
-$stmt->bind_param('s', $year);
-if (!$stmt->execute()) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Data MTM gagal dibaca.']);
-    $stmt->close();
-    $conn->close();
-    exit;
-}
-$result = $stmt->get_result();
 $sourcePeriod = null;
-while ($result && ($row = $result->fetch_assoc())) {
+foreach ($records as $row) {
     if ($sourcePeriod === null) $sourcePeriod = $row['report_period'];
     if ($row['report_period'] !== $sourcePeriod) break;
     $metric = strtoupper((string)$row['metric_code']);
     $type = strtoupper((string)$row['value_type']);
     $month = (int)$row['month_number'] - 1;
+    if (isset($data[$metric]) && $type === 'ROLLING' && !isset($data[$metric]['ROLLING'])) $data[$metric]['ROLLING'] = array_fill(0,12,null);
     if (!isset($data[$metric][$type]) || $month < 0 || $month > 11) continue;
     $data[$metric][$type][$month] = $row['amount'] === null ? null : (float)$row['amount'];
 }
-$stmt->close();
 $conn->close();
 
 if ($sourcePeriod !== null) {

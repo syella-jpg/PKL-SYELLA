@@ -98,6 +98,7 @@ for(const col of ['E','L']){const c=spacedRead.Sheets.MTM[col+festiveRow];assert
 console.log('PASS absent separator/blank cells retain right percentage column position; 7.99% exports as 8.0% in both FY and YTD');
 const appendixApi=fs.readFileSync('dashboard/mtm_appendix_api.php','utf8'),store=fs.readFileSync('includes/mtm_appendix_store.php','utf8'),kpiApi=fs.readFileSync('dashboard/mtm_api.php','utf8'),kpiUpload=fs.readFileSync('upload/upload.php','utf8');
 assert.ok(appendixApi.includes('INSERT INTO mtm_monthly_values'));assert.ok(appendixApi.includes("metric_code='APPENDIX' AND value_type='FILE'"));assert.ok(!appendixApi.includes('INSERT INTO mtm_appendix_uploads'));
-assert.ok(kpiApi.includes('metric_code IN ("REVENUE","EXISTING","NEW_PRODUCT")'));
+assert.ok(kpiApi.includes('loadMtmTemplateHistory($conn, $requestedPeriod, false)'));
+assert.ok(fs.readFileSync('includes/mtm_template_history.php','utf8').includes('metric_code IN ("REVENUE","EXISTING","NEW_PRODUCT")'));
 assert.ok(kpiUpload.includes("metric_code <> \\'APPENDIX\\'"));assert.ok(store.includes('WHERE current.id IS NULL'));assert.ok(!/DROP TABLE|DELETE FROM/.test(store));
 console.log('PASS MTM appendix storage uses mtm_monthly_values, preserves legacy backup, idempotent migration, excludes file records from KPI reads and protects files during KPI replacement');

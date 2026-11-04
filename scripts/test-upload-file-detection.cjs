@@ -32,3 +32,11 @@ result = detect(book({ Data: ['REV TOTAL'] }), 'report.xlsx');
 assert.equal(result.choices.length, 2);
 assert.equal(detect(book({ Data: ['BIAYA PROMOSI MNJ TH 2027'] }), 'report.xlsx').year, 2027);
 console.log('Upload detection: routing, ambiguous uses, periods, missing categories, unknown files passed.');
+
+result = detect(book({ MTM: ['INCREASE REVENUE', 'MTM — TAHUN 2027'] }), 'Template_MTM_2027-02.xlsx');
+assert.equal(result.choices[0].section, 'MTM');
+assert.equal(result.year, 2027);
+assert.equal(result.month, 2);
+result = detect(book({ 'YFR - IBFM': [], IAP: [], HRU: [] }), 'Template_IB_2026-09.xlsx');
+assert.equal(result.choices[0].section, 'IB');
+assert.equal(result.month, 9);

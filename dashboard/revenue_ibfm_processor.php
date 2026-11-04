@@ -40,11 +40,14 @@ function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear
     }
     if ($monthStartColumn === null) throw new RuntimeException('Header bulan JAN–DES tidak ditemukan pada sheet ' . $sheetName . '.');
     $targetColumn = Coordinate::stringFromColumnIndex($monthStartColumn - 1);
-    $metricMatches = static function (string $rowLabel) use ($normalize, $subKpi): bool {
+    $metricMatches = static function (string $rowLabel) use ($normalize, $subKpi, $sheetName): bool {
         $label = $normalize($rowLabel);
         if (str_contains(strtoupper($subKpi), 'MCM')) {
-            return str_contains($label, 'MCM') && str_contains($label, 'REVENUE')
-                && str_contains($label, 'HPP') && str_contains($label, 'EXPENSES');
+            return (str_contains($label, 'MCM') && str_contains($label, 'REVENUE')
+                && str_contains($label, 'HPP') && str_contains($label, 'EXPENSES'))
+                || (strtoupper(trim($sheetName)) === 'HRU'
+                    && str_contains($label, 'COST EFFICIENCY & EFFECTIVENESS')
+                    && str_contains($label, '% REALIZATION OF COST VS BUDGET'));
         }
         return str_contains($label, $normalize($subKpi));
     };
@@ -70,7 +73,7 @@ function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear
         } elseif (str_contains($text, ',')) $text = str_replace(',', '.', $text);
         return is_numeric($text) ? (float)$text : null;
     };
-    $result = ['target' => array_fill(1, 12, null), 'actual' => array_fill(1, 12, null)];
+    $result = ['target' => array_fill(1, 12, null), 'actual' => array_fill(1, 12, null), 'cumulative' => ['target'=>array_fill(1,12,null),'actual'=>array_fill(1,12,null)]];
     $found = false;
     foreach ([$resolvedTargetRow => 'target', ($resolvedTargetRow + 1) => 'actual'] as $row => $key) {
         $previous = null;
@@ -79,6 +82,7 @@ function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear
             $raw = $cell->getValue();
             if (is_string($raw) && str_starts_with($raw, '=')) $raw = $cell->getCalculatedValue();
             $cumulative = $parse($raw);
+            $result['cumulative'][$key][$month] = $cumulative;
             if ($cumulative !== null) $found = true;
             $result[$key][$month] = $month === 1 ? $cumulative : (($cumulative !== null && $previous !== null) ? $cumulative - $previous : null);
             $previous = $cumulative;

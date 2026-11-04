@@ -4,6 +4,8 @@ require_once __DIR__ . '/../includes/ib_exchange_rates.php';
 
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
+require_once __DIR__ . '/../includes/report_input_templates.php';
+require_once __DIR__ . '/../includes/mtm_workbook.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -328,97 +330,8 @@ try {
 
     if ($divisi === 'MTM') {
         $spreadsheet = IOFactory::load($file);
-        $monthAliases = [
-            'JAN' => 1, 'JANUARI' => 1, 'FEB' => 2, 'FEBRUARI' => 2,
-            'MAR' => 3, 'MARET' => 3, 'APR' => 4, 'APRIL' => 4,
-            'MAY' => 5, 'MEI' => 5, 'JUN' => 6, 'JUNI' => 6,
-            'JUL' => 7, 'JULI' => 7, 'AUG' => 8, 'AGS' => 8, 'AGU' => 8, 'AGUSTUS' => 8,
-            'SEP' => 9, 'SEPTEMBER' => 9, 'OCT' => 10, 'OKT' => 10, 'OKTOBER' => 10,
-            'NOV' => 11, 'NOVEMBER' => 11, 'DEC' => 12, 'DES' => 12, 'DESEMBER' => 12,
-        ];
-        $normalize = static function ($value): string {
-            $text = str_replace("\xC2\xA0", ' ', (string)$value);
-            return strtoupper(trim(preg_replace('/\\s+/u', ' ', $text)));
-        };
-        $mtmData = [];
-        foreach ($spreadsheet->getWorksheetIterator() as $sourceSheet) {
-            $monthColumns = [];
-            $highestColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sourceSheet->getHighestDataColumn());
-            $highestRow = $sourceSheet->getHighestDataRow();
-            $grid = [];
-            for ($row = 1; $row <= $highestRow; $row++) {
-                $grid[$row] = [];
-                for ($column = 1; $column <= $highestColumn; $column++) {
-                    $coordinate = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column) . $row;
-                    $cell = $sourceSheet->getCell($coordinate);
-                    $grid[$row][$column] = $normalize($cell->getValue());
-                    if (isset($monthAliases[$grid[$row][$column]])) $monthColumns[$row][$monthAliases[$grid[$row][$column]]] = $column;
-                }
-            }
-            $monthHeaderRows = [];
-            foreach ($monthColumns as $row => $columns) {
-                if (count($columns) === 12) $monthHeaderRows[] = (int)$row;
-            }
-
-            $rowText = static fn(array $cells): string => trim(implode(' ', array_filter($cells, static fn($value): bool => $value !== '')));
-            $objectiveRow = null;
-            foreach ($grid as $row => $cells) {
-                if (str_contains($rowText($cells), 'INCREASE REVENUE')) { $objectiveRow = (int)$row; break; }
-            }
-            if ($objectiveRow === null) continue;
-            if (!$monthHeaderRows) continue;
-            usort($monthHeaderRows, static fn(int $left, int $right): int => abs($left - $objectiveRow) <=> abs($right - $objectiveRow));
-            $headerRow = $monthHeaderRows[0];
-
-            $isMetricLabel = static function (string $text, string $metric): bool {
-                if ($metric === 'REVENUE') {
-                    return (str_contains($text, 'KPI REVENUE') && (str_contains($text, 'RP') || str_contains($text, 'RUPIAH')))
-                        || str_contains($text, 'REVENUE (RP)');
-                }
-                if ($metric === 'EXISTING') return str_contains($text, 'REVENUE EXISTING');
-                return str_contains($text, 'REVENUE NEW PRODUCT');
-            };
-            $anchors = [];
-            $unitRow = $highestRow + 1;
-            foreach ($grid as $row => $cells) {
-                if ($row <= $objectiveRow) continue;
-                if (str_contains($rowText($cells), 'REVENUE (UNIT)')) { $unitRow = (int)$row; break; }
-            }
-            foreach (['REVENUE', 'EXISTING', 'NEW_PRODUCT'] as $metric) {
-                foreach ($grid as $row => $cells) {
-                    if ($row < $objectiveRow || $row >= $unitRow) continue;
-                    if ($isMetricLabel($rowText($cells), $metric)) { $anchors[$metric] = (int)$row; break; }
-                }
-            }
-            if (count($anchors) !== 3) continue;
-            asort($anchors);
-            $orderedMetrics = array_keys($anchors);
-            foreach ($orderedMetrics as $metricIndex => $metric) {
-                $startRow = $anchors[$metric];
-                $endRow = $orderedMetrics[$metricIndex + 1] ?? null;
-                $endRow = $endRow === null ? $unitRow : $anchors[$endRow];
-                $typeRows = [];
-                for ($row = $startRow; $row < $endRow; $row++) {
-                    $labels = $rowText($grid[$row] ?? []);
-                    if (preg_match('/\bTARGET\b/', $labels)) $typeRows['TARGET'] = $row;
-                    if (preg_match('/\b(?:AKTUAL|ACTUAL)\b/', $labels)) $typeRows['ACTUAL'] = $row;
-                }
-                if (!isset($typeRows['TARGET'], $typeRows['ACTUAL'])) continue;
-                foreach ($typeRows as $valueType => $row) {
-                    $amounts = [];
-                    foreach ($monthColumns[$headerRow] as $monthNumber => $column) {
-                        $coordinate = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column) . $row;
-                        $cell = $sourceSheet->getCell($coordinate);
-                        $value = $cell->getCalculatedValue();
-                        $amounts[$monthNumber] = is_numeric($value) ? (float)$value : null;
-                    }
-                    $mtmData[$metric][$valueType] = $amounts;
-                }
-            }
-            if (isset($mtmData['REVENUE']['TARGET'], $mtmData['REVENUE']['ACTUAL'], $mtmData['EXISTING']['TARGET'], $mtmData['EXISTING']['ACTUAL'], $mtmData['NEW_PRODUCT']['TARGET'], $mtmData['NEW_PRODUCT']['ACTUAL'])) break;
-            $mtmData = [];
-        }
-        if (!$mtmData) throw new Exception('Bagian finansial MTM belum dikenali. Pastikan file memuat KPI Revenue (Rp), Revenue Existing, Revenue New Product, header Januari–Desember, serta baris Target dan Aktual di bawah Increase Revenue.');
+        validateReportInputTemplate($spreadsheet, 'MTM', $period);
+        $mtmData = parseMtmWorkbook($spreadsheet);
 
         $conn->begin_transaction();
         $delete = $conn->prepare('DELETE FROM mtm_monthly_values WHERE report_period = ? AND metric_code <> \'APPENDIX\'');
@@ -448,6 +361,10 @@ try {
     }
 
     if ($divisi === 'IB') {
+        $inputBook = IOFactory::load($file);
+        validateReportInputTemplate($inputBook, 'IB', $period);
+        $inputBook->disconnectWorksheets();
+        unset($inputBook);
         // Pengguna dapat mengisi salah satu sheet lebih dahulu; simpan nilai
         // sheet yang tersedia dan biarkan kolom sheet lainnya kosong.
         $monthlyFm = processRevenueExistIbFmSpreadsheet($file, (int)substr($period, 0, 4), 'YFR - IBFM', true);
@@ -506,6 +423,12 @@ try {
                 ['revenue_new', 'IB_FD', 'TARGET', $targetNewFd], ['revenue_new', 'IB_FD', 'ACTUAL', $actualNewFd],
                 ['mcm', 'GROUP', 'TARGET', $targetMcm], ['mcm', 'GROUP', 'ACTUAL', $actualMcm],
             ];
+            // Retain original cumulative input for the next month's editable template.
+            foreach ([['revenue_exist_cum','IB_FM',$monthlyFm],['revenue_exist_cum','IB_FD',$monthlyFd],
+                ['revenue_new_cum','IB_FM',$monthlyNewFm],['revenue_new_cum','IB_FD',$monthlyNewFd],['mcm_cum','GROUP',$monthlyMcm]] as [$metric,$unit,$source]) {
+                $canonicalValues[]=[$metric,$unit,'TARGET',$source['cumulative']['target'][$month]];
+                $canonicalValues[]=[$metric,$unit,'ACTUAL',$source['cumulative']['actual'][$month]];
+            }
             foreach ($canonicalValues as [$metric, $unit, $valueType, $amount]) {
                 $insertCanonical->bind_param('sisssd', $period, $month, $metric, $unit, $valueType, $amount);
                 if (!$insertCanonical->execute()) throw new Exception('Gagal menyimpan ke ib_monthly_values: ' . $insertCanonical->error);
