@@ -25,18 +25,18 @@
 
   /* ===== Kartu ===== */
   main { padding: 38px 16px 48px; }
-  .card { max-width: 568px; margin: 0 auto; background: #fff; border-radius: 24px; padding: 36px 32px 32px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
-  h1 { font-size: 20px; font-weight: 700; }
-  .sub { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .card { max-width: 616px; margin: 0 auto; background: #fff; border-radius: 24px; padding: 32px 32px 36px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  h1 { font-size: 21px; line-height: 1.35; font-weight: 700; letter-spacing: -.45px; }
+  .sub { margin-top: 6px; font-size: 12px; line-height: 1.65; color: var(--muted); }
   .label { display: block; font-size: 12px; font-weight: 700; margin: 28px 0 8px; }
   .label + .select-wrap { margin-top: 0; }
 
   /* ===== Pilihan ===== */
   .select-wrap { position: relative; }
   .select-wrap select, .select-wrap input {
-    width: 100%; height: 38px; appearance: none; -webkit-appearance: none;
+    width: 100%; height: 42px; appearance: none; -webkit-appearance: none;
     border: 1px solid var(--line); border-radius: 10px; background: #fff;
-    padding: 0 40px 0 40px; font-family: inherit; font-size: 13px; color: var(--ink); cursor: pointer;
+    padding: 0 40px 0 14px; font-family: inherit; font-size: 13px; color: var(--ink); cursor: pointer;
   }
   .select-wrap select:invalid { color: var(--ink); }
   .select-wrap select:focus-visible, .select-wrap input:focus-visible { outline: 3px solid rgba(227,30,36,.25); border-color: var(--red); }
@@ -51,19 +51,19 @@
 
   /* ===== Dropzone ===== */
   .drop {
-    border: 2px dashed var(--red); border-radius: 12px; background: #fff7f6;
-    min-height: 204px; padding: 24px; display: flex; flex-direction: column;
+    border: 2px dashed var(--red); border-radius: 12px; background: #fffbfb;
+    min-height: 224px; padding: 24px; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; cursor: pointer;
     transition: background .15s, border-color .15s;
   }
   .drop:hover, .drop.over { background: #ffeceb; }
   .drop:focus-visible { outline: 3px solid rgba(227,30,36,.3); outline-offset: 2px; }
   .drop.err { background: #fff0ef; }
-  .cloud { width: 50px; height: 50px; border-radius: 50%; background: #ffe4e2; display: grid; place-items: center; margin-bottom: 18px; }
+  .cloud { width: 56px; height: 56px; border-radius: 50%; background: #fff0f0; display: grid; place-items: center; margin-bottom: 18px; }
   .cloud svg { width: 24px; height: 24px; stroke: var(--red); }
-  .drop strong { font-size: 13px; font-weight: 700; }
-  .drop p { margin-top: 6px; font-size: 11px; color: var(--muted); }
-  .chip { margin-top: 14px; background: #eef0f3; border-radius: 6px; padding: 5px 12px; font-size: 10px; font-weight: 600; color: #4b5563; }
+  .drop strong { font-size: 14px; font-weight: 700; }
+  .drop p { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .chip { margin-top: 14px; background: #f3f4f6; border-radius: 6px; padding: 5px 12px; font-size: 10px; font-weight: 600; color: #4b5563; }
 
   /* File terpilih */
   .picked { display: none; align-items: center; gap: 12px; width: 100%; max-width: 380px; background: #fff; border: 1px solid #f3c9c7; border-radius: 10px; padding: 12px 14px; text-align: left; }
@@ -85,14 +85,17 @@
   .bar.on { display: block; }
   .bar i { display: block; height: 100%; width: 0; background: var(--red); transition: width .15s; }
 
-  .actions { display: flex; justify-content: flex-end; margin-top: 10px; }
-  .actions .clear-local { margin-right: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); padding: 0 12px; font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 28px; }
+  .actions .clear-local { margin-right: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); min-height: 40px; padding: 0 12px; font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
   .actions .clear-local:hover { background: #f4f4f4; }
   .btn {
-    display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 22px;
+    display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 28px;
     border: 0; border-radius: 10px; background: var(--red); color: #fff;
     font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: background .15s;
   }
+  #detectionStatus:empty, #detectionChoices:empty, .msg:empty { display: none; }
+  #detectionStatus { line-height: 1.6; }
+  #detectionChoices:not(:empty) { margin-top: 10px; }
   .btn svg { width: 15px; height: 15px; stroke: #fff; }
   .btn:hover:not(:disabled) { background: var(--red-dark); }
   .btn:disabled { opacity: .55; cursor: not-allowed; }
@@ -101,7 +104,9 @@
   @media (max-width: 520px) {
     header { padding: 0 14px; }
     .user span.t { display: none; }
-    .card { padding: 26px 18px 24px; border-radius: 20px; }
+    .card { padding: 26px 20px 28px; border-radius: 20px; }
+    .actions { flex-wrap: wrap; }
+    .drop { padding: 20px 14px; }
   }
 </style>
 </head>
@@ -122,26 +127,6 @@
     <h1>Upload File Laporan</h1>
     <p class="sub">Pilih file terlebih dahulu. Bagian laporan dan periode akan dibantu dikenali otomatis.</p>
 
-    <span class="label" id="fileLabel">File Dokumen</span>
-    <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
-      <input type="file" id="file" accept=".xlsx,.ods" hidden>
-      <div class="empty" style="display:flex;flex-direction:column;align-items:center">
-        <div class="cloud">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16.58A5 5 0 0018 7h-1.26A8 8 0 104 15.25"/><path d="M12 12v9M8 16l4-4 4 4"/></svg>
-        </div>
-        <strong>Drag &amp; drop file di sini</strong>
-        <p>atau klik untuk memilih file dari komputer Anda</p>
-        <span class="chip">.Ods, .xlsx (Maks. 50MB)</span>
-      </div>
-      <div class="picked">
-        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></div>
-        <div class="meta"><div class="name" id="fname"></div><div class="size" id="fsize"></div></div>
-        <button type="button" class="rm" id="rm" aria-label="Hapus file">&times;</button>
-      </div>
-    </div>
-
-    <p id="detectionStatus" role="status" aria-live="polite" style="font-size:12px;color:#64748b;margin-top:12px"></p>
-    <div id="detectionChoices" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     <label class="label" for="bagian">Bagian File Laporan</label>
     <div class="select-wrap" id="bagianWrap">
       <input id="bagian" type="text" required autocomplete="off" placeholder="Ketik atau pilih bagian laporan" aria-label="Bagian file laporan" aria-autocomplete="list" aria-controls="bagianOptions" aria-expanded="false">
@@ -181,6 +166,26 @@
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </div>
 
+    <span class="label" id="fileLabel">File Dokumen</span>
+    <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
+      <input type="file" id="file" accept=".xlsx,.ods" hidden>
+      <div class="empty" style="display:flex;flex-direction:column;align-items:center">
+        <div class="cloud">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16.58A5 5 0 0018 7h-1.26A8 8 0 104 15.25"/><path d="M12 12v9M8 16l4-4 4 4"/></svg>
+        </div>
+        <strong>Drag &amp; drop file di sini</strong>
+        <p>atau klik untuk memilih file dari komputer Anda</p>
+        <span class="chip">.ods, .xlsx (Maks. 50MB)</span>
+      </div>
+      <div class="picked">
+        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="meta"><div class="name" id="fname"></div><div class="size" id="fsize"></div></div>
+        <button type="button" class="rm" id="rm" aria-label="Hapus file">&times;</button>
+      </div>
+    </div>
+
+    <p id="detectionStatus" role="status" aria-live="polite" style="font-size:12px;color:#64748b;margin-top:12px"></p>
+    <div id="detectionChoices" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     <div id="ibRateWrap" hidden>
       <label class="label" for="ibRate">Kurs IB (1 USD = Rupiah)</label>
       <input id="ibRate" name="usd_rate" type="number" min="0.000001" max="1000000000" step="0.000001" inputmode="decimal" placeholder="Contoh: 16700" style="width:100%;padding:12px;border:1px solid #cfcaf5;border-radius:10px" aria-describedby="ibRateHelp" disabled>
@@ -203,7 +208,7 @@
 <script src="file-detection.js?v=20261104"></script>
 <script src="../dashboard/report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="../dashboard/unit-sell-out-targets.js?v=ethical-gmeb-20261103"></script>
+<script src="../dashboard/unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
 <script src="../dashboard/bod-kx-sell-in.js"></script>
 <script src="../dashboard/mtm-appendix.js?v=ytd-idr-qty-20261103"></script>
 <script src="../dashboard/report-templates.js?v=mtm-appendix-20261103"></script>

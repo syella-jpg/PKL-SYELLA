@@ -92,6 +92,7 @@
     const cell=unit[utils.encode_cell({r,c})];if(cell){cell.z='#,##0';delete cell.w;}
    }
   }
+  if(global.syncUnitIbTargets)global.syncUnitIbTargets(workbook,period);
   for(const targetYear of [year,year-1]){
    const rows=utils.sheet_to_json(unit,{header:1,defval:'',raw:true});
    const start=rows.findIndex(row=>row.some(v=>normalize(v)===`REVENUE TAHUN ${targetYear} (SELL IN)`));

@@ -6,6 +6,31 @@
   if(!response.ok||!result.success)throw new Error(result.message||'Target UNIT SELL OUT gagal disimpan.');
   return result;
  };
+ // IB Sell In references the same year's HRU Sell Out targets, including YTD and FY.
+ global.syncUnitIbTargets=function(workbook,period){
+  const sheet=workbook.Sheets.UNIT,utils=global.XLSX.utils;if(!sheet)return;
+  const year=Number(period.slice(0,4));
+  const norm=v=>String(v??'').trim().toUpperCase().replace(/\s+/g,' ');
+  const rows=utils.sheet_to_json(sheet,{header:1,raw:true,defval:''});
+  const find=kind=>{
+   const start=rows.findIndex(row=>norm(row[0])===`TARGET SELL ${kind} TAHUN ${year}`);
+   if(start<0)return;
+   for(let r=start+2;r<rows.length;r++){
+    if(/^(REVENUE|TARGET)(?: SELL OUT| SELL IN)? TAHUN/.test(norm(rows[r][0])))break;
+    if(norm(rows[r][1])==='IB')return r;
+   }
+  };
+  const source=find('OUT'),target=find('IN');if(target===undefined)return;
+  for(let c=2;c<=15;c++){
+   const ref=source===undefined?null:utils.encode_cell({r:source,c});
+   const value=ref?sheet[ref]?.v:null,numeric=typeof value==='number'&&Number.isFinite(value);
+   const address=utils.encode_cell({r:target,c}),cell=sheet[address]||(sheet[address]={});
+   delete cell.f;delete cell.F;delete cell.w;
+   Object.assign(cell,{t:numeric?'n':'s',v:numeric?value:'',z:'#,##0'});
+   // Leave unknown sources blank rather than turning them into zero in Calc.
+   if(numeric)cell.f=ref;
+  }
+ };
  global.fillUnitSellOutTargets=function(workbook,period,records){
   const sheet=workbook.Sheets.UNIT,utils=global.XLSX.utils;if(!sheet)return;
   const year=Number(period.slice(0,4)),month=Number(period.slice(5,7));
@@ -56,6 +81,7 @@
    put(ibRow,2,ytd,ytd===null?undefined:`SUM(D${ibRow+1}:${utils.encode_col(month+2)}${ibRow+1})`);
    put(ibRow,15,total,total===null?undefined:`SUM(D${ibRow+1}:O${ibRow+1})`);
   }
+  global.syncUnitIbTargets(workbook,period);
 
  };
  global.replaceUnitSellOutTargets=async(workbook,period)=>{
