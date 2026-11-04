@@ -40,3 +40,8 @@ assert.equal(result.month, 2);
 result = detect(book({ 'YFR - IBFM': [], IAP: [], HRU: [] }), 'Template_IB_2026-09.xlsx');
 assert.equal(result.choices[0].section, 'IB');
 assert.equal(result.month, 9);
+
+result = detect(book({TARGET: [], REALISASI: [], _TEMPLATE: ['KONIMEX_BIAYA_V1','BIAYA'] }), 'Template_BIAYA_2027-02.xlsx');
+assert.equal(result.choices[0].section, 'BIAYA');
+assert.equal(result.year, 2027);
+assert.equal(result.month, 2);

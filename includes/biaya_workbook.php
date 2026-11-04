@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/biaya_input_template.php';
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
@@ -34,6 +35,15 @@ function biayaSheetYear(Worksheet $sheet): ?int
 
 function parseBiayaWorkbook(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, int $year): array
 {
+    if (isBiayaInputTemplate($book)) {
+        $summary=[];
+        foreach(parseBiayaInputTemplate($book,$year) as $row){
+            $code=($row['category']==='EXIS'?'existing':'new').$row['gb'];
+            if(!isset($summary[$row['type']][$code]))$summary[$row['type']][$code]=array_fill(0,12,null);
+            foreach($row['values'] as $m=>$value)if($value!==null)$summary[$row['type']][$code][$m]=($summary[$row['type']][$code][$m]??0)+$value;
+        }
+        return $summary;
+    }
     $rows = [];
     $foundYear=false; $availableYears=[];
     foreach ($book->getAllSheets() as $sheet) {
@@ -98,6 +108,7 @@ function parseBiayaWorkbook(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, int $ye
 /** Product rows mirror the uploaded workbook; totals are calculated by SQL. */
 function parseBiayaProducts(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, int $year): array
 {
+    if (isBiayaInputTemplate($book)) return parseBiayaInputTemplate($book,$year);
     // Validate year, monthly headers and rolling layout before accepting rows.
     parseBiayaWorkbook($book, $year);
     $rows = [];
