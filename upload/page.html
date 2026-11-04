@@ -120,8 +120,28 @@
 <main>
   <form class="card" id="form" novalidate>
     <h1>Upload File Laporan</h1>
-    <p class="sub">Pilih bagian laporan dan periode sebelum mengunggah dokumen ke sistem Konimex.</p>
+    <p class="sub">Pilih file terlebih dahulu. Bagian laporan dan periode akan dibantu dikenali otomatis.</p>
 
+    <span class="label" id="fileLabel">File Dokumen</span>
+    <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
+      <input type="file" id="file" accept=".xlsx,.ods" hidden>
+      <div class="empty" style="display:flex;flex-direction:column;align-items:center">
+        <div class="cloud">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16.58A5 5 0 0018 7h-1.26A8 8 0 104 15.25"/><path d="M12 12v9M8 16l4-4 4 4"/></svg>
+        </div>
+        <strong>Drag &amp; drop file di sini</strong>
+        <p>atau klik untuk memilih file dari komputer Anda</p>
+        <span class="chip">.Ods, .xlsx (Maks. 50MB)</span>
+      </div>
+      <div class="picked">
+        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="meta"><div class="name" id="fname"></div><div class="size" id="fsize"></div></div>
+        <button type="button" class="rm" id="rm" aria-label="Hapus file">&times;</button>
+      </div>
+    </div>
+
+    <p id="detectionStatus" role="status" aria-live="polite" style="font-size:12px;color:#64748b;margin-top:12px"></p>
+    <div id="detectionChoices" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     <label class="label" for="bagian">Bagian File Laporan</label>
     <div class="select-wrap" id="bagianWrap">
       <input id="bagian" type="text" required autocomplete="off" placeholder="Ketik atau pilih bagian laporan" aria-label="Bagian file laporan" aria-autocomplete="list" aria-controls="bagianOptions" aria-expanded="false">
@@ -167,24 +187,6 @@
       <p id="ibRateHelp" style="font-size:12px;color:#666;margin:6px 0 18px">Tanpa pemisah ribuan. Kurs disimpan untuk tahun periode yang dipilih dan dipakai pada unduhan IB.</p>
     </div>
 
-    <span class="label" id="fileLabel">File Dokumen</span>
-    <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
-      <input type="file" id="file" accept=".xlsx,.ods" hidden>
-      <div class="empty" style="display:flex;flex-direction:column;align-items:center">
-        <div class="cloud">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16.58A5 5 0 0018 7h-1.26A8 8 0 104 15.25"/><path d="M12 12v9M8 16l4-4 4 4"/></svg>
-        </div>
-        <strong>Drag &amp; drop file di sini</strong>
-        <p>atau klik untuk memilih file dari komputer Anda</p>
-        <span class="chip">.Ods, .xlsx (Maks. 50MB)</span>
-      </div>
-      <div class="picked">
-        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></div>
-        <div class="meta"><div class="name" id="fname"></div><div class="size" id="fsize"></div></div>
-        <button type="button" class="rm" id="rm" aria-label="Hapus file">&times;</button>
-      </div>
-    </div>
-
     <div class="bar" id="bar"><i id="barFill"></i></div>
     <div class="msg" id="msg" role="status" aria-live="polite"></div>
 
@@ -198,6 +200,7 @@
   </form>
 </main>
 
+<script src="file-detection.js?v=20261104"></script>
 <script src="../dashboard/report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="../dashboard/unit-sell-out-targets.js?v=ethical-gmeb-20261103"></script>
@@ -234,7 +237,7 @@
   const sectionSelect = $("bagian");
   const form = $("form"), drop = $("drop"), fileInput = $("file"), periodSelect = $("periode");
   const msg = $("msg"), bar = $("bar"), barFill = $("barFill"), btn = $("submit"), btnText = $("btnText");
-  let chosen = null, busy = false;
+  let chosen = null, busy = false, detecting = false, detectionId = 0;
 
   const sectionOptions = Array.from($("daftarBagian").options, (option) => option.value);
   const sectionMenu = $("bagianOptions");
@@ -295,6 +298,7 @@
   $("avatar").textContent = USER_NAME.slice(0, 2).toUpperCase();
 
   const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  periodSelect.add(new Option("Pilih periode laporan", ""));
   const now = new Date();
   for (let year = now.getFullYear(); year >= 2025; year--) {
     for (let month = 12; month >= 1; month--) {
@@ -603,6 +607,58 @@
     return "";
   }
 
+  async function recognizeFile(file) {
+    const id = ++detectionId;
+    detecting = true;
+    btn.disabled = true;
+    sectionSelect.value = "";
+    updateIbRateField();
+    periodSelect.value = "";
+    $("detectionChoices").replaceChildren();
+    $("detectionStatus").textContent = "Mengenali file…";
+    try {
+      if (!window.XLSX) throw new Error("Pembaca file belum tersedia.");
+      const book = XLSX.read(await file.arrayBuffer(), { type: "array", sheetRows: 1000, cellFormula: false });
+      if (id !== detectionId) return;
+      const result = detectUploadFile(book, file.name);
+      if (result.year && result.month) {
+        const value = result.year + "-" + String(result.month).padStart(2, "0");
+        if (!Array.from(periodSelect.options).some(o => o.value === value)) {
+          periodSelect.add(new Option(monthNames[result.month - 1] + " " + result.year, value));
+        }
+        periodSelect.value = value;
+      }
+      const periodHint = periodSelect.value ? " Periksa periode sebelum upload." : result.year ? " Tahun file: " + result.year + ". Pilih bulan periode di bawah." : " Pilih periode laporan di bawah.";
+      if (result.choices.length === 1) {
+        sectionSelect.value = result.choices[0].section;
+        updateIbRateField();
+        $("detectionStatus").textContent = "Bagian dikenali: " + sectionSelect.value + "." + periodHint;
+      } else {
+        $("detectionStatus").textContent = (result.choices.length ? "File ini bisa digunakan untuk beberapa bagian. Pilih tujuan:" : "Bagian belum dikenali. Pilih bagian laporan di bawah.") + periodHint;
+        result.choices.forEach(choice => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = choice.label;
+          button.style.cssText = "border:1px solid #cfcaf5;border-radius:10px;padding:10px 14px;background:#fff;cursor:pointer";
+          button.addEventListener("click", () => {
+            chooseSection(choice.section);
+            $("detectionStatus").textContent = "Tujuan dipilih: " + choice.section + "." + periodHint;
+            Array.from($("detectionChoices").children).forEach(b => {
+              const active = b === button;
+              b.setAttribute("aria-pressed", String(active));
+              b.style.background = active ? "#ede9fe" : "#fff";
+            });
+          });
+          $("detectionChoices").appendChild(button);
+        });
+      }
+    } catch (error) {
+      if (id === detectionId) $("detectionStatus").textContent = "File belum dapat dikenali. Pilih bagian dan periode secara manual.";
+    } finally {
+      if (id === detectionId) { detecting = false; btn.disabled = busy; }
+    }
+  }
+
   function pick(f) {
     if (!f || busy) return;
     const err = validate(f);
@@ -613,8 +669,12 @@
     drop.classList.remove("err");
     drop.classList.add("has-file");
     setMsg("");
+    recognizeFile(f);
   }
   function clearFile() {
+    ++detectionId; detecting = false; btn.disabled = busy;
+    $("detectionStatus").textContent = "";
+    $("detectionChoices").replaceChildren();
     chosen = null;
     fileInput.value = "";
     drop.classList.remove("has-file");
@@ -761,7 +821,7 @@
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (busy) return;
+    if (busy || detecting) return;
     setMsg("");
     $("bagianWrap").classList.remove("err");
     drop.classList.remove("err");
