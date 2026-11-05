@@ -5,21 +5,24 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 require_once __DIR__.'/unit_sell_out_ib_targets.php';
 require_once __DIR__.'/unit_sell_out_ethical_targets.php';
+require_once __DIR__.'/unit_sell_out_input_template.php';
 
 class UnitSellOutTargetFilter implements IReadFilter {
     public function readCell($columnAddress, $row, $worksheetName = ''): bool {
-        return $row <= 1000 && Coordinate::columnIndexFromString($columnAddress) <= (strtoupper(trim($worksheetName))==='GMEB'?27:(strtoupper(trim($worksheetName))==='HRU'?26:20));
+        $limit=in_array(strtoupper(trim($worksheetName)),['GB 1-6','ETHICAL'],true)?5100:1000;
+        return $row <= $limit && Coordinate::columnIndexFromString($columnAddress) <= (strtoupper(trim($worksheetName))==='GMEB'?27:(strtoupper(trim($worksheetName))==='HRU'?26:20));
     }
 }
 function readUnitSellOutTargetBook(string $path): Spreadsheet {
     $reader=IOFactory::createReaderForFile($path);
     if(!($reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Ods)&&!($reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Xlsx))throw new InvalidArgumentException('Gunakan workbook ODS atau XLSX.');
-    $names=array_values(array_filter($reader->listWorksheetNames($path),fn($name)=>preg_match('/^(?:TARGET\s+GB\s*[1-6]|HRU|GMEB)$/i',trim($name))));
+    $names=array_values(array_filter($reader->listWorksheetNames($path),fn($name)=>preg_match('/^(?:TARGET\s+GB\s*[1-6]|HRU|GMEB|TARGET UNIT SELL OUT|GB 1-6|ETHICAL|IB|_TEMPLATE)$/i',trim($name))));
     if(!$names)throw new InvalidArgumentException('Sheet TARGET GB 1–6, HRU, atau GMEB tidak ditemukan. Sheet BUDGET tidak digunakan.');
     $reader->setLoadSheetsOnly($names);$reader->setReadFilter(new UnitSellOutTargetFilter());$reader->setReadDataOnly(true);$reader->setReadEmptyCells(false);
     return $reader->load($path);
 }
 function parseUnitSellOutTargets(Spreadsheet $book,int $year): array {
+    if(isUnitSellOutInputTemplate($book))return parseUnitSellOutInputTemplate($book,$year)['records'];
     $norm=fn($v)=>strtoupper(trim(preg_replace('/\s+/u',' ',(string)$v)));
     $months=['JANUARI'=>1,'JAN'=>1,'FEBRUARI'=>2,'FEB'=>2,'MARET'=>3,'MAR'=>3,'APRIL'=>4,'APR'=>4,'MEI'=>5,'MAY'=>5,'JUNI'=>6,'JUN'=>6,'JULI'=>7,'JUL'=>7,'AGUSTUS'=>8,'AGU'=>8,'AGT'=>8,'AUG'=>8,'SEPTEMBER'=>9,'SEPT'=>9,'SEP'=>9,'OKTOBER'=>10,'OKT'=>10,'OCT'=>10,'NOVEMBER'=>11,'NOPEMBER'=>11,'NOV'=>11,'NOP'=>11,'DESEMBER'=>12,'DES'=>12,'DEC'=>12];
     $result=[];$seen=[];

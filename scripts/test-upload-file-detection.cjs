@@ -49,3 +49,13 @@ assert.equal(result.month, 2);
 result = detect(book({UNIT: [], REVENUE: [], _TEMPLATE: ['KONIMEX_UNIT_REVENUE_V1','UNIT & Revenue'] }), 'Template_UNIT & Revenue_2027-02.xlsx');
 assert.deepEqual(result.choices.map(c => c.section), ['UNIT & Revenue']);
 assert.equal(result.month, 2);
+
+result = detect(book({'TARGET UNIT SELL OUT': ['TARGET UNIT SELL OUT — TAHUN 2027'], _TEMPLATE: ['KONIMEX_UNIT_SELL_OUT_V1','TARGET UNIT SELL OUT']}), 'Template_TARGET UNIT SELL OUT_2027-02.xlsx');
+assert.deepEqual(result.choices.map(c => c.section), ['TARGET UNIT SELL OUT']);
+assert.equal(result.year, 2027);assert.equal(result.month, 2);
+
+result = detect(book({'GB 1-6': [],ETHICAL: [],IB: [],_TEMPLATE: ['KONIMEX_UNIT_SELL_OUT_V2','TARGET UNIT SELL OUT']}), 'Template_TARGET UNIT SELL OUT_2027-02.xlsx');
+assert.deepEqual(result.choices.map(c => c.section), ['TARGET UNIT SELL OUT']);
+
+result = detect(book({'GB 1-6': [],ETHICAL: [],IB: [],_TEMPLATE: ['KONIMEX_UNIT_SELL_OUT_V3','TARGET UNIT SELL OUT']}), 'Template_TARGET UNIT SELL OUT_2027-02.xlsx');
+assert.deepEqual(result.choices.map(c => c.section), ['TARGET UNIT SELL OUT']);

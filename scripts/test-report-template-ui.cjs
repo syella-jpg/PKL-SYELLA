@@ -27,13 +27,14 @@ sectionSelect.value='IB';context.updateTemplateDownload();assert(element('templa
 sectionSelect.value='BIAYA';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('Realisasi'));
 sectionSelect.value='UNIT & Revenue';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('REVENUE'));
 sectionSelect.value='REVENUE VERSI EDP MNJ';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);
+sectionSelect.value='TARGET UNIT SELL OUT';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('GB 1–6'));
 sectionSelect.value='OTHER';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,true);
-sectionSelect.value='MTM';
+sectionSelect.value='TARGET UNIT SELL OUT';
 (async()=>{
  await element('downloadTemplate').listeners.click();
  assert(requested.includes('endpoint=report_input_template'));
  assert(requested.includes('period=2027-02'));
- assert.equal(download,'Template_MTM_2027-02.xlsx');
+ assert.equal(download,'Template_TARGET UNIT SELL OUT_2027-02.xlsx');
  assert.equal(element('downloadTemplate').disabled,false);
  console.log('PASS template visibility requires IB/MTM and valid period; download uses current section/period and restores button.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
