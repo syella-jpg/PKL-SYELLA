@@ -66,11 +66,18 @@ for($r=1;$r<=$sheet->getHighestDataRow();$r++) {
     if(is_string($heading) && preg_match('/^(?:(?:REVENUE|BIAYA|MCM) TAHUN|TARGET SELL OUT|TARGET BIAYA) 20\d{2}$/',$heading))$section=$heading;
     $label=trim((string)$sheet->getCell('B'.$r)->getValue());
     if($section==='TARGET BIAYA 2026' && $label==='EXIST GB 5') {
-        if((float)$sheet->getCell('D'.$r)->getValue()!==9.0)throw new RuntimeException('GB5 target scaling');$checks++;
+        if((float)$sheet->getCell('D'.$r)->getValue()!==0.009)throw new RuntimeException('GB5 target scaling');$checks++;
+    }
+    if($section==='TARGET BIAYA 2026' && $label==='TOTAL GB 5') {
+        for($c=3;$c<=16;$c++) {
+            $expected=(float)$sheet->getCell([$c,$r-2])->getValue()+(float)$sheet->getCell([$c,$r-1])->getValue();
+            if(abs((float)$sheet->getCell([$c,$r])->getValue()-$expected)>0.00000001)throw new RuntimeException('GB5 total must equal corrected Existing plus New');
+        }
+        $checks++;
     }
     if($section==='BIAYA TAHUN 2026' && $label==='EXIST GB 6') {
         if((float)$sheet->getCell('D'.$r)->getValue()!==8000.0)throw new RuntimeException('Actual must remain unscaled');$checks++;
     }
 }
-if($checks!==2)throw new RuntimeException('Missing verification rows');
-echo "PASS: GB5 target divided by 1000, GB6 actual unchanged.\n";
+if($checks!==3)throw new RuntimeException('Missing verification rows');
+echo "PASS: GB5 Existing target reduced by another 1000, GB6 actual unchanged.\n";

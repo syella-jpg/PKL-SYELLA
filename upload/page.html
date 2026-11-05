@@ -1063,10 +1063,10 @@
             ? "Data Ethical " + (ethicalData.year || "") + " berhasil disimpan ke database ETHICAL. Cache browser diperbarui untuk unduhan di perangkat ini."
           : isMtm
             ? "Data MTM bagian Increase Revenue berhasil disimpan ke database untuk periode " + period + "."
+          : isEdpMnjRevenue
+            ? "Berhasil: data UNIT & Revenue tersimpan di database UNIT dan revenue_edp_mnj untuk periode " + period + "."
           : LOCAL_FILE_MODE
             ? "Berhasil: \"" + chosen.name + "\" diproses dan disimpan di browser untuk periode " + period + "."
-            : isEdpMnjRevenue
-              ? "Berhasil: data REV EDP MNJ tersimpan di database revenue_edp_mnj untuk periode " + period + " dan siap dipakai pada unduhan Revenue Konimex Selling Out."
               : "Berhasil: \"" + chosen.name + "\" terkirim pada bagian " + sectionSelect.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
       clearFile();
       sectionSelect.value = "";

@@ -2753,6 +2753,8 @@
           const oldCell = sheet[address] || {};
           sheet[address] = { ...oldCell, t: "n", v: value, z: "#,##0;[Red]-#,##0" };
           delete sheet[address].w;
+          delete sheet[address].f;
+          delete sheet[address].F;
         };
         const setBlank = (row, column) => {
           if (column < 0) return;
@@ -2760,6 +2762,8 @@
           const oldCell = sheet[address] || {};
           sheet[address] = { ...oldCell, t: "s", v: "" };
           delete sheet[address].w;
+          delete sheet[address].f;
+          delete sheet[address].F;
         };
         let rowsWritten = 0;
         outputRows.forEach(([label, values]) => {
@@ -2923,6 +2927,14 @@
             if (type === "target" && biayaYear === 2026 && match[2] === "5") {
               values = values.map((value) => value === null ? null : value / 1000);
             }
+          }
+          if (type === "target" && biayaYear === 2026 && label === "EXIST GB 5") {
+            values = values.map((value) => value === null ? null : value / 1000);
+          }
+          if (type === "target" && biayaYear === 2026 && label === "TOTAL GB 5") {
+            const existing = data?.target?.existing5 || Array(12).fill(null);
+            const newProduct = data?.target?.new5 || Array(12).fill(null);
+            values = existing.map((value, index) => value === null && newProduct[index] === null ? null : (value ?? 0) / 1000000 + (newProduct[index] ?? 0) / 1000);
           }
           const amounts = [sum(values.slice(0,reportMonth)), ...values, sum(values)];
           amounts.forEach((value,j)=>{

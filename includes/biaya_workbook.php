@@ -248,6 +248,12 @@ function populateBiayaSheet(Worksheet $sheet, string $period, $conn): void
                 if ($type === 'target' && $y === 2026 && isset($match[2]) && $match[2] === '5') {
                     $values = array_map(static fn($value) => $value === null ? null : $value / 1000, $values);
                 }
+                if ($type === 'target' && $y === 2026 && $label === 'EXIST GB 5') {
+                    $values = array_map(static fn($value) => $value === null ? null : $value / 1000, $values);
+                }
+                if ($type === 'target' && $y === 2026 && $label === 'TOTAL GB 5') {
+                    $values = array_map(static fn($existing, $new) => $existing === null && $new === null ? null : ($existing ?? 0) / 1000000 + ($new ?? 0) / 1000, $a, $b);
+                }
                 for ($j=0;$j<12;$j++) $sheet->getCell([$j+4,$start+$i])->setValue($values[$j]);
                 $sum = static fn($v) => count(array_filter($v, static fn($x)=>$x!==null)) ? array_sum($v) : null;
                 $sheet->setCellValue('C'.($start+$i),$sum(array_slice($values,0,$month)));

@@ -44,6 +44,11 @@ $book=buildUnitRevenueInputTemplate('2026-11',2);$u=$book->getSheetByName('UNIT'
 foreach([6=>['GB ET','Synthetic existing','A',7],7=>['GB ET','Synthetic E','E',5]] as $r=>[$gb,$name,$cat,$qty]){$u->setCellValue('A'.$r,$gb);$u->setCellValue('D'.$r,$name);$u->setCellValue('E'.$r,$cat);$u->setCellValue('F'.$r,$qty);$v->setCellValue('F'.$r,$qty*10);}
 $rows=normalizeUnitRevenueInputTemplate(parseUnitRevenueInputTemplate($book,'2026-11'))->getSheet(0)->toArray(null,true,false);
 $found=[];foreach($rows as $r)if(in_array($r[3]??null,['EXIST ETH','NP ETH','TOTAL ETH'],true))$found[$r[3]]=$r;
-verifyUr($found['EXIST ETH'][5]===7.0&&$found['NP ETH'][5]===0.0&&$found['TOTAL ETH'][5]===12.0,'Category E contributes only to total Ethical');
+verifyUr($found['EXIST ETH'][5]===12.0&&$found['NP ETH'][5]===0.0&&$found['TOTAL ETH'][5]===12.0,'Category E contributes to Existing and total Ethical');
+$u->setCellValue('E6','KAT E');$u->setCellValue('E7','NP');
+$aliasRows=normalizeUnitRevenueInputTemplate(parseUnitRevenueInputTemplate($book,'2026-11'))->getSheet(0)->toArray(null,true,false);
+$aliasFound=[];foreach($aliasRows as $r)if(in_array($r[3]??null,['EXIST ETH','NP ETH','TOTAL ETH'],true))$aliasFound[$r[3]]=$r;
+verifyUr($aliasFound['EXIST ETH'][5]===7.0&&$aliasFound['NP ETH'][5]===5.0&&$aliasFound['TOTAL ETH'][5]===12.0,'Ethical KAT E maps to EXIST and NP maps to New without double counting');
+$u->setCellValue('E7','E');
 $u->setCellValue('A7','GB 1');rejectUr(fn()=>parseUnitRevenueInputTemplate($book,'2026-11'),'Category E is Ethical only');
 echo "PASS UNIT & Revenue empty templates, 2025/2026/2027, XLSX/ODS upload roundtrip, identities, zero/blank, exact subtotals, Ethical, duplicate/year/invalid input protection\n";

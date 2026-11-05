@@ -18,7 +18,7 @@ function unitRevenueInputHeaders(): array
 {
     return ['GB','PRODUCT CODE','PRINCIPAL PRODUCT CODE','PRODUCT NAME','KATEGORI','JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER','TOTAL'];
 }
-function buildUnitRevenueInputTemplate(string $period,int $capacity=210): Spreadsheet
+function buildUnitRevenueInputTemplate(string $period,int $capacity=1000): Spreadsheet
 {
     [$year,$month]=unitRevenueTemplatePeriod($period);
     $capacity=max(1,min(10000-5,$capacity));$book=new Spreadsheet();$book->removeSheetByIndex(0);
@@ -28,7 +28,7 @@ function buildUnitRevenueInputTemplate(string $period,int $capacity=210): Spread
         $sheet=new Worksheet($book,$name);$book->addSheet($sheet);
         $sheet->setCellValue('A1','SELLING OUT — '.$name.' TAHUN '.$year);$sheet->mergeCells('A1:R1');
         $sheet->setCellValue('A2','PERIODE LAPORAN: '.$months[$month-1].' '.$year);$sheet->mergeCells('A2:R2');
-        $sheet->setCellValue('A3',$name==='UNIT'?'Isi identitas produk dan jumlah UNIT per bulan. GB: 1–6 atau ET (Ethical). A/B/C/ABC = Existing; D = New Product; E khusus Total Ethical.':'Identitas produk mengikuti sheet UNIT. Isi REVENUE per bulan dalam Rupiah penuh (bukan ribuan).');$sheet->mergeCells('A3:R3');
+        $sheet->setCellValue('A3',$name==='UNIT'?'Isi identitas produk dan jumlah UNIT per bulan. GB: 1–6 atau ET (Ethical). A/B/C/ABC = Existing; D = New Product; KAT E/E = Existing Ethical; NP = New Product.':'Identitas produk mengikuti sheet UNIT. Isi REVENUE per bulan dalam Rupiah penuh (bukan ribuan).');$sheet->mergeCells('A3:R3');
         $sheet->setCellValue('A4','Isi nilai bulanan, bukan kumulatif. TOTAL dan subtotal GB/Ethical dihitung otomatis oleh sistem. Baris yang tidak dipakai boleh kosong.');$sheet->mergeCells('A4:R4');
         $sheet->fromArray([unitRevenueInputHeaders()],null,'A5');
         for($r=6;$r<=5+$capacity;$r++){
@@ -52,13 +52,16 @@ function buildUnitRevenueInputTemplate(string $period,int $capacity=210): Spread
         $sheet->getDefaultRowDimension()->setRowHeight(24);
         foreach(['A'=>12,'B'=>20,'C'=>24,'D'=>40,'E'=>14] as $col=>$width)$sheet->getColumnDimension($col)->setWidth($width);
         for($c=6;$c<=18;$c++)$sheet->getColumnDimension(Coordinate::stringFromColumnIndex($c))->setWidth(16);
-        for($r=6;$r<=$end;$r++){
-            if($name==='UNIT'){
-                $sheet->getCell('A'.$r)->getDataValidation()->setType(DataValidation::TYPE_LIST)->setFormula1('"GB 1,GB 2,GB 3,GB 4,GB 5,GB 6,GB ET"')->setShowDropDown(true)->setAllowBlank(true);
-                $sheet->getCell('E'.$r)->getDataValidation()->setType(DataValidation::TYPE_LIST)->setFormula1('"A,B,C,ABC,D,E"')->setShowDropDown(true)->setAllowBlank(true);
-            }
-            for($c=6;$c<=17;$c++)$sheet->getCell([$c,$r])->getDataValidation()->setType(DataValidation::TYPE_DECIMAL)->setOperator(DataValidation::OPERATOR_BETWEEN)->setFormula1('-999999999999999')->setFormula2('999999999999999')->setAllowBlank(true)->setShowErrorMessage(true)->setErrorStyle(DataValidation::STYLE_STOP)->setError('Isi angka atau biarkan kosong.');
+        // One validation rule per range avoids scanning thousands of rules
+        // for each new cell (quadratic work on large templates).
+        if($name==='UNIT'){
+            $gbRule=(new DataValidation())->setType(DataValidation::TYPE_LIST)->setFormula1('"GB 1,GB 2,GB 3,GB 4,GB 5,GB 6,GB ET"')->setShowDropDown(true)->setAllowBlank(true);
+            $categoryRule=(new DataValidation())->setType(DataValidation::TYPE_LIST)->setFormula1('"A,B,C,ABC,D,E,KAT E,NP"')->setShowDropDown(true)->setAllowBlank(true);
+            $sheet->setDataValidation('A6:A'.$end,$gbRule);
+            $sheet->setDataValidation('E6:E'.$end,$categoryRule);
         }
+        $numberRule=(new DataValidation())->setType(DataValidation::TYPE_DECIMAL)->setOperator(DataValidation::OPERATOR_BETWEEN)->setFormula1('-999999999999999')->setFormula2('999999999999999')->setAllowBlank(true)->setShowErrorMessage(true)->setErrorStyle(DataValidation::STYLE_STOP)->setError('Isi angka atau biarkan kosong.');
+        $sheet->setDataValidation('F6:Q'.$end,$numberRule);
         $sheet->freezePane('F6');$sheet->setShowGridlines(false);$sheet->setAutoFilter('A5:R'.$end);
         $sheet->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(0)->setPrintArea('A1:R'.$end)->setRowsToRepeatAtTopByStartAndEnd(5,5);
     }
@@ -72,6 +75,16 @@ function buildUnitRevenueInputTemplate(string $period,int $capacity=210): Spread
     foreach(['existing'=>'EXIST','new'=>'NP','total'=>'TOTAL'] as $kind=>$label){
         $row=$title+3+array_search($kind,['existing','new','total'],true);
         $revenue->setCellValue('A'.$row,$label);$revenue->mergeCells('A'.$row.':E'.$row);
+        foreach(range('F','Q') as $column){
+            if($kind==='total')$formula='='.$column.($title+3).'+'.$column.($title+4);
+            else {
+                $categories=$kind==='existing'?['E','KAT E','A','B','C','ABC']:['NP','D'];
+                $terms=[];
+                foreach($categories as $category)$terms[]='SUMIFS('.$column.'$6:'.$column.'$'.$end.',$A$6:$A$'.$end.',"*ET*",$E$6:$E$'.$end.',"'.$category.'")';
+                $formula='='.implode('+',$terms);
+            }
+            $revenue->setCellValue($column.$row,$formula);
+        }
         $revenue->setCellValue('R'.$row,'=SUM(F'.$row.':Q'.$row.')');
         $revenue->getRowDimension($row)->setRowHeight(26);
     }
@@ -82,7 +95,7 @@ function buildUnitRevenueInputTemplate(string $period,int $capacity=210): Spread
     $revenue->getStyle('F'.($title+3).':R'.($title+5))->getNumberFormat()->setFormatCode('#,##0;[Red](#,##0);0');
     $revenue->getStyle('A'.($title+2).':R'.($title+5))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FFE1E5EB');
     $revenue->getPageSetup()->setPrintArea('A1:R'.($title+5));
-    $revenue->setCellValue('A4','Isi nilai bulanan, bukan kumulatif. Rupiah Ethical memakai isian manual di bagian bawah. Subtotal GB dihitung otomatis.');
+    $revenue->setCellValue('A4','Isi nilai bulanan, bukan kumulatif. Rupiah Ethical dihitung dari kategori produk di bagian bawah. Subtotal GB dihitung otomatis.');
     $meta=new Worksheet($book,'_TEMPLATE');$book->addSheet($meta);$meta->fromArray([['KONIMEX_UNIT_REVENUE_V1'],['UNIT & Revenue'],[$year],[$period]]);$meta->setCellValue('A5','ETHICAL_REVENUE_MANUAL_V1');$meta->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
     $book->setActiveSheetIndex(0);return $book;
 }
@@ -136,9 +149,9 @@ function parseUnitRevenueInputTemplate(Spreadsheet $book,string $period): array
             $arrays[$kind]=$values;
         }
         if(!array_filter($identity,static fn($v)=>$v!=='')&&!$rowHasNumber)continue;
-        [$rawGb,$code,$principal,$product,$category]=$identity;$gb=normalizeUnitRevenueGroup($rawGb);$category=strtoupper($category);
+        [$rawGb,$code,$principal,$product,$category]=$identity;$gb=normalizeUnitRevenueGroup($rawGb);$category=strtoupper($category);$category=preg_replace('/^KAT(?:EGORI)?\.?\s+/','',$category);if($category==='NP')$category='D';
         if(!$gb||$product===''||!in_array($category,['A','B','C','ABC','D','E'],true))throw new InvalidArgumentException('Isi GB, nama produk, dan kategori A/B/C/ABC/D/E pada sheet UNIT baris '.$r.'.');
-        if($category==='E' && $gb!=='ET')throw new InvalidArgumentException('Kategori E hanya digunakan untuk Total Ethical (baris '.$r.').');
+        if($category==='E' && $gb!=='ET')throw new InvalidArgumentException('Kategori E hanya digunakan untuk Existing Ethical (baris '.$r.').');
         foreach([$code,$principal,$product] as $label) {
             if(preg_match('/^(?:GB\s*[1-6]$|TOTAL\b|GRAND\s+TOTAL\b|(?:EXIST(?:ING)?|NP|NEW(?:\s+PRODUCT)?)\s+(?:ETH(?:ICAL)?|GB\s*(?:[1-6]|ET))$)/i',$label))throw new InvalidArgumentException('Isi identitas produk saja; label GB/subtotal dihitung sistem (baris '.$r.').');
         }
@@ -178,7 +191,7 @@ function normalizeUnitRevenueInputTemplate(array $records): Spreadsheet
         if(($record['__kind']??null)==='ethical_revenue'){$manual[$record['section']]=$record['rev'];continue;}
         $qty=array_map(static fn($v)=>(float)($v??0),$record['qty']);$rev=array_map(static fn($v)=>(float)($v??0),$record['rev']);
         $out[]=[$record['gb'],$record['product_code'],$record['principal_product_code'],$record['product_name'],$record['kategori'],...$qty,$sum($qty),...$rev,$sum($rev)];
-        $gb=$record['gb'];$kind=$record['kategori']==='D'?'new':($record['kategori']==='E'?'other':'existing');
+        $gb=$record['gb'];$kind=in_array($record['kategori'],['D','NP'],true)?'new':'existing';
         if(!isset($groups[$gb]))$groups[$gb]=['existing'=>['qty'=>array_fill(0,12,0.0),'rev'=>array_fill(0,12,0.0)],'new'=>['qty'=>array_fill(0,12,0.0),'rev'=>array_fill(0,12,0.0)],'other'=>['qty'=>array_fill(0,12,0.0),'rev'=>array_fill(0,12,0.0)]];
         foreach(['qty'=>$qty,'rev'=>$rev] as $field=>$values)foreach($values as $m=>$v)$groups[$gb][$kind][$field][$m]+=$v;
     }

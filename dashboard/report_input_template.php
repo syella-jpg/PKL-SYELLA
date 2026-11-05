@@ -17,7 +17,8 @@ try {
     $section = is_string($_GET['section'] ?? null) ? $_GET['section'] : '';
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
     reportInputTemplateSpec($section, $period);
-    $book = buildReportInputTemplate($section, $period);
+    $rebuildFromHistory = in_array($section,['BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ'],true) && substr($period,5,2) !== '01';
+    $book = $rebuildFromHistory ? null : buildReportInputTemplate($section, $period);
     if ($section === 'MTM' || (in_array($section,['IB','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ'],true) && substr($period,5,2) !== '01')) {
         require_once __DIR__.'/../includes/database.php';
         $conn = openReportConnection();
@@ -27,11 +28,11 @@ try {
             if ($section === 'MTM') fillMtmTemplateHistory($book,$period,loadMtmTemplateHistory($conn,$period));
             elseif (in_array($section,['UNIT & Revenue','REVENUE VERSI EDP MNJ'],true)) {
                 $history=loadUnitRevenueTemplateHistory($conn,$period);
-                $book->disconnectWorksheets();
+                $book?->disconnectWorksheets();
                 $book=buildUnitRevenueTemplateWithHistory($period,$history);
             } elseif ($section === 'BIAYA') {
                 $records=loadBiayaTemplateHistory($conn,$period);
-                $book->disconnectWorksheets();
+                $book?->disconnectWorksheets();
                 $book=buildBiayaTemplateWithHistory($period,$records);
             } else {
                 $records=loadIbPeriodHistory($conn,$period);

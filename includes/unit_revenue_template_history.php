@@ -166,7 +166,7 @@ function buildUnitRevenueTemplateWithHistory(string $period,array $history): \Ph
     if(count($records)>9995)throw new RuntimeException('Riwayat UNIT & Revenue melebihi kapasitas template.');
     $manual=array_values(array_filter($records,static fn($r)=>($r['__kind']??null)==='ethical_revenue'));
     $records=array_values(array_filter($records,static fn($r)=>($r['__kind']??null)!=='ethical_revenue'));
-    $book=buildUnitRevenueInputTemplate($period,max(210,count($records)));$unit=$book->getSheetByName('UNIT');$revenue=$book->getSheetByName('REVENUE');$seen=[];
+    $book=buildUnitRevenueInputTemplate($period,max(1000,count($records)+200));$unit=$book->getSheetByName('UNIT');$revenue=$book->getSheetByName('REVENUE');$seen=[];
     foreach($records as $i=>$record){
         $gb=normalizeUnitRevenueGroup($record['gb']??'');$category=strtoupper(trim((string)($record['kategori']??'')));
         if($gb===null||trim((string)($record['product_name']??''))===''||!in_array($category,['A','B','C','ABC','D','E'],true))throw new RuntimeException('Identitas riwayat UNIT & Revenue belum lengkap.');
@@ -189,7 +189,7 @@ function buildUnitRevenueTemplateWithHistory(string $period,array $history): \Ph
         $sums=['existing'=>array_fill(0,12,null),'new'=>array_fill(0,12,null),'total'=>array_fill(0,12,null)];
         foreach($records as $record){
             if(normalizeUnitRevenueGroup($record['gb'])!=='ET')continue;
-            $kind=$record['kategori']==='D'?'new':($record['kategori']==='E'?null:'existing');
+            $kind=in_array($record['kategori'],['D','NP'],true)?'new':'existing';
             foreach($record['rev'] as $m=>$v)if($v!==null){foreach(array_filter([$kind,'total']) as $k)$sums[$k][$m]=($sums[$k][$m]??0)+(float)$v;}
         }
         foreach($sums as $kind=>$values)$manual[]=['__kind'=>'ethical_revenue','section'=>$kind,'rev'=>$values];
@@ -201,7 +201,7 @@ function buildUnitRevenueTemplateWithHistory(string $period,array $history): \Ph
         $seenManual[$kind]=true;
         foreach($values as $m=>$value){
             if($source>$period&&$m+1>$month)continue;
-            $number=unitRevenueHistoryNumber($value);if($number!==null)$revenue->setCellValue([$m+6,$destinations[$kind]],$number);
+            $number=unitRevenueHistoryNumber($value);if($number!==null && $revenue->getCell([$m+6,$destinations[$kind]])->getDataType()!==\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_FORMULA)$revenue->setCellValue([$m+6,$destinations[$kind]],$number);
         }
     }
     $book->getSheetByName('_TEMPLATE')->setCellValue('A6',$source);
