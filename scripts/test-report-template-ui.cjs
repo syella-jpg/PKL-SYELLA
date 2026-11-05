@@ -25,6 +25,8 @@ periodSelect.value='2027-02';context.updateTemplateDownload();
 assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('bulanan'));
 sectionSelect.value='IB';context.updateTemplateDownload();assert(element('templateDescription').textContent.includes('kumulatif'));
 sectionSelect.value='BIAYA';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('Realisasi'));
+sectionSelect.value='UNIT & Revenue';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('REVENUE'));
+sectionSelect.value='REVENUE VERSI EDP MNJ';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);
 sectionSelect.value='OTHER';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,true);
 sectionSelect.value='MTM';
 (async()=>{

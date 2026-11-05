@@ -6,6 +6,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
 require_once __DIR__ . '/../includes/report_input_templates.php';
 require_once __DIR__ . '/../includes/mtm_workbook.php';
+require_once __DIR__ . '/../includes/unit_revenue_input_template.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -866,6 +867,17 @@ try {
     // =========================
 
     $spreadsheet = IOFactory::load($file);
+    if ($divisi === 'REVENUE VERSI EDP MNJ') {
+        // Validate the compact workbook before acquiring a period lock or
+        // replacing either destination table. Legacy workbooks keep their
+        // existing reader and clear any stale compact snapshot on success.
+        $unitRevenueTemplateRecords = null;
+        if (isUnitRevenueInputTemplate($spreadsheet)) {
+            $unitRevenueTemplateRecords = parseUnitRevenueInputTemplate($spreadsheet, $period);
+            $spreadsheet->disconnectWorksheets();
+            $spreadsheet = normalizeUnitRevenueInputTemplate($unitRevenueTemplateRecords);
+        }
+    }
     $sheet = $spreadsheet->getActiveSheet();
 
     // Header Excel berada di baris 4
@@ -919,6 +931,12 @@ try {
         throw new Exception(
             'Header Excel tidak sesuai dengan struktur ' . $divisi . '.'
         );
+    }
+    if ($divisi === 'REVENUE VERSI EDP MNJ') {
+        // DDL must finish before the upload transaction so it cannot commit
+        // only one part of a UNIT/Revenue/snapshot replacement implicitly.
+        ensureUnitRevenueTemplateStore($conn);
+        $unitRevenueSnapshotReady = true;
     }
 
     // =========================
@@ -1208,6 +1226,9 @@ try {
     // =========================
 
     if ($unitStmt) $flushEdpBatch();
+    if ($unitStmt && isset($unitRevenueSnapshotReady) && $unitRevenueSnapshotReady) {
+        saveUnitRevenueTemplateSnapshot($conn, $period, $unitRevenueTemplateRecords ?? null);
+    }
     $conn->commit();
 
     $stmt->close();

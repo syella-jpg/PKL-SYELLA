@@ -4,6 +4,7 @@ require_once __DIR__.'/../includes/report_input_templates.php';
 require_once __DIR__.'/../includes/mtm_template_history.php';
 require_once __DIR__.'/../includes/ib_template_history.php';
 require_once __DIR__.'/../includes/biaya_template_history.php';
+require_once __DIR__.'/../includes/unit_revenue_template_history.php';
 
 // Match the upload page's file:// and local-server access.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -17,14 +18,18 @@ try {
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
     reportInputTemplateSpec($section, $period);
     $book = buildReportInputTemplate($section, $period);
-    if ($section === 'MTM' || (in_array($section,['IB','BIAYA'],true) && substr($period,5,2) !== '01')) {
+    if ($section === 'MTM' || (in_array($section,['IB','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ'],true) && substr($period,5,2) !== '01')) {
         require_once __DIR__.'/../includes/database.php';
         $conn = openReportConnection();
         try {
             if ($conn->connect_error) throw new RuntimeException('Database laporan tidak dapat dihubungkan.');
             $conn->set_charset('utf8mb4');
             if ($section === 'MTM') fillMtmTemplateHistory($book,$period,loadMtmTemplateHistory($conn,$period));
-            elseif ($section === 'BIAYA') {
+            elseif (in_array($section,['UNIT & Revenue','REVENUE VERSI EDP MNJ'],true)) {
+                $history=loadUnitRevenueTemplateHistory($conn,$period);
+                $book->disconnectWorksheets();
+                $book=buildUnitRevenueTemplateWithHistory($period,$history);
+            } elseif ($section === 'BIAYA') {
                 $records=loadBiayaTemplateHistory($conn,$period);
                 $book->disconnectWorksheets();
                 $book=buildBiayaTemplateWithHistory($period,$records);

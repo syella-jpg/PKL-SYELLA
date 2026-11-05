@@ -45,3 +45,7 @@ result = detect(book({TARGET: [], REALISASI: [], _TEMPLATE: ['KONIMEX_BIAYA_V1',
 assert.equal(result.choices[0].section, 'BIAYA');
 assert.equal(result.year, 2027);
 assert.equal(result.month, 2);
+
+result = detect(book({UNIT: [], REVENUE: [], _TEMPLATE: ['KONIMEX_UNIT_REVENUE_V1','UNIT & Revenue'] }), 'Template_UNIT & Revenue_2027-02.xlsx');
+assert.deepEqual(result.choices.map(c => c.section), ['UNIT & Revenue']);
+assert.equal(result.month, 2);

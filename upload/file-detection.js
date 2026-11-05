@@ -15,6 +15,7 @@
     const file = normalize(filename);
     const choices = [];
     const add = (section, label) => { if (!choices.some(c => c.section === section)) choices.push({ section, label: label || section }); };
+    if (book.Sheets._TEMPLATE?.A1?.v === 'KONIMEX_UNIT_REVENUE_V1') add('UNIT & Revenue');
     if (book.Sheets._TEMPLATE?.A1?.v === 'KONIMEX_BIAYA_V1') add('BIAYA');
     if (names.includes('HRU') && /SALES REVENUE.*\(UNIT\)/.test(text)) add('TARGET UNIT SELL OUT', 'Target unit IB');
     if (names.some(n => /YFR\s*-\s*IBFM|^IAP$/.test(n))) add('IB', 'Laporan IB / ekspor');
