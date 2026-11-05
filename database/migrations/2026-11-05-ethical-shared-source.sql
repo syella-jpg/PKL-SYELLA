@@ -1,0 +1,16 @@
+-- One editable Ethical source supplies TARGET HNA and UNIT independently.
+CREATE TABLE IF NOT EXISTS ethical_source_inputs (
+    report_year SMALLINT UNSIGNED NOT NULL PRIMARY KEY,
+    payload MEDIUMBLOB NOT NULL,
+    source_period CHAR(7) NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS ethical_source_monthly (
+    report_year SMALLINT UNSIGNED NOT NULL,
+    kind VARCHAR(12) NOT NULL,
+    month TINYINT UNSIGNED NOT NULL,
+    unit_target DECIMAL(24,6) NULL,
+    hna_target DECIMAL(24,6) NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (report_year, kind, month)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

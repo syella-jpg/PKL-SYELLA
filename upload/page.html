@@ -217,7 +217,7 @@
   </form>
 </main>
 
-<script src="file-detection.js?v=unit-sell-out-template-gmeb-20261105"></script>
+<script src="file-detection.js?v=ethical-product-source-priced-20261105"></script>
 <script src="../dashboard/report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="../dashboard/unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
@@ -313,12 +313,21 @@
 
   function updateTemplateDownload() {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    const visible = ["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT"].includes(section) && /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
+    const visible = ["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL"].includes(section);
+    const validPeriod = /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
     $("templateHelp").hidden = !visible;
+    $("downloadTemplate").disabled = busy || !validPeriod;
     if (!visible) return;
+    if (!validPeriod) {
+      $("templateTitle").textContent = "Template " + section;
+      $("templateDescription").textContent = "Pilih Periode Laporan untuk mengunduh template.";
+      return;
+    }
     $("templateTitle").textContent = "Template " + section + " · " + period;
-    $("templateDescription").textContent = section === "TARGET UNIT SELL OUT"
-      ? "Tiga sheet dalam satu file: GB 1–6 berisi rincian produk; Ethical hanya TARGET Existing/New Product (Unit) dari GMEB; IB berisi dua KPI kumulatif. Ringkasan dihitung otomatis. Isian diteruskan pada tahun yang sama; Januari dimulai kosong."
+    $("templateDescription").textContent = section === "ETHICAL"
+      ? "Empat tabel rincian produk. Setiap bulan berisi TARGET dan REAL, masing-masing UNIT dan HNA; subtotal, Existing, dan NP dihitung otomatis. Upload sekali di ETHICAL untuk mengisi kedua laporan."
+      : section === "TARGET UNIT SELL OUT"
+      ? "Tiga sheet dalam satu file: GB 1–6 berisi rincian produk; Ethical terisi otomatis dari upload bagian ETHICAL; IB berisi dua KPI kumulatif. Ringkasan dihitung otomatis. Isian diteruskan pada tahun yang sama; Januari dimulai kosong."
       : ["UNIT & Revenue", "REVENUE VERSI EDP MNJ"].includes(section)
       ? "Dua sheet: UNIT dan REVENUE. Rupiah Ethical diisi manual pada EXIST, NP, TOTAL di bawah REVENUE. Data dibawa ke bulan berikutnya; Januari dimulai kosong."
       : section === "BIAYA"
@@ -328,9 +337,10 @@
       : "Melanjutkan data MTM tersimpan pada tahun yang sama. Target Awal ditampilkan Januari–Desember; Januari mereset Rolling dan Aktual. Isi Target Awal, Target Rolling, dan Aktual bulanan dalam Rupiah penuh.";
   }
   periodSelect.addEventListener("change", updateTemplateDownload);
+  window.addEventListener("pageshow", updateIbRateField);
   $("downloadTemplate").addEventListener("click", async () => {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    if (!["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT"].includes(section) || !period) return;
+    if (!["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL"].includes(section) || !period) return;
     const button = $("downloadTemplate");
     button.disabled = true;
     try {
@@ -892,7 +902,7 @@
       if (sectionSelect.value === "TARGET UNIT SELL OUT") {
         const saved=await uploadUnitSellOutTargets(chosen,periodSelect.value);
         barFill.style.width="100%";
-        setMsg("Target UNIT SELL OUT tahun "+saved.year+" berhasil disimpan di database untuk "+saved.groups.map(g=>g.toUpperCase().replace('GB','GB ')).join(', ')+(saved.input_template?". Seluruh kelompok tersimpan dari satu template dan siap dipakai di sheet UNIT.":saved.groups.includes("ethical")?". ETHICAL diambil dari TARGET GMEB: Existing Product (Unit) dan New Product (Unit).":saved.groups.includes("ib")?". IB diambil dari gabungan TARGET HRU SALES REVENUE (UNIT) + NEW BUSINESS PRODUCT (UNIT), dengan selisih kumulatif per bulan.":". EXIST = kategori A+B+C; NP = kategori D."),"ok");
+        setMsg("Target UNIT SELL OUT tahun "+saved.year+" berhasil disimpan di database untuk "+saved.groups.map(g=>g.toUpperCase().replace('GB','GB ')).join(', ')+(saved.input_template?". Seluruh kelompok tersimpan dari satu template dan siap dipakai di sheet UNIT."+(saved.ethical_from_source?" Ethical mengikuti sumber terbaru dari bagian ETHICAL.":""):saved.groups.includes("ethical")?". ETHICAL diambil dari TARGET GMEB: Existing Product (Unit) dan New Product (Unit).":saved.groups.includes("ib")?". IB diambil dari gabungan TARGET HRU SALES REVENUE (UNIT) + NEW BUSINESS PRODUCT (UNIT), dengan selisih kumulatif per bulan.":". EXIST = kategori A+B+C; NP = kategori D."),"ok");
         clearFile();sectionSelect.value=""; updateIbRateField();
         return;
       }
@@ -952,7 +962,8 @@
       }
       let ethicalData = null;
       if (isEthical) {
-        ethicalData = await readEthicalHjpData(chosen);
+        // The server validates both the new shared source and older Ethical files.
+        ethicalData = { year: Number(periodSelect.value.slice(0,4)) };
       } else if (isEdpMnjRevenue) {
         const candidateWorkbook = XLSX.read(await chosen.arrayBuffer(), { type: "array", cellDates: false });
         const hasRawEthicalSheets = candidateWorkbook.SheetNames.some((name) => /^PRODUK\s+(?:NAS|PID|PE_1|PE_2)$/i.test(name.trim()));
@@ -1012,13 +1023,16 @@
           throw new Error("Browser tidak mengizinkan penyimpanan lokal. Buka halaman ini di Chrome atau Edge, lalu izinkan penyimpanan situs untuk file lokal.");
         }
       }
-      if (!isTarget) await send(sectionSelect.value, chosen, period);
+      const uploadResult = !isTarget ? await send(sectionSelect.value, chosen, period) : null;
       if (isEthical) {
         // Database menjadi penyimpanan utama; cache lokal hanya membantu
         // halaman unduh yang sedang dibuka di browser yang sama.
         let history = {};
         try { history = JSON.parse(localStorage.getItem(ETHICAL_HJP_KEY) || "{}"); } catch (_) { history = {}; }
-        history[String(ethicalData.year)] = { ...ethicalData, source: chosen.name, uploadedPeriod: period, processedAt: new Date().toISOString() };
+        const ethicalYear=uploadResult?.report_year || ethicalData.year;
+        // Read current values from the API; avoid keeping a stale duplicate input in this browser.
+        if(uploadResult?.ethical_source || !Array.isArray(ethicalData.hnaExisting))delete history[String(ethicalYear)];
+        else history[String(ethicalYear)] = { ...ethicalData, source: chosen.name, uploadedPeriod: period, processedAt: new Date().toISOString() };
         try { localStorage.setItem(ETHICAL_HJP_KEY, JSON.stringify(history)); } catch (_) { /* data utama sudah berhasil tersimpan di database */ }
       }
       if (isTarget) {
@@ -1062,7 +1076,9 @@
             ? "Target EDP MNJ " + targetStorageYear + " berhasil disimpan ke database revenue_edp_mnj_target."
             : "Target Sell Out " + targetStorageYear + " berhasil disimpan dan siap diunduh dari halaman Revenue Konimex Selling Out (RP)."
           : isEthical
-            ? "Data Ethical " + (ethicalData.year || "") + " berhasil disimpan ke database ETHICAL. Cache browser diperbarui untuk unduhan di perangkat ini."
+            ? uploadResult?.ethical_source
+              ? "ETHICAL tersimpan di database. HNA mengisi sheet ETHICAL dan UNIT mengisi target SELL OUT otomatis. Tidak perlu mengisi ulang Ethical di template target."
+              : "Data Ethical " + (ethicalData.year || "") + " berhasil disimpan ke database dan siap dipakai pada unduhan."
           : isMtm
             ? "Data MTM bagian Increase Revenue berhasil disimpan ke database untuk periode " + period + "."
           : isEdpMnjRevenue

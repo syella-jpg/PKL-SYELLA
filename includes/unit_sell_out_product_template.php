@@ -226,8 +226,8 @@ function buildUnitSellOutEthicalSummarySheet(\PhpOffice\PhpSpreadsheet\Spreadshe
     $sheet=new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($book,'ETHICAL');$book->addSheet($sheet);$sheet->setShowGridlines(false);
     $sheet->setCellValue('A1','TARGET UNIT SELL OUT — ETHICAL — TAHUN '.$year);$sheet->mergeCells('A1:P1');
     $sheet->setCellValue('A2','PERIODE LAPORAN: '.$months[$month-1].' '.$year);$sheet->mergeCells('A2:P2');
-    $sheet->setCellValue('A3','GMEB → 1. PERSPEKTIF FINANCIAL → Revenue Growth → Revenue Selling Out (Unit)');$sheet->mergeCells('A3:P3');
-    $sheet->setCellValue('A4','Isi TARGET Existing Product (Unit) dan New Product (Unit) per bulan pada sel kuning.');$sheet->mergeCells('A4:P4');
+    $sheet->setCellValue('A3','Sumber: bagian ETHICAL → PRODUK NAS → TARGET UNIT');$sheet->mergeCells('A3:P3');
+    $sheet->setCellValue('A4','Bagian ini terisi otomatis setelah upload sumber Ethical di bagian ETHICAL.');$sheet->mergeCells('A4:P4');
     foreach(['PARAMETER','JENIS',...$months,'YTD '.$months[$month-1],'TOTAL FY'] as $c=>$v)$sheet->setCellValue([$c+1,5],$v);
     $sheet->setCellValue('A6','EXISTING PRODUCT (UNIT)');$sheet->setCellValue('A7','NEW PRODUCT (UNIT)');$sheet->setCellValue('A8','TOTAL ETHICAL');
     $sheet->setCellValue('B6','TARGET');$sheet->setCellValue('B7','TARGET');$sheet->setCellValue('B8','OTOMATIS');

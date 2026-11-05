@@ -7,6 +7,8 @@ require_once __DIR__ . '/../dashboard/revenue_ibfm_processor.php';
 require_once __DIR__ . '/../includes/report_input_templates.php';
 require_once __DIR__ . '/../includes/mtm_workbook.php';
 require_once __DIR__ . '/../includes/unit_revenue_input_template.php';
+require_once __DIR__ . '/../includes/unit_sell_out_targets.php';
+require_once __DIR__ . '/../includes/ethical_source_template.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -454,6 +456,18 @@ try {
     // dalam satu transaksi sehingga tidak menggandakan baris.
     if ($divisi === 'ETHICAL') {
         $spreadsheet = IOFactory::load($file);
+        ensureEthicalSourceStore($conn);
+        $sourceData=isEthicalSourceTemplate($spreadsheet)?parseEthicalSourceTemplate($spreadsheet,$period):parseEthicalNasSource($spreadsheet,$period);
+        if($sourceData!==null){
+            if(!isEthicalSourceTemplate($spreadsheet)){
+                if(!preg_match('/(20\d{2})/',(string)($_FILES['file']['name']??''),$sourceYearMatch))throw new InvalidArgumentException('Cantumkan tahun pada nama file sumber PRODUK NAS.');
+                if((int)$sourceYearMatch[1]!==$sourceData['year'])throw new InvalidArgumentException('Tahun sumber PRODUK NAS berbeda dari periode upload.');
+            }
+            ensureUnitSellOutTargets($conn);ensureUnitSellOutInputStore($conn);
+            $conn->begin_transaction();saveEthicalSource($conn,$period,$sourceData);$conn->commit();$conn->close();$spreadsheet->disconnectWorksheets();
+            echo json_encode(['success'=>true,'ethical_source'=>true,'report_year'=>$sourceData['year'],'message'=>'Target HNA dan UNIT Ethical tersimpan. Target UNIT Sell Out diperbarui otomatis.']);
+            exit;
+        }
         $sheet = null;
         $sourceTitle = '';
         $monthAliases = [
@@ -649,6 +663,7 @@ try {
         }
         $sourceYear = (int)$yearMatch[1];
         if ($sourceYear < 2025) throw new Exception('Tahun data ETHICAL tidak valid.');
+        if ($sourceYear !== (int)substr($period,0,4)) throw new InvalidArgumentException('Tahun data ETHICAL berbeda dari periode upload.');
 
         $readCell = static function (int $column, int $row) use ($sheet, $columnLetter) {
             $cell = $sheet->getCell($columnLetter($column) . $row);
@@ -755,6 +770,7 @@ try {
             }
         }
         $insert->close();
+        foreach(['ethical_source_inputs','ethical_source_monthly'] as $sourceTable){$clear=$conn->prepare('DELETE FROM `'.$sourceTable.'` WHERE report_year=?');$clear->bind_param('i',$sourceYear);$clear->execute();$clear->close();}
         $conn->commit();
         $conn->close();
 
@@ -1247,6 +1263,8 @@ try {
         && in_array((int)$e->getCode(), [1205, 1213, 3572], true);
     if ($unitRevenueBusy) {
         http_response_code(409);
+    } elseif (($divisi ?? '') === 'ETHICAL' && $e instanceof InvalidArgumentException) {
+        http_response_code(400);
     } elseif (http_response_code() < 400) {
         http_response_code(500);
     }

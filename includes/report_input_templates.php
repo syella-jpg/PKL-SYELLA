@@ -8,7 +8,7 @@ use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 
 function reportInputTemplateSpec(string $section, string $period): array
 {
-    if (!in_array($section, ['IB', 'MTM', 'BIAYA', 'UNIT & Revenue', 'REVENUE VERSI EDP MNJ', 'TARGET UNIT SELL OUT'], true) || !preg_match('/^(20\d{2})-(0[1-9]|1[0-2])$/D', $period, $m)) {
+    if (!in_array($section, ['IB', 'MTM', 'BIAYA', 'UNIT & Revenue', 'REVENUE VERSI EDP MNJ', 'TARGET UNIT SELL OUT', 'ETHICAL'], true) || !preg_match('/^(20\d{2})-(0[1-9]|1[0-2])$/D', $period, $m)) {
         throw new InvalidArgumentException('Pilih bagian laporan yang menyediakan template dan periode yang valid untuk mengunduh template.');
     }
     return [$section, (int)$m[1], (int)$m[2]];
@@ -18,6 +18,11 @@ function reportInputTemplateSpec(string $section, string $period): array
 function buildReportInputTemplate(string $section, string $period): Spreadsheet
 {
     [, $year, $month] = reportInputTemplateSpec($section, $period);
+    if ($section === 'ETHICAL') {
+        require_once __DIR__.'/unit_sell_out_input_template.php';
+        require_once __DIR__.'/ethical_source_template.php';
+        return buildEthicalSourceTemplate($period);
+    }
     if ($section === 'TARGET UNIT SELL OUT') {
         require_once __DIR__.'/unit_sell_out_input_template.php';
         return buildUnitSellOutInputTemplate($period);

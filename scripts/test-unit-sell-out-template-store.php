@@ -1,6 +1,7 @@
 <?php
 require __DIR__.'/../vendor/autoload.php';
 require __DIR__.'/../includes/unit_sell_out_targets.php';
+require __DIR__.'/../includes/ethical_source_template.php';
 function checkTargetStore($test,$message){if(!$test)throw new RuntimeException($message);}
 class UnitTargetStoreConnection extends mysqli {
     public array $targets=[],$inputs=[],$events=[];public ?array $before=null;public bool $failInputs=false;
@@ -15,8 +16,10 @@ class UnitTargetStoreStatement {
     private array $params=[];
     public function __construct(private UnitTargetStoreConnection $conn,private string $sql){}
     public function bind_param($types,&...$params){$this->params=&$params;return true;}
+    public function get_result(){return new class{public function fetch_all($mode){return [];}};}
     public function close(){}
     public function execute(){
+        if(str_starts_with($this->sql,'SELECT'))return true;
         checkTargetStore($this->conn->before!==null,'Write outside transaction');$p=$this->params;$prefix=$p[0].':'.$p[1];
         if(str_contains($this->sql,'unit_sell_out_target_inputs')){
             if(str_starts_with($this->sql,'DELETE'))unset($this->conn->inputs[$prefix]);

@@ -6,6 +6,7 @@ require_once __DIR__.'/../includes/ib_template_history.php';
 require_once __DIR__.'/../includes/biaya_template_history.php';
 require_once __DIR__.'/../includes/unit_revenue_template_history.php';
 require_once __DIR__.'/../includes/unit_sell_out_input_template.php';
+require_once __DIR__.'/../includes/ethical_source_template.php';
 
 // Match the upload page's file:// and local-server access.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -18,21 +19,33 @@ try {
     $section = is_string($_GET['section'] ?? null) ? $_GET['section'] : '';
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
     reportInputTemplateSpec($section, $period);
-    $rebuildFromHistory = in_array($section,['BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT'],true) && substr($period,5,2) !== '01';
+    $rebuildFromHistory = in_array($section,['BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL'],true) && (substr($period,5,2) !== '01' || $section==='TARGET UNIT SELL OUT');
     $book = $rebuildFromHistory ? null : buildReportInputTemplate($section, $period);
-    if ($section === 'MTM' || (in_array($section,['IB','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT'],true) && substr($period,5,2) !== '01')) {
+    if ($section === 'MTM' || $section === 'TARGET UNIT SELL OUT' || (in_array($section,['IB','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL'],true) && substr($period,5,2) !== '01')) {
         require_once __DIR__.'/../includes/database.php';
         $conn = openReportConnection();
         try {
             if ($conn->connect_error) throw new RuntimeException('Database laporan tidak dapat dihubungkan.');
             $conn->set_charset('utf8mb4');
-            if ($section === 'TARGET UNIT SELL OUT') {
+            if ($section === 'ETHICAL') {
+                ensureEthicalSourceStore($conn);$year=(int)substr($period,0,4);
+                $query=$conn->prepare('SELECT report_year,payload FROM ethical_source_inputs WHERE report_year=?');
+                $query->bind_param('i',$year);$query->execute();$record=$query->get_result()->fetch_assoc();$query->close();
+                $book=buildEthicalSourceWithHistory($period,$record?:null);
+            } elseif ($section === 'TARGET UNIT SELL OUT') {
+
                 ensureUnitSellOutInputStore($conn);
                 $year=(int)substr($period,0,4);
                 $query=$conn->prepare('SELECT report_year,product,payload FROM unit_sell_out_target_inputs WHERE report_year=?');
                 $query->bind_param('i',$year);$query->execute();
                 $history=$query->get_result()->fetch_all(MYSQLI_ASSOC);$query->close();
+                $master=loadEthicalSourceMonthly($conn,$year);
+                if($master){
+                    $history=array_values(array_filter($history,fn($r)=>$r['product']!=='ethical'));
+                    $history[]=['report_year'=>$year,'product'=>'ethical','payload'=>json_encode(ethicalSourceUnitInputs($master),JSON_THROW_ON_ERROR)];
+                }
                 $book=buildUnitSellOutProductWithHistory($period,$history);
+                if($master){$ethical=$book->getSheetByName('ETHICAL');foreach(['existing'=>6,'new'=>7] as $kind=>$row)foreach(ethicalSourceUnitInputs($master)[$kind] as $m=>$v)$ethical->setCellValue([$m+3,$row],$v);$ethical->setCellValue('A4','Terisi otomatis dari upload ETHICAL. Untuk memperbarui angka, upload kembali di bagian ETHICAL.');$ethical->getStyle('C6:N7')->getFill()->getStartColor()->setARGB('FFEAF1FF');}
             } elseif ($section === 'MTM') fillMtmTemplateHistory($book,$period,loadMtmTemplateHistory($conn,$period));
             elseif (in_array($section,['UNIT & Revenue','REVENUE VERSI EDP MNJ'],true)) {
                 $history=loadUnitRevenueTemplateHistory($conn,$period);
@@ -51,7 +64,7 @@ try {
     }
     $stream = fopen('php://temp', 'w+b');
     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book);
-    if ($section === 'TARGET UNIT SELL OUT') {
+    if (in_array($section,['TARGET UNIT SELL OUT','ETHICAL'],true)) {
         // Excel/Calc recalculates the visible summaries on open and on edits.
         $writer->setPreCalculateFormulas(false)->setForceFullCalc(true);
     }

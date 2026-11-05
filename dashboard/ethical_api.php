@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/ethical_source_template.php';
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
@@ -137,6 +138,12 @@ try {
             $record['hnaExisting'], $record['hnaNew']);
         $data[] = $record;
     }
+    try{
+        $source=$conn->query('SELECT report_year,kind,month,unit_target,hna_target FROM ethical_source_monthly ORDER BY report_year,kind,month');
+        $data=mergeEthicalSourceData($data,$source->fetch_all(MYSQLI_ASSOC));$source->free();
+        $inputs=$conn->query('SELECT report_year,payload FROM ethical_source_inputs');
+        $data=mergeEthicalSourceActuals($data,$inputs->fetch_all(MYSQLI_ASSOC));$inputs->free();
+    }catch(mysqli_sql_exception $sourceError){if($sourceError->getCode()!==1146)throw $sourceError;}
     usort($data, static fn($a, $b) => $b['year'] <=> $a['year']);
     echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $error) {

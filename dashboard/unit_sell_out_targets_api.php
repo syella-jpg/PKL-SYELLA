@@ -2,6 +2,7 @@
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../vendor/autoload.php';
 require_once __DIR__.'/../includes/unit_sell_out_targets.php';
+require_once __DIR__.'/../includes/ethical_source_template.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
 $origin=$_SERVER['HTTP_ORIGIN']??'';
 if(in_array($origin,['null','http://127.0.0.1:8000','http://localhost:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Methods: GET, POST, OPTIONS');header('Access-Control-Allow-Headers: Content-Type');}
@@ -25,13 +26,14 @@ try{
   $products=array_values(array_unique(array_column($records,'product')));
   ensureUnitSellOutInputStore($conn);
   $conn->begin_transaction();
+  $sourceData=applyEthicalSourceTargets($conn,$year,['records'=>$records]+($inputData!==null?['inputs'=>$inputData['inputs']]:[]));$records=$sourceData['records'];if($inputData!==null)$inputData['inputs']=$sourceData['inputs'];
   $q=$conn->prepare('DELETE FROM `target unit sell out` WHERE report_year=? AND product=?');
   foreach($products as $product){$q->bind_param('is',$year,$product);$q->execute();}$q->close();
   $q=$conn->prepare('INSERT INTO `target unit sell out` (report_year,product,kind,month,units) VALUES (?,?,?,?,?)');
   foreach($records as $row){$q->bind_param('issis',$year,$row['product'],$row['kind'],$row['month'],$row['units']);$q->execute();}$q->close();
   saveUnitSellOutInputs($conn,$year,$period,$products,$inputData['inputs']??null);
   $conn->commit();
-  echo json_encode(['success'=>true,'year'=>$year,'groups'=>$products,'count'=>count($records),'input_template'=>$inputData!==null]);
+  echo json_encode(['success'=>true,'year'=>$year,'groups'=>$products,'count'=>count($records),'input_template'=>$inputData!==null,'ethical_from_source'=>$sourceData['ethical_from_source']??false]);
  }else{
   $q=$conn->prepare('SELECT report_year,product,kind,month,units FROM `target unit sell out` WHERE report_year=? ORDER BY product,kind,month');$q->bind_param('i',$year);$q->execute();$rows=$q->get_result()->fetch_all(MYSQLI_ASSOC);$q->close();echo json_encode(['success'=>true,'data'=>$rows]);
  }

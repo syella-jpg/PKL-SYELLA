@@ -11,7 +11,7 @@ class Connection extends \mysqli {
 class Statement {
     public function bind_param($types,&...$values){}
     public function execute(){}
-    public function get_result(){return new class{public function fetch_all($mode){return [];}};}
+    public function get_result(){return new class{public function fetch_all($mode){return [];}public function fetch_assoc(){return null;}};}
     public function close(){}
 }
 $connections=0;
@@ -20,16 +20,16 @@ $source=file_get_contents(__DIR__.'/../dashboard/report_input_template.php');
 $source=preg_replace('/^<\?php\s*/','',$source);
 // Keep all real template includes, replacing only the database connection dependency.
 $source=str_replace("require_once __DIR__.'/../includes/database.php';",'',$source);
-foreach(['2026-09','2027-01'] as $period){
-    $_GET=['section'=>'TARGET UNIT SELL OUT','period'=>$period];
+foreach([['TARGET UNIT SELL OUT','2026-09'],['TARGET UNIT SELL OUT','2027-01'],['ETHICAL','2026-09'],['ETHICAL','2027-01']] as [$section,$period]){
+    $_GET=['section'=>$section,'period'=>$period];
     ob_start();try{eval('namespace '.__NAMESPACE__.';'.$source);$xlsx=ob_get_contents();}finally{ob_end_clean();}
     if(!str_starts_with($xlsx,'PK'))throw new \RuntimeException('Download handler returned an error instead of Excel for '.$period);
     $path=tempnam('/tmp','endpoint-target-');try{
         file_put_contents($path,$xlsx);$loaded=\PhpOffice\PhpSpreadsheet\IOFactory::load($path);
-        if($loaded->getSheetNames()!==['GB 1-6','ETHICAL','IB','_TEMPLATE'])throw new \RuntimeException('Wrong template sheets');
-        if(!str_contains($loaded->getSheetByName('GB 1-6')->getCell('A1')->getValue(),substr($period,0,4)))throw new \RuntimeException('Wrong template year');
+        if($loaded->getSheetNames()!==($section==='ETHICAL'?['PRODUK NAS','_TEMPLATE']:['GB 1-6','ETHICAL','IB','_TEMPLATE']))throw new \RuntimeException('Wrong template sheets');
+        if(!str_contains($loaded->getSheetByName($section==='ETHICAL'?'PRODUK NAS':'GB 1-6')->getCell('A1')->getValue(),substr($period,0,4)))throw new \RuntimeException('Wrong template year');
         $loaded->disconnectWorksheets();
     }finally{unlink($path);}
 }
-if($connections!==1)throw new \RuntimeException('January should start empty without a database connection');
-echo "PASS actual template handler: September as first request, history dependencies loaded, valid three-sheet Excel; January reset without DB\n";
+if($connections!==3)throw new \RuntimeException('Target template must read same-year Ethical master in January too');
+echo "PASS actual template handler: September as first request, history dependencies loaded, valid three-sheet Excel; January keeps GB inputs empty while checking current-year Ethical source\n";
