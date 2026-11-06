@@ -12,16 +12,16 @@ function unitRevenueTemplatePeriod(string $period): array
 }
 function isUnitRevenueInputTemplate(Spreadsheet $book): bool
 {
-    return $book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue()==='KONIMEX_UNIT_REVENUE_V1';
+    return in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_UNIT_REVENUE_V1','KONIMEX_UNIT_REVENUE_V2'],true);
 }
 function unitRevenueInputHeaders(): array
 {
     return ['GB','PRODUCT CODE','PRINCIPAL PRODUCT CODE','PRODUCT NAME','KATEGORI','JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER','TOTAL'];
 }
-function buildUnitRevenueInputTemplate(string $period,int $capacity=1000): Spreadsheet
+function buildUnitRevenueLegacyInputTemplate(string $period,int $capacity=1000): Spreadsheet
 {
     [$year,$month]=unitRevenueTemplatePeriod($period);
-    $capacity=max(1,min(10000-5,$capacity));$book=new Spreadsheet();$book->removeSheetByIndex(0);
+    $capacity=max(1,$capacity);$book=new Spreadsheet();$book->removeSheetByIndex(0);
     $book->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
     $months=array_slice(unitRevenueInputHeaders(),5,12);
     foreach(['UNIT','REVENUE'] as $name){
@@ -101,6 +101,7 @@ function buildUnitRevenueInputTemplate(string $period,int $capacity=1000): Sprea
 }
 function unitRevenueEthicalManualRows(Spreadsheet $book): array
 {
+    if($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue()==='KONIMEX_UNIT_REVENUE_V2')return locateUnitRevenueManualTable($book->getSheetByName('REVENUE'))['rows'];
     $sheet=$book->getSheetByName('REVENUE');if(!$sheet)return [];
     foreach($sheet->getRowIterator() as $row){
         $r=$row->getRowIndex();
@@ -124,6 +125,7 @@ function normalizeUnitRevenueGroup($value): ?string
 }
 function parseUnitRevenueInputTemplate(Spreadsheet $book,string $period): array
 {
+    if($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue()==='KONIMEX_UNIT_REVENUE_V2')return parseUnitRevenueGroupTemplate($book,$period);
     [$year]=unitRevenueTemplatePeriod($period);
     if(!isUnitRevenueInputTemplate($book)||(int)$book->getSheetByName('_TEMPLATE')->getCell('A3')->getValue()!==$year)throw new InvalidArgumentException('Tahun template UNIT & Revenue tidak sesuai periode upload.');
     $unit=$book->getSheetByName('UNIT');$revenue=$book->getSheetByName('REVENUE');
@@ -133,7 +135,6 @@ function parseUnitRevenueInputTemplate(Spreadsheet $book,string $period): array
     $manualMode=$book->getSheetByName('_TEMPLATE')->getCell('A5')->getValue()==='ETHICAL_REVENUE_MANUAL_V1';
     if($manualMode&&!$manualRows)throw new InvalidArgumentException('Bagian rupiah Ethical manual tidak ditemukan.');
     $last=$manualRows?max($unit->getHighestDataRow(),min($manualRows)-6):max($unit->getHighestDataRow(),$revenue->getHighestDataRow());
-    if($last>10000)throw new InvalidArgumentException('Template UNIT & Revenue maksimal 9.995 baris produk.');
     for($r=6;$r<=$last;$r++){
         $identity=[];foreach(range(1,5) as $c)$identity[]=trim((string)$unit->getCell([$c,$r])->getCalculatedValue());
         $arrays=[];$rowHasNumber=false;
@@ -172,7 +173,7 @@ function parseUnitRevenueInputTemplate(Spreadsheet $book,string $period): array
             $cell=$revenue->getCell([$c,$r]);$value=$cell->getCalculatedValue();if(is_string($value))$value=trim($value);
             if($value===null||$value==='')$value=null;
             elseif(!is_numeric($value)||!is_finite((float)$value))throw new InvalidArgumentException('Nilai Ethical tidak valid di REVENUE sel '.$cell->getCoordinate().'.');
-            else{$value=(float)$value;$hasNumber=true;}
+            else{$value=(float)$value;$hasNumber=$hasNumber||!$cell->isFormula()||$value!=0;}
             $values[]=$value;
         }
         $records[]=['__kind'=>'ethical_revenue','section'=>$kind,'rev'=>$values];
@@ -221,3 +222,5 @@ function saveUnitRevenueTemplateSnapshot($conn,string $period,?array $records): 
     else{$payload=gzencode(json_encode($records,JSON_THROW_ON_ERROR),6);$q=$conn->prepare('INSERT INTO unit_revenue_input_snapshots (report_period,payload) VALUES (?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),updated_at=CURRENT_TIMESTAMP');$q->bind_param('ss',$period,$payload);}
     $q->execute();$q->close();
 }
+
+require_once __DIR__.'/unit_revenue_group_template.php';

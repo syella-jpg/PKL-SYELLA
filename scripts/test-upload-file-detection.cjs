@@ -79,3 +79,5 @@ console.log('PASS template origin is authoritative, including shared IB UNIT dat
 
 result = detect(book({TARGET:['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6'],REALISASI:[],_TEMPLATE:['KONIMEX_BIAYA_V2','BIAYA']}),'renamed.ods');
 assert.deepEqual(result.choices.map(c=>c.section),['BIAYA']);
+
+result=detect(book({UNIT:[],REVENUE:[],_TEMPLATE:['KONIMEX_UNIT_REVENUE_V2','UNIT & Revenue']}),'renamed.ods');assert.deepEqual(result.choices.map(c=>c.section),['UNIT & Revenue']);

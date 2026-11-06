@@ -6,7 +6,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 function verifyUr($ok,$message){if(!$ok)throw new RuntimeException($message);}
 function rejectUr(callable $f,$message){try{$f();}catch(InvalidArgumentException $e){return;}throw new RuntimeException($message);}
 foreach([2025,2026,2027] as $year){
- $period=$year.'-11';$book=buildReportInputTemplate('UNIT & Revenue',$period);
+ $period=$year.'-11';$book=buildUnitRevenueLegacyInputTemplate($period);
  verifyUr($book->getSheetCount()===3,'Two compact sheets and hidden metadata');$unit=$book->getSheetByName('UNIT');$revenue=$book->getSheetByName('REVENUE');
  foreach(range(6,215) as $r){
   foreach(range(1,17) as $c)verifyUr($unit->getCell([$c,$r])->getValue()===null,'All unit inputs empty');
@@ -40,7 +40,7 @@ foreach([2025,2026,2027] as $year){
  rejectUr(fn()=>parseUnitRevenueInputTemplate($book,$period),'Duplicate identities rejected before DB join');
  $book->disconnectWorksheets();
 }
-$book=buildUnitRevenueInputTemplate('2026-11',2);$u=$book->getSheetByName('UNIT');$v=$book->getSheetByName('REVENUE');
+$book=buildUnitRevenueLegacyInputTemplate('2026-11',2);$u=$book->getSheetByName('UNIT');$v=$book->getSheetByName('REVENUE');
 foreach([6=>['GB ET','Synthetic existing','A',7],7=>['GB ET','Synthetic E','E',5]] as $r=>[$gb,$name,$cat,$qty]){$u->setCellValue('A'.$r,$gb);$u->setCellValue('D'.$r,$name);$u->setCellValue('E'.$r,$cat);$u->setCellValue('F'.$r,$qty);$v->setCellValue('F'.$r,$qty*10);}
 $rows=normalizeUnitRevenueInputTemplate(parseUnitRevenueInputTemplate($book,'2026-11'))->getSheet(0)->toArray(null,true,false);
 $found=[];foreach($rows as $r)if(in_array($r[3]??null,['EXIST ETH','NP ETH','TOTAL ETH'],true))$found[$r[3]]=$r;

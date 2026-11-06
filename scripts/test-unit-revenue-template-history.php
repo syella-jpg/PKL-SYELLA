@@ -23,15 +23,15 @@ for($i=0;$i<212;$i++)$records[]=[
 $history=['source_period'=>'2026-11','records'=>$records];
 $book=buildUnitRevenueTemplateWithHistory('2026-12',$history);
 $unit=$book->getSheetByName('UNIT');$revenue=$book->getSheetByName('REVENUE');
-checkUnitRevenueHistory($unit->getCell('B6')->getValue()==='000001','Product code retains leading zeroes');
-checkUnitRevenueHistory($unit->getCell('C6')->getValue()==='0000','Principal code retains leading zeroes');
-checkUnitRevenueHistory($unit->getCell('E6')->getValue()==='ABC','Combined Existing category remains ABC');
-checkUnitRevenueHistory($unit->getCell('F6')->getValue()===10.0,'Prior UNIT values restored');
-checkUnitRevenueHistory($revenue->getCell('F6')->getValue()===100.0,'Prior REVENUE values restored');
-checkUnitRevenueHistory($unit->getCell('G6')->getValue()===0.0&&$unit->getCell('H6')->getValue()===null,'Zeros remain distinct from missing data');
-checkUnitRevenueHistory($unit->getCell('P6')->getValue()===11.0&&$unit->getCell('Q6')->getValue()===null,'November-to-December carry retains prior month and empty December');
-checkUnitRevenueHistory($revenue->getCell('B6')->getCalculatedValue()==='000001','REVENUE identity references preserve leading zeroes');
-checkUnitRevenueHistory($revenue->getCell('A217')->isFormula()&&$unit->getCell('D217')->getValue()==='Synthetic product 212','History beyond initial capacity expands both sheets');
+checkUnitRevenueHistory($unit->getCell('B7')->getValue()==='000001','Product code retains leading zeroes');
+checkUnitRevenueHistory($unit->getCell('C7')->getValue()==='0000','Principal code retains leading zeroes');
+checkUnitRevenueHistory($unit->getCell('E7')->getValue()==='ABC','Combined Existing category remains ABC');
+checkUnitRevenueHistory($unit->getCell('F7')->getValue()===10.0,'Prior UNIT values restored');
+checkUnitRevenueHistory($revenue->getCell('F7')->getValue()===100.0,'Prior REVENUE values restored');
+checkUnitRevenueHistory($unit->getCell('G7')->getValue()===0.0&&$unit->getCell('H7')->getValue()===null,'Zeros remain distinct from missing data');
+checkUnitRevenueHistory($unit->getCell('P7')->getValue()===11.0&&$unit->getCell('Q7')->getValue()===null,'November-to-December carry retains prior month and empty December');
+checkUnitRevenueHistory($revenue->getCell('B7')->getCalculatedValue()==='000001','REVENUE identity references preserve leading zeroes');
+checkUnitRevenueHistory($revenue->getCell('A'.locateUnitRevenueGroupTables($revenue)['ET']['first'])->isFormula()&&$unit->getCell('D'.locateUnitRevenueGroupTables($unit)['ET']['first'])->getValue()==='Synthetic product 212','History beyond initial capacity expands both sheets');
 checkUnitRevenueHistory($book->getSheetByName('_TEMPLATE')->getCell('A6')->getValue()==='2026-11','Source upload recorded in metadata');
 $parsed=parseUnitRevenueInputTemplate($book,'2026-12');
 $numbers=static fn($values)=>array_map(static fn($v)=>$v===null?null:(float)$v,$values);
@@ -46,12 +46,19 @@ try{
 }finally{unlink($path);}
 $book->disconnectWorksheets();
 $oct=buildUnitRevenueTemplateWithHistory('2026-10',$history);
-checkUnitRevenueHistory($oct->getSheetByName('UNIT')->getCell('O6')->getValue()===10.0,'October uses October content from earliest later upload');
-foreach(['UNIT','REVENUE'] as $name)checkUnitRevenueHistory($oct->getSheetByName($name)->getCell('P6')->getValue()===null&&$oct->getSheetByName($name)->getCell('Q6')->getValue()===null,'Later snapshot does not expose November or December in October');
+checkUnitRevenueHistory($oct->getSheetByName('UNIT')->getCell('O7')->getValue()===10.0,'October uses October content from earliest later upload');
+foreach(['UNIT','REVENUE'] as $name)checkUnitRevenueHistory($oct->getSheetByName($name)->getCell('P7')->getValue()===null&&$oct->getSheetByName($name)->getCell('Q7')->getValue()===null,'Later snapshot does not expose November or December in October');
 $oct->disconnectWorksheets();
 foreach(['2026-01','2027-01','2027-02'] as $period){
     $blank=buildUnitRevenueTemplateWithHistory($period,$history);
-    checkUnitRevenueHistory($blank->getSheetByName('UNIT')->getCell('A6')->getValue()===null&&$blank->getSheetByName('UNIT')->getCell('F6')->getValue()===null&&$blank->getSheetByName('REVENUE')->getCell('F6')->getValue()===null,'January reset and other-year isolation');
+    checkUnitRevenueHistory($blank->getSheetByName('UNIT')->getCell('D7')->getValue()===null&&$blank->getSheetByName('UNIT')->getCell('F7')->getValue()===null&&$blank->getSheetByName('REVENUE')->getCell('F7')->getValue()===null,'January reset and other-year isolation');
+    foreach(['UNIT','REVENUE'] as $name)foreach(locateUnitRevenueGroupTables($blank->getSheetByName($name)) as $table){
+        checkUnitRevenueHistory($table['last']-$table['first']+1===(substr($period,5)==='01'?50:1),'January reserves fifty product rows per table; other empty periods keep one');
+        for($row=$table['first'];$row<=$table['last'];$row++){
+            if($name==='UNIT')checkUnitRevenueHistory($blank->getSheetByName($name)->getCell('D'.$row)->getValue()===null,'January product names start empty');
+            foreach(range('F','Q') as $column)checkUnitRevenueHistory($blank->getSheetByName($name)->getCell($column.$row)->getValue()===null,'Yearly reset leaves every monthly input empty');
+        }
+    }
     $blank->disconnectWorksheets();
 }
 checkUnitRevenueHistory(selectUnitRevenueHistoryPeriod('2026-12',['2025-12','2026-09','2026-11','2027-01'])==='2026-11','Latest earlier snapshot selected within requested year');

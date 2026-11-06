@@ -65,7 +65,7 @@ try {
     }
     $stream = fopen('php://temp', 'w+b');
     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book);
-    if (in_array($section,['TARGET UNIT SELL OUT','ETHICAL'],true)) {
+    if (in_array($section,['TARGET UNIT SELL OUT','ETHICAL','UNIT & Revenue','REVENUE VERSI EDP MNJ'],true)) {
         // Excel/Calc recalculates the visible summaries on open and on edits.
         $writer->setPreCalculateFormulas(false)->setForceFullCalc(true);
     }

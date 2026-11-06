@@ -163,16 +163,18 @@ function buildUnitRevenueTemplateWithHistory(string $period,array $history): \Ph
     [$year,$month]=unitRevenueTemplatePeriod($period);$source=$history['source_period']??null;$records=$history['records']??[];
     if($month===1||!is_string($source)||!preg_match('/^'.$year.'-(0[1-9]|1[0-2])$/D',$source))return buildUnitRevenueInputTemplate($period);
     if(!is_array($records)||!array_is_list($records))throw new RuntimeException('Susunan riwayat UNIT & Revenue tidak valid.');
-    if(count($records)>9995)throw new RuntimeException('Riwayat UNIT & Revenue melebihi kapasitas template.');
     $manual=array_values(array_filter($records,static fn($r)=>($r['__kind']??null)==='ethical_revenue'));
     $records=array_values(array_filter($records,static fn($r)=>($r['__kind']??null)!=='ethical_revenue'));
-    $book=buildUnitRevenueInputTemplate($period,max(1000,count($records)+200));$unit=$book->getSheetByName('UNIT');$revenue=$book->getSheetByName('REVENUE');$seen=[];
+    // Keep saved products and one spare row per table instead of hundreds of unused rows.
+    $slots=[];foreach($records as $record){$group=normalizeUnitRevenueGroup($record['gb']??'');if($group!==null)$slots[$group]=($slots[$group]??0)+1;}
+    foreach($slots as &$count)$count++;unset($count);
+    $book=buildUnitRevenueInputTemplate($period,7,$slots);$unit=$book->getSheetByName('UNIT');$revenue=$book->getSheetByName('REVENUE');$seen=[];$layouts=locateUnitRevenueGroupTables($unit);$positions=array_map(static fn($layout)=>$layout['first'],$layouts);
     foreach($records as $i=>$record){
         $gb=normalizeUnitRevenueGroup($record['gb']??'');$category=strtoupper(trim((string)($record['kategori']??'')));
         if($gb===null||trim((string)($record['product_name']??''))===''||!in_array($category,['A','B','C','ABC','D','E'],true))throw new RuntimeException('Identitas riwayat UNIT & Revenue belum lengkap.');
         $identity=[$gb,(string)($record['product_code']??''),(string)($record['principal_product_code']??''),(string)$record['product_name'],$category];
         $key=json_encode($identity,JSON_THROW_ON_ERROR);if(isset($seen[$key]))throw new RuntimeException('Produk berulang pada riwayat UNIT & Revenue.');$seen[$key]=true;
-        $r=$i+6;
+        $r=$positions[$gb]++;
         foreach($identity as $c=>$value)$unit->getCell([$c+1,$r])->setValueExplicit($value,\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
         foreach(['qty'=>$unit,'rev'=>$revenue] as $kind=>$sheet){
             $values=$record[$kind]??null;if(!is_array($values)||!array_is_list($values)||count($values)!==12)throw new RuntimeException('Riwayat UNIT & Revenue harus berisi dua belas bulan.');
@@ -201,7 +203,7 @@ function buildUnitRevenueTemplateWithHistory(string $period,array $history): \Ph
         $seenManual[$kind]=true;
         foreach($values as $m=>$value){
             if($source>$period&&$m+1>$month)continue;
-            $number=unitRevenueHistoryNumber($value);if($number!==null && $revenue->getCell([$m+6,$destinations[$kind]])->getDataType()!==\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_FORMULA)$revenue->setCellValue([$m+6,$destinations[$kind]],$number);
+            $number=unitRevenueHistoryNumber($value);$cell=$revenue->getCell([$m+6,$destinations[$kind]]);$formulaDriven=$record['formula_months'][$m]??null;if($formulaDriven===false)$cell->setValue($number);elseif($formulaDriven===null&&$number!==null&&(!$cell->isFormula()||(float)$cell->getCalculatedValue()!==$number))$cell->setValue($number);
         }
     }
     $book->getSheetByName('_TEMPLATE')->setCellValue('A6',$source);
