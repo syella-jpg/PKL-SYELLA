@@ -6,7 +6,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 function checkBiaya($ok,$message){if(!$ok)throw new RuntimeException($message);}
 function rejectBiaya(callable $f,$message){try{$f();}catch(InvalidArgumentException $e){return;}throw new RuntimeException($message);}
 foreach([2025,2026,2027] as $year){
- $book=buildReportInputTemplate('BIAYA',$year.'-09');
+ $book=buildBiayaLegacyInputTemplate($year.'-09');
  $targetName=$year===2025?'TARGET ROLLING':'TARGET';
  checkBiaya($book->getSheetCount()===3,'Only two tables and hidden metadata');
  $target=$book->getSheetByName($targetName);$actual=$book->getSheetByName('REALISASI');

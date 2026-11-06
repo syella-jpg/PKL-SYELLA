@@ -7,11 +7,11 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 
 function isBiayaInputTemplate(Spreadsheet $book): bool
 {
-    return $book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue()==='KONIMEX_BIAYA_V1';
+    return in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_BIAYA_V1','KONIMEX_BIAYA_V2'],true);
 }
 
 /** New empty tables only; no product names or financial amounts from source files. */
-function buildBiayaInputTemplate(string $period, array $slotsPerGb=[]): Spreadsheet
+function buildBiayaLegacyInputTemplate(string $period, array $slotsPerGb=[]): Spreadsheet
 {
     if(!preg_match('/^(20\d{2})-(0[1-9]|1[0-2])$/D',$period,$m))throw new InvalidArgumentException('Periode BIAYA tidak valid.');
     $year=(int)$m[1];$book=new Spreadsheet();$book->removeSheetByIndex(0);
@@ -70,16 +70,20 @@ function parseBiayaInputTemplate(Spreadsheet $book,int $year): array
     $rows=[];$hasValue=false;
     foreach(['target'=>$year===2025?'TARGET ROLLING':'TARGET','actual'=>'REALISASI'] as $type=>$name){
         $sheet=$book->getSheetByName($name);if(!$sheet)throw new InvalidArgumentException('Sheet '.$name.' tidak ditemukan pada template BIAYA.');
-        foreach(['GB','KATEGORI','NO. PRODUK','NAMA PRODUK',...$months] as $i=>$header){
-            if(strtoupper(trim((string)$sheet->getCell([$i+1,5])->getValue()))!==$header)throw new InvalidArgumentException('Header template BIAYA berubah. Gunakan susunan template yang diunduh.');
-        }
-        for($r=6;$r<=min(10000,$sheet->getHighestDataRow());$r++){
-            $identity=static function(string $address)use($sheet){
+        $grouped=$book->getSheetByName('_TEMPLATE')->getCell('A1')->getValue()==='KONIMEX_BIAYA_V2';
+        foreach(locateBiayaInputTables($sheet,$grouped) as $layout){
+        // Read existing rows only, including products below any former fixed limit.
+        $candidateRows=[];foreach($sheet->getCellCollection()->getCoordinates() as $address){[$col,$row]=Coordinate::coordinateFromString($address);if($row<=$layout['header']||$row>($layout['last']??PHP_INT_MAX))continue;$column=Coordinate::columnIndexFromString($col);if(in_array($column,array_values($layout['identity']),true)||in_array($column,$layout['months'],true))$candidateRows[$row]=true;}ksort($candidateRows);
+        foreach(array_keys($candidateRows) as $r){
+            $identity=static function(string $address)use($sheet,$type){
                 $cell=$sheet->getCell($address);$v=$cell->getCalculatedValue();
+                // A deleted unused Target row can leave an empty Actual identity link.
+                // Rows with amounts still require a valid product identity below.
+                if($type==='actual'&&$cell->isFormula()&&$v==='#REF!')return null;
                 return $cell->isFormula() && ($v===0 || $v===0.0) ? null : $v;
             };
-            $product=trim((string)$identity('D'.$r));$values=[];$rowHasValue=false;
-            for($c=5;$c<=16;$c++){
+            $product=trim((string)$identity(Coordinate::stringFromColumnIndex($layout['identity']['name']).$r));$values=[];$rowHasValue=false;
+            foreach($layout['months'] as $c){
                 $cell=$sheet->getCell([$c,$r]);$v=$cell->getCalculatedValue();
                 if(is_string($v))$v=trim($v);
                 if($v===null||$v===''||in_array($v,['-','–','—'],true))$v=null;
@@ -89,7 +93,8 @@ function parseBiayaInputTemplate(Spreadsheet $book,int $year): array
             }
             if($product===''&&!$rowHasValue)continue;
             if($product==='')throw new InvalidArgumentException('Isi nama produk pada sheet '.$name.' baris '.$r.'.');
-            $gb=$sheet->getCell('A'.$r)->getCalculatedValue();$category=strtoupper(trim((string)$identity('B'.$r)));$number=$identity('C'.$r);
+            $gb=$sheet->getCell([$layout['identity']['gb'],$r])->getCalculatedValue();$category=strtoupper(trim((string)$identity(Coordinate::stringFromColumnIndex($layout['identity']['category']).$r)));$number=$identity(Coordinate::stringFromColumnIndex($layout['identity']['number']).$r);
+            if(isset($layout['gb'])){if($gb!==null&&$gb!==''&&(string)$gb!==(string)$layout['gb'])throw new InvalidArgumentException('GB produk tidak sesuai tabel GB '.$layout['gb'].' pada sheet '.$name.' baris '.$r.'.');$gb=$layout['gb'];}
             if(!preg_match('/^[1-6]$/',(string)$gb)||!in_array($category,['EXIS','D'],true)||!is_numeric($number)||(float)$number<1||(float)$number!==(float)(int)$number)throw new InvalidArgumentException('GB, kategori, atau nomor produk tidak valid pada '.$name.' baris '.$r.'.');
             $key=$type.':'.$gb.':'.(int)$number;if(isset($rows[$key]))throw new InvalidArgumentException('Nomor produk berulang pada GB '.$gb.' sheet '.$name.'.');
             // Legacy reports divide GB5's 2026 target by 1000; keep storage compatible
@@ -99,6 +104,25 @@ function parseBiayaInputTemplate(Spreadsheet $book,int $year): array
             $hasValue=$hasValue||$rowHasValue;
         }
     }
+        }
     if(!$hasValue)throw new InvalidArgumentException('Template BIAYA masih kosong. Isi nama produk dan minimal satu nilai sebelum upload.');
     return array_values($rows);
 }
+
+/** The template's headers identify its columns; product row positions are unrestricted. */
+function locateBiayaInputTables(Worksheet $sheet,bool $grouped=false): array
+{
+    $norm=static fn($value)=>strtoupper(trim(preg_replace('/\s+/u',' ',str_replace("\xc2\xa0",' ',(string)$value))));
+    $candidates=[];foreach($sheet->getCellCollection()->getCoordinates() as $address){$value=$sheet->getCell($address)->getValue();if(is_string($value)&&$norm($value)==='NAMA PRODUK'){[, $row]=Coordinate::coordinateFromString($address);$candidates[$row]=true;}}
+    $aliases=[['JAN','JANUARI'],['FEB','FEBRUARI'],['MAR','MARET'],['APR','APRIL'],['MAY','MEI'],['JUN','JUNI'],['JUL','JULI'],['AUG','AGS','AGT','AGU','AGUSTUS'],['SEP','SEPT','SEPTEMBER'],['OCT','OKT','OKTOBER'],['NOV','NOVEMBER'],['DEC','DES','DESEMBER']];$layouts=[];
+    foreach(array_keys($candidates) as $header){$identity=[];$months=[];foreach($sheet->getRowIterator($header,$header) as $row){$cells=$row->getCellIterator();$cells->setIterateOnlyExistingCells(true);foreach($cells as $cell){$label=$norm($cell->getValue());$column=Coordinate::columnIndexFromString($cell->getColumn());$key=['GB'=>'gb','KATEGORI'=>'category','NO. PRODUK'=>'number','NO PRODUK'=>'number','NOMOR PRODUK'=>'number','NAMA PRODUK'=>'name'][$label]??null;if($key!==null){if(isset($identity[$key]))throw new InvalidArgumentException('Header identitas BIAYA berulang pada sheet '.$sheet->getTitle().'.');$identity[$key]=$column;}foreach($aliases as $month=>$names)if(in_array($label,$names,true)){if(isset($months[$month]))throw new InvalidArgumentException('Header bulan BIAYA berulang pada sheet '.$sheet->getTitle().'.');$months[$month]=$column;}}}
+        if(count($identity)===4&&count($months)===12){ksort($months);$layouts[]=['header'=>$header,'identity'=>$identity,'months'=>$months];}
+    }
+    if(!$grouped){if(count($layouts)!==1)throw new InvalidArgumentException('Header GB, KATEGORI, NO. PRODUK, NAMA PRODUK, dan Januari–Desember tidak lengkap atau berulang pada sheet '.$sheet->getTitle().'.');return $layouts;}
+    return biayaGroupLayouts($sheet,$layouts);
+}
+function locateBiayaInputTable(Worksheet $sheet): array {
+    return locateBiayaInputTables($sheet)[0];
+}
+
+require_once __DIR__.'/biaya_group_template.php';

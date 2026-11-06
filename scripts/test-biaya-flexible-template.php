@@ -1,0 +1,22 @@
+<?php
+require __DIR__.'/../vendor/autoload.php';require __DIR__.'/../includes/biaya_template_history.php';require __DIR__.'/../includes/biaya_workbook.php';
+function biayaFlexCheck($ok,$message){if(!$ok)throw new RuntimeException($message);}
+function biayaFlexRows($rows){$map=[];foreach($rows as $row)$map[$row['type'].'|'.$row['gb'].'|'.$row['number']]=$row;return $map;}
+foreach([2025,2026,2027] as $year){
+ $b=buildBiayaLegacyInputTemplate($year.'-10');$name=$year===2025?'TARGET ROLLING':'TARGET';$t=$b->getSheetByName($name);$a=$b->getSheetByName('REALISASI');
+ foreach(['B6'=>'EXIS','C6'=>1,'D6'=>'Synthetic original','E6'=>10,'F6'=>0,'B126'=>'EXIS','C126'=>1,'D126'=>'Synthetic GB5','E126'=>3.25] as $cell=>$value)$t->setCellValue($cell,$value);$a->setCellValue('E6',2.5);
+ $t->insertNewRowBefore(7,40);for($i=0;$i<40;$i++){$r=7+$i;foreach(['A'=>1,'B'=>'D','C'=>$i+2,'D'=>'Synthetic extra '.$i,'E'=>-1,'G'=>0] as $col=>$value)$t->setCellValue($col.$r,$value);}
+ $t->removeRow(50,1);$t->insertNewRowBefore(1,3);$a->insertNewRowBefore(1,2);$t->insertNewColumnBefore('E');$a->insertNewColumnBefore('C');
+ foreach([$t,$a] as $sheet){$layout=locateBiayaInputTable($sheet);$sheet->setCellValue([$layout['months'][0],$layout['header']],'JAN');foreach($sheet->getHyperlinkCollection() as $address=>$link)if($link->getUrl()==='')$sheet->setHyperlink($address,null);}
+ // Simulate the cross-sheet reference adjustment performed by Excel/Calc.
+ // PhpSpreadsheet's row-edit helper does not update quoted sheet references reliably.
+ $targetLayout=locateBiayaInputTable($t);$actualLayout=locateBiayaInputTable($a);
+ for($original=6;$original<=185;$original++){$actualRow=$original+2;$targetRow=$original===10?null:($original===6?9:$original+($original<10?43:42));foreach(['category','number','name'] as $key){$col=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($targetLayout['identity'][$key]);$a->setCellValue([$actualLayout['identity'][$key],$actualRow],$targetRow===null?'=#REF!':"='".$name."'!".$col.$targetRow);}}
+ \PhpOffice\PhpSpreadsheet\Calculation\Calculation::getInstance($b)->clearCalculationCache();$rows=parseBiayaProducts($b,$year);$byKey=biayaFlexRows($rows);biayaFlexCheck(count(array_filter($rows,fn($r)=>$r['type']==='target'&&$r['gb']===1))===41,'More than 30 rows of GB1 imported after shifted headers/columns');biayaFlexCheck($byKey['target|1|41']['values'][0]===-1.0&&$byKey['target|1|1']['values'][1]===0.0&&$byKey['actual|1|1']['values'][0]===2.5,'Signed/zero/actual values preserved');biayaFlexCheck($byKey['target|5|1']['values'][0]===($year===2026?3250.0:3.25),'GB5 existing unit conversion preserved');
+ foreach(['Xlsx','Ods'] as $format){$path=tempnam('/tmp','biaya-flex-');try{$w=\PhpOffice\PhpSpreadsheet\IOFactory::createWriter($b,$format);$w->setPreCalculateFormulas(false);$w->save($path);$loaded=\PhpOffice\PhpSpreadsheet\IOFactory::load($path);biayaFlexCheck(parseBiayaProducts($loaded,$year)===$rows,'XLSX/ODS row and column edits survive upload');$loaded->disconnectWorksheets();}finally{unlink($path);}}
+ $records=[];foreach($rows as $row){$record=['report_year'=>$year,'report_period'=>$year.'-10','jenis'=>$row['type'],'gb'=>$row['gb'],'kategori'=>$row['category'],'nomor_produk'=>$row['number'],'nama_produk'=>$row['name']];foreach(['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'] as $m=>$key)$record[$key]=$row['values'][$m];$records[]=$record;}
+ $next=buildBiayaTemplateWithHistory($year.'-11',$records);$again=biayaFlexRows(parseBiayaProducts($next,$year));foreach($byKey as $key=>$row)biayaFlexCheck($again[$key]===$row,'All original product and financial rows retained in next download');$next->disconnectWorksheets();$b->disconnectWorksheets();
+}
+// Product beyond the former 10,000-row cutoff, with no huge generated table.
+$b=buildBiayaLegacyInputTemplate('2026-10');$t=$b->getSheetByName('TARGET');foreach(['A10025'=>6,'B10025'=>'D','C10025'=>1,'D10025'=>'Synthetic far row','E10025'=>7] as $cell=>$value)$t->setCellValue($cell,$value);$rows=parseBiayaProducts($b,2026);biayaFlexCheck(count($rows)===1&&$rows[0]['gb']===6&&$rows[0]['values'][0]===7.0,'Product after old row cutoff imported');$b->disconnectWorksheets();
+echo "PASS BIAYA flexible headers, month aliases, insert/delete rows, shifted columns, extra GB products, empty deleted links, signed/zero amounts, 2025/2026/2027 units, XLSX/ODS, history and past old row cutoff\n";

@@ -76,3 +76,6 @@ for (const version of [1,2,3,4,5,6]) {
  assert.deepEqual(detect(template,'Template_IB_2026-08.ods').choices.map(c=>c.section),['TARGET UNIT SELL OUT']);
 }
 console.log('PASS template origin is authoritative, including shared IB UNIT data, renamed files and legacy target template versions.');
+
+result = detect(book({TARGET:['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6'],REALISASI:[],_TEMPLATE:['KONIMEX_BIAYA_V2','BIAYA']}),'renamed.ods');
+assert.deepEqual(result.choices.map(c=>c.section),['BIAYA']);

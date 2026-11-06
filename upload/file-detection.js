@@ -24,14 +24,14 @@
     else if (/^KONIMEX_UNIT_SELL_OUT_V[1-6]$/.test(marker)) templateSection = 'TARGET UNIT SELL OUT';
     else if (/^KONIMEX_ETHICAL_SOURCE_V[1-6]$/.test(marker)) templateSection = 'ETHICAL';
     else if (marker === 'KONIMEX_UNIT_REVENUE_V1') templateSection = 'UNIT & Revenue';
-    else if (marker === 'KONIMEX_BIAYA_V1') templateSection = 'BIAYA';
+    else if (['KONIMEX_BIAYA_V1','KONIMEX_BIAYA_V2'].includes(marker)) templateSection = 'BIAYA';
     const choices = [];
     const add = (section, label) => { if (!choices.some(c => c.section === section)) choices.push({ section, label: label || section }); };
     const ethicalSource = ['KONIMEX_ETHICAL_SOURCE_V1', 'KONIMEX_ETHICAL_SOURCE_V2', 'KONIMEX_ETHICAL_SOURCE_V3', 'KONIMEX_ETHICAL_SOURCE_V4', 'KONIMEX_ETHICAL_SOURCE_V5','KONIMEX_ETHICAL_SOURCE_V6'].includes(book.Sheets._TEMPLATE?.A1?.v) || (names.includes('PRODUK NAS') && /TOTAL EXISTING/.test(text) && /\bHNA\b/.test(text) && /\bUNIT\b/.test(text));
     if (ethicalSource) add('ETHICAL');
     if (book.Sheets._TEMPLATE?.A1?.v === 'KONIMEX_UNIT_REVENUE_V1') add('UNIT & Revenue');
     if (['KONIMEX_UNIT_SELL_OUT_V1','KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3','KONIMEX_UNIT_SELL_OUT_V4','KONIMEX_UNIT_SELL_OUT_V5','KONIMEX_UNIT_SELL_OUT_V6'].includes(book.Sheets._TEMPLATE?.A1?.v)) add('TARGET UNIT SELL OUT');
-    if (book.Sheets._TEMPLATE?.A1?.v === 'KONIMEX_BIAYA_V1') add('BIAYA');
+    if (['KONIMEX_BIAYA_V1','KONIMEX_BIAYA_V2'].includes(book.Sheets._TEMPLATE?.A1?.v)) add('BIAYA');
     if (names.includes('PRODUK NAS') && /TOTAL EXISTING/.test(text) && /\bHNA\b/.test(text)) add('ETHICAL');
     if (!(book.Sheets._TEMPLATE?.A1?.v === 'KONIMEX_INPUT_V1' && book.Sheets._TEMPLATE?.A2?.v === 'IB') && names.includes('HRU') && /SALES REVENUE.*\(UNIT\)/.test(text)) add('TARGET UNIT SELL OUT', 'Target unit IB');
     if (names.some(n => /YFR\s*-\s*IBFM|^IAP$/.test(n))) add('IB', 'Laporan IB / ekspor');
