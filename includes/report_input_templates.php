@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/ib_unit_template.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -143,9 +144,11 @@ function buildReportInputTemplate(string $section, string $period): Spreadsheet
         $sheet->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(1);
         $sheet->getPageSetup()->setPrintArea('A1:'.$last.$end);
     }
+    if($section==='IB')appendIbUnitTable($book->getSheetByName('HRU'),$period,true);
     $meta = new Worksheet($book, '_TEMPLATE');
     $book->addSheet($meta);
     $meta->fromArray([['KONIMEX_INPUT_V1'],[$section],[$year],[$period]]);
+    if ($section === 'IB') $meta->setCellValue('A5','IB_UNIT_KPI_V1');
     if ($section === 'MTM') $meta->setCellValue('A5','MTM_TARGETS_V2');
     $meta->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
     $book->setActiveSheetIndex(0);

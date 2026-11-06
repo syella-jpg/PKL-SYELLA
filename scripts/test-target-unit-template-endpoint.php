@@ -26,10 +26,10 @@ foreach([['TARGET UNIT SELL OUT','2026-09'],['TARGET UNIT SELL OUT','2027-01'],[
     if(!str_starts_with($xlsx,'PK'))throw new \RuntimeException('Download handler returned an error instead of Excel for '.$period);
     $path=tempnam('/tmp','endpoint-target-');try{
         file_put_contents($path,$xlsx);$loaded=\PhpOffice\PhpSpreadsheet\IOFactory::load($path);
-        if($loaded->getSheetNames()!==($section==='ETHICAL'?['PRODUK NAS','_TEMPLATE']:['GB 1-6','ETHICAL','IB','_TEMPLATE']))throw new \RuntimeException('Wrong template sheets');
-        if(!str_contains($loaded->getSheetByName($section==='ETHICAL'?'PRODUK NAS':'GB 1-6')->getCell('A1')->getValue(),substr($period,0,4)))throw new \RuntimeException('Wrong template year');
+        if($loaded->getSheetNames()!==($section==='ETHICAL'?['PRODUK NAS','_TEMPLATE']:['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6','ETHICAL','IB','_TEMPLATE']))throw new \RuntimeException('Wrong template sheets');
+        if(!str_contains($loaded->getSheetByName($section==='ETHICAL'?'PRODUK NAS':'GB 1')->getCell('A1')->getValue(),substr($period,0,4)))throw new \RuntimeException('Wrong template year');
         $loaded->disconnectWorksheets();
     }finally{unlink($path);}
 }
 if($connections!==3)throw new \RuntimeException('Target template must read same-year Ethical master in January too');
-echo "PASS actual template handler: September as first request, history dependencies loaded, valid three-sheet Excel; January keeps GB inputs empty while checking current-year Ethical source\n";
+echo "PASS actual template handler: September as first request, history dependencies loaded, valid separate GB sheets; January keeps GB inputs empty while checking current-year Ethical source\n";

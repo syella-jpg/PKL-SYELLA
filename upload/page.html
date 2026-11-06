@@ -217,7 +217,7 @@
   </form>
 </main>
 
-<script src="file-detection.js?v=ethical-product-source-priced-20261105"></script>
+<script src="file-detection.js?v=template-origin-routing-20261106"></script>
 <script src="../dashboard/report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="../dashboard/unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
@@ -327,13 +327,13 @@
     $("templateDescription").textContent = section === "ETHICAL"
       ? "Empat tabel rincian produk. Setiap bulan berisi TARGET dan REAL, masing-masing UNIT dan HNA; subtotal, Existing, dan NP dihitung otomatis. Upload sekali di ETHICAL untuk mengisi kedua laporan."
       : section === "TARGET UNIT SELL OUT"
-      ? "Tiga sheet dalam satu file: GB 1–6 berisi rincian produk; Ethical terisi otomatis dari upload bagian ETHICAL; IB berisi dua KPI kumulatif. Ringkasan dihitung otomatis. Isian diteruskan pada tahun yang sama; Januari dimulai kosong."
+      ? "Sheet GB 1–6 terpisah, masing-masing dengan tabel kategori A/B/C/D dengan baris produk yang dapat ditambah/dikurangi dan subtotal otomatis; Ethical terisi otomatis dari upload bagian ETHICAL; IB berisi tabel UNIT dua KPI kumulatif dan kalkulasi bulanan, tersambung dengan HRU pada template IB. Ringkasan dihitung otomatis. Isian diteruskan pada tahun yang sama; Januari dimulai kosong."
       : ["UNIT & Revenue", "REVENUE VERSI EDP MNJ"].includes(section)
       ? "Dua sheet: UNIT dan REVENUE. Rupiah Ethical diisi manual pada EXIST, NP, TOTAL di bawah REVENUE. Data dibawa ke bulan berikutnya; Januari dimulai kosong."
       : section === "BIAYA"
       ? "Melanjutkan data BIAYA tersimpan pada tahun yang sama; Januari dimulai kosong. Target dan Realisasi per produk. Khusus 2025 memakai Target Rolling."
       : section === "IB"
-      ? "Melanjutkan data IB tersimpan pada tahun yang sama; Januari dimulai kosong. Tiga sheet: IB Farma, IB Food, dan MCM. Isi Target dan Realisasi dalam USD secara kumulatif."
+      ? "Melanjutkan data IB tersimpan pada tahun yang sama; Januari dimulai kosong. Tiga sheet: IB Farma, IB Food, dan MCM. Isi Target dan Realisasi USD secara kumulatif; HRU juga menyediakan tabel UNIT yang tersambung dengan TARGET UNIT SELL OUT."
       : "Melanjutkan data MTM tersimpan pada tahun yang sama. Target Awal ditampilkan Januari–Desember; Januari mereset Rolling dan Aktual. Isi Target Awal, Target Rolling, dan Aktual bulanan dalam Rupiah penuh.";
   }
   periodSelect.addEventListener("change", updateTemplateDownload);

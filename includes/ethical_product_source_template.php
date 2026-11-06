@@ -1,10 +1,10 @@
 <?php
 /** Four product groups, monthly TARGET/REAL UNIT/HNA columns, server-recomputed totals. */
-function ethicalProductBlocks(bool $legacy = false, bool $withReal = true): array {
+function ethicalProductBlocks(bool $legacy = false, bool $withReal = true,array $capacities=[]): array {
     $blocks=[];
     $title=6;
     foreach(['existing','streamline','np_previous','np_current'] as $kind){
-        $count=$legacy?250:($kind==='existing'?100:50);$headers=$withReal?4:3;
+        $count=max(1,(int)($capacities[$kind]??($legacy?250:($kind==='existing'?100:50))));$headers=$withReal?4:3;
         $blocks[$kind]=['title'=>$title,'header'=>$title+1,'first'=>$title+$headers,'last'=>$title+$headers+$count-1,'total'=>$title+$headers+$count];
         $title+=$count+($withReal?8:7);
     }
@@ -13,16 +13,16 @@ function ethicalProductBlocks(bool $legacy = false, bool $withReal = true): arra
 function ethicalProductLabels(int $year): array {
     return ['existing'=>'EXISTING','streamline'=>'STREAMLINE','np_previous'=>'NP '.($year-1),'np_current'=>'NP '.$year];
 }
-function buildEthicalSourceTemplate(string $period): \PhpOffice\PhpSpreadsheet\Spreadsheet {
+function buildEthicalSourceTemplate(string $period,array $capacities=[]): \PhpOffice\PhpSpreadsheet\Spreadsheet {
     if(!preg_match('/^(20\d{2})-(0[1-9]|1[0-2])$/D',$period,$m))throw new InvalidArgumentException('Periode ETHICAL tidak valid.');
     $year=(int)$m[1];$month=(int)$m[2];$months=unitSellOutInputMonths();
     $book=new \PhpOffice\PhpSpreadsheet\Spreadsheet();$s=$book->getActiveSheet();$s->setTitle('PRODUK NAS');$s->setShowGridlines(false);
     $book->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
-    foreach([1=>'ETHICAL — TARGET UNIT & HNA — TAHUN '.$year,2=>'PERIODE LAPORAN: '.$months[$month-1].' '.$year,3=>'Isi nama produk dan TARGET dan REAL UNIT/HNA per bulan pada sel kuning. Subtotal dan ringkasan dihitung otomatis.',4=>'Upload sekali di ETHICAL untuk menyimpan TARGET dan REAL UNIT/HNA.'] as $r=>$label){$s->setCellValue('A'.$r,$label);$s->mergeCells('A'.$r.':AB'.$r);}
+    foreach([1=>'ETHICAL — TARGET UNIT & HNA — TAHUN '.$year,2=>'PERIODE LAPORAN: '.$months[$month-1].' '.$year,3=>'Isi nama produk dan TARGET dan REAL UNIT/HNA per bulan pada sel kuning. Subtotal dan ringkasan dihitung otomatis.',4=>'Upload sekali di ETHICAL untuk menyimpan TARGET dan REAL UNIT/HNA. Baris produk boleh ditambah atau dikurangi.'] as $r=>$label){$s->setCellValue('A'.$r,$label);$s->mergeCells('A'.$r.':AB'.$r);}
     $s->getStyle('A1')->getFont()->setSize(19)->setBold(true);$s->getRowDimension(1)->setRowHeight(36);
     $s->getColumnDimension('A')->setWidth(8);$s->getColumnDimension('B')->setWidth(20);$s->getColumnDimension('C')->setWidth(36);
     for($c=4;$c<=59;$c++)$s->getColumnDimensionByColumn($c)->setWidth(17);
-    $labels=ethicalProductLabels($year);$blocks=ethicalProductBlocks();
+    $labels=ethicalProductLabels($year);$blocks=ethicalProductBlocks(false,true,$capacities);
     $dark=function(int $r,string $color)use($s){$s->getStyle('A'.$r.':BG'.$r)->getFill()->setFillType('solid')->getStartColor()->setARGB($color);$s->getStyle('A'.$r.':BG'.$r)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');$s->getRowDimension($r)->setRowHeight(28);};
     foreach($blocks as $kind=>$b){
         $s->setCellValue('A'.$b['title'],'PRODUK '.$labels[$kind]);$s->mergeCells('A'.$b['title'].':BG'.$b['title']);$dark($b['title'],'FF345C50');
@@ -67,19 +67,17 @@ function buildEthicalSourceTemplate(string $period): \PhpOffice\PhpSpreadsheet\S
 function parseEthicalProductSource(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,string $period): array {
     $year=(int)substr($period,0,4);if((int)$book->getSheetByName('_TEMPLATE')->getCell('A3')->getValue()!==$year)throw new InvalidArgumentException('Tahun template ETHICAL berbeda dari periode upload.');
     $s=$book->getSheetByName('PRODUK NAS');if(!$s)throw new InvalidArgumentException('Sheet PRODUK NAS tidak ditemukan.');
-    $version=$book->getSheetByName('_TEMPLATE')->getCell('A1')->getValue();$priced=$version==='KONIMEX_ETHICAL_SOURCE_V6';$withoutCode=in_array($version,['KONIMEX_ETHICAL_SOURCE_V5','KONIMEX_ETHICAL_SOURCE_V6'],true);$base=$priced?5:($withoutCode?3:4);$withReal=in_array($version,['KONIMEX_ETHICAL_SOURCE_V4','KONIMEX_ETHICAL_SOURCE_V5','KONIMEX_ETHICAL_SOURCE_V6'],true);$step=$withReal?4:2;$metrics=$withReal?['unit'=>0,'hna'=>1,'actual_unit'=>2,'actual_hna'=>3]:['unit'=>0,'hna'=>1];
+    $version=$book->getSheetByName('_TEMPLATE')->getCell('A1')->getValue();$priced=$version==='KONIMEX_ETHICAL_SOURCE_V6';$withReal=in_array($version,['KONIMEX_ETHICAL_SOURCE_V4','KONIMEX_ETHICAL_SOURCE_V5','KONIMEX_ETHICAL_SOURCE_V6'],true);$metrics=$withReal?['unit'=>0,'hna'=>1,'actual_unit'=>2,'actual_hna'=>3]:['unit'=>0,'hna'=>1];
     $inputs=[];$products=[];$any=false;$labels=ethicalProductLabels($year);
-    foreach(ethicalProductBlocks($book->getSheetByName('_TEMPLATE')->getCell('A1')->getValue()==='KONIMEX_ETHICAL_SOURCE_V2',$withReal) as $kind=>$b){
-        if($s->getCell('A'.$b['title'])->getValue()!=='PRODUK '.$labels[$kind])throw new InvalidArgumentException('Label kelompok produk ETHICAL berubah.');
-        foreach(unitSellOutInputMonths() as $i=>$month){$c=$base+$i*$step;if($s->getCell([$c,$b['header']])->getValue()!==$month)throw new InvalidArgumentException('Kolom bulan ETHICAL berubah.');foreach($metrics as $metric=>$offset){if($s->getCell([$c+$offset,$b['header']+($withReal?2:1)])->getValue()!==(str_contains($metric,'hna')?'HNA':'UNIT'))throw new InvalidArgumentException('Kolom UNIT/HNA ETHICAL berubah.');}if($withReal&&($s->getCell([$c,$b['header']+1])->getValue()!=='TARGET'||$s->getCell([$c+2,$b['header']+1])->getValue()!=='REAL'))throw new InvalidArgumentException('Kolom TARGET/REAL ETHICAL berubah.');}
+    foreach(locateEthicalProductTables($s,$year,$withReal,$priced) as $kind=>$b){
         foreach($metrics as $metric=>$offset)$inputs[$metric][$kind]=array_fill(0,12,null);
         $products[$kind]=[];$seen=[];
         for($r=$b['first'];$r<=$b['last'];$r++){
-            $name=trim((string)$s->getCell(($withoutCode?'B':'C').$r)->getValue());$code=$withoutCode?'':trim((string)$s->getCell('B'.$r)->getValue());$row=['code'=>$code,'name'=>$name];$has=false;if($priced){$row['category']=trim((string)$s->getCell('C'.$r)->getValue());$row['price']=ethicalSourceNumber($s->getCell('D'.$r)->getCalculatedValue(),'D'.$r);}
-            foreach($metrics as $metric=>$offset){$row[$metric]=[];for($m=0;$m<12;$m++){$cell=$s->getCell([$base+$m*$step+$offset,$r]);try{$value=$priced&&str_contains($metric,'hna')&&$cell->getDataType()===\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_FORMULA?null:$cell->getCalculatedValue();}catch(Throwable $e){throw new InvalidArgumentException('Rumus produk ETHICAL tidak dapat dihitung pada '.$cell->getCoordinate().'.');}$v=ethicalSourceNumber($value,$cell->getCoordinate(),true);if($priced&&str_contains($metric,'hna')){
+            $name=trim((string)$s->getCell([$b['columns']['name'],$r])->getValue());$code=isset($b['columns']['code'])?trim((string)$s->getCell([$b['columns']['code'],$r])->getValue()):'';$row=['code'=>$code,'name'=>$name];$has=false;if($priced){$row['category']=isset($b['columns']['category'])?trim((string)$s->getCell([$b['columns']['category'],$r])->getValue()):'';$row['price']=ethicalSourceNumber($s->getCell([$b['columns']['price'],$r])->getCalculatedValue(),\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($b['columns']['price']).$r);}
+            foreach($metrics as $metric=>$offset){$row[$metric]=[];for($m=0;$m<12;$m++){$cell=$s->getCell([$b['columns']['months'][$m][$metric],$r]);try{$value=$priced&&str_contains($metric,'hna')&&$cell->getDataType()===\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_FORMULA?null:$cell->getCalculatedValue();}catch(Throwable $e){throw new InvalidArgumentException('Rumus produk ETHICAL tidak dapat dihitung pada '.$cell->getCoordinate().'.');}$v=ethicalSourceNumber($value,$cell->getCoordinate(),true);if($priced&&str_contains($metric,'hna')){
                     $unitMetric=$metric==='hna'?'unit':'actual_unit';$units=$row[$unitMetric][$m];
                     if($row['price']!==null)$v=$units===null?null:$row['price']*$units;
-                    elseif($cell->getDataType()===\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_FORMULA){if($units!==null&&$units!=0)throw new InvalidArgumentException('Isi HNA produk pada baris '.$r.'.');$v=$units===null?null:0.0;}
+                    elseif($cell->getDataType()===\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_FORMULA){if($units!==null&&$units!=0)throw new InvalidArgumentException('Isi HNA produk pada baris '.$r.'.');$v=null;}
                     $v=ethicalSourceNumber($v,$cell->getCoordinate(),true);
                 }$row[$metric][]=$v;if($v!==null){$has=true;$inputs[$metric][$kind][$m]=($inputs[$metric][$kind][$m]??0)+$v;}}}
             if(!$has&&$name===''&&$code==='')continue;
@@ -92,13 +90,17 @@ function parseEthicalProductSource(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,s
     $inputs['_products']=$products;return ['year'=>$year,'inputs'=>$inputs,'summary'=>ethicalSourceSummary($inputs)];
 }
 function buildEthicalSourceWithHistory(string $period,?array $record): \PhpOffice\PhpSpreadsheet\Spreadsheet {
-    $book=buildEthicalSourceTemplate($period);if(substr($period,5,2)==='01'||!$record||(int)$record['report_year']!==(int)substr($period,0,4))return $book;
-    $inputs=json_decode($record['payload'],true,512,JSON_THROW_ON_ERROR);$s=$book->getSheetByName('PRODUK NAS');
-    foreach(ethicalProductBlocks() as $kind=>$b){
+    $eligible=substr($period,5,2)!=='01'&&$record&&(int)$record['report_year']===(int)substr($period,0,4);
+    $inputs=$eligible?json_decode($record['payload'],true,512,JSON_THROW_ON_ERROR):[];$capacities=[];
+    foreach(($inputs['_products']??[]) as $kind=>$products)$capacities[$kind]=max($kind==='existing'?100:50,count($products));
+    $book=buildEthicalSourceTemplate($period,$capacities);if(!$eligible)return $book;$s=$book->getSheetByName('PRODUK NAS');
+    foreach(locateEthicalProductTables($s,(int)substr($period,0,4),true,true) as $kind=>$b){
         $products=$inputs['_products'][$kind]??null;
         if($products===null){$products=[['code'=>'','name'=>'Subtotal tersimpan sebelumnya','unit'=>$inputs['unit'][$kind]??array_fill(0,12,null),'hna'=>$inputs['hna'][$kind]??array_fill(0,12,null),'actual_unit'=>$inputs['actual_unit'][$kind]??array_fill(0,12,null),'actual_hna'=>$inputs['actual_hna'][$kind]??array_fill(0,12,null)]];}
         if(count($products)>$b['last']-$b['first']+1)throw new RuntimeException('Jumlah produk ETHICAL tersimpan melebihi kapasitas kelompok '.$kind.'.');
-        foreach($products as $i=>$p){$r=$b['first']+$i;$s->setCellValueExplicit('B'.$r,$p['name'],\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);$s->setCellValueExplicit('C'.$r,$p['category']??'',\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);if(isset($p['price']))$s->setCellValue('D'.$r,$p['price']);foreach(['unit'=>0,'hna'=>1,'actual_unit'=>2,'actual_hna'=>3] as $metric=>$offset)foreach(($p[$metric]??array_fill(0,12,null)) as $m=>$v)if($v!==null&&($offset%2===0||!isset($p['price'])))$s->setCellValue([5+$m*4+$offset,$r],(float)$v);}
+        foreach($products as $i=>$p){$r=$b['first']+$i;$s->setCellValueExplicit([$b['columns']['name'],$r],$p['name'],\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);$s->setCellValueExplicit([$b['columns']['category'],$r],$p['category']??'',\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);if(isset($p['price']))$s->setCellValue([$b['columns']['price'],$r],$p['price']);foreach(['unit'=>0,'hna'=>1,'actual_unit'=>2,'actual_hna'=>3] as $metric=>$offset)foreach(($p[$metric]??array_fill(0,12,null)) as $m=>$v)if($v!==null&&($offset%2===0||!isset($p['price'])))$s->setCellValue([$b['columns']['months'][$m][$metric],$r],(float)$v);}
     }
     return $book;
 }
+
+require_once __DIR__.'/ethical_product_layout.php';

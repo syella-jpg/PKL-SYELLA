@@ -59,6 +59,7 @@ try {
                 $records=loadIbPeriodHistory($conn,$period);
                 $source=$records[0]['report_period']??null;
                 fillIbTemplateHistory($book,$period,$records,$source?loadIbCumulativeHistory($conn,$source):[]);
+                $unitParts=loadIbUnitHistory($conn,(int)substr($period,0,4));if($unitParts)fillIbUnitTable($book->getSheetByName('HRU'),true,$unitParts);
             }
         } finally { $conn->close(); }
     }

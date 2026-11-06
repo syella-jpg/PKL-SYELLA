@@ -26,6 +26,7 @@ try{
   $products=array_values(array_unique(array_column($records,'product')));
   ensureUnitSellOutInputStore($conn);
   $conn->begin_transaction();
+  if($inputData['ib_shared']??false){$parts=mergeIbUnitParts($inputData['inputs']['ib'],loadIbUnitHistory($conn,$year,true)??[]);$inputData['inputs']['ib']=$parts;$records=array_merge(array_values(array_filter($records,fn($row)=>$row['product']!=='ib')),ibUnitMonthlyRecords($year,$parts));}
   $sourceData=applyEthicalSourceTargets($conn,$year,['records'=>$records]+($inputData!==null?['inputs'=>$inputData['inputs']]:[]));$records=$sourceData['records'];if($inputData!==null)$inputData['inputs']=$sourceData['inputs'];
   $q=$conn->prepare('DELETE FROM `target unit sell out` WHERE report_year=? AND product=?');
   foreach($products as $product){$q->bind_param('is',$year,$product);$q->execute();}$q->close();

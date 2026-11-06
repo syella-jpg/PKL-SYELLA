@@ -13,15 +13,27 @@
     }
     const text = labels.join('\n');
     const file = normalize(filename);
+    // Downloaded templates declare their destination; shared KPI contents must not
+    // turn a known IB template into an ambiguous IB/target upload.
+    const metaName = book.SheetNames.find(name => String(name).trim().toUpperCase() === '_TEMPLATE');
+    const meta = metaName ? book.Sheets[metaName] : null;
+    const marker = String(meta?.A1?.v || '').trim();
+    const declaredSection = String(meta?.A2?.v || '').trim();
+    let templateSection = null;
+    if (marker === 'KONIMEX_INPUT_V1' && ['IB', 'MTM'].includes(declaredSection)) templateSection = declaredSection;
+    else if (/^KONIMEX_UNIT_SELL_OUT_V[1-6]$/.test(marker)) templateSection = 'TARGET UNIT SELL OUT';
+    else if (/^KONIMEX_ETHICAL_SOURCE_V[1-6]$/.test(marker)) templateSection = 'ETHICAL';
+    else if (marker === 'KONIMEX_UNIT_REVENUE_V1') templateSection = 'UNIT & Revenue';
+    else if (marker === 'KONIMEX_BIAYA_V1') templateSection = 'BIAYA';
     const choices = [];
     const add = (section, label) => { if (!choices.some(c => c.section === section)) choices.push({ section, label: label || section }); };
     const ethicalSource = ['KONIMEX_ETHICAL_SOURCE_V1', 'KONIMEX_ETHICAL_SOURCE_V2', 'KONIMEX_ETHICAL_SOURCE_V3', 'KONIMEX_ETHICAL_SOURCE_V4', 'KONIMEX_ETHICAL_SOURCE_V5','KONIMEX_ETHICAL_SOURCE_V6'].includes(book.Sheets._TEMPLATE?.A1?.v) || (names.includes('PRODUK NAS') && /TOTAL EXISTING/.test(text) && /\bHNA\b/.test(text) && /\bUNIT\b/.test(text));
     if (ethicalSource) add('ETHICAL');
     if (book.Sheets._TEMPLATE?.A1?.v === 'KONIMEX_UNIT_REVENUE_V1') add('UNIT & Revenue');
-    if (['KONIMEX_UNIT_SELL_OUT_V1','KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3'].includes(book.Sheets._TEMPLATE?.A1?.v)) add('TARGET UNIT SELL OUT');
+    if (['KONIMEX_UNIT_SELL_OUT_V1','KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3','KONIMEX_UNIT_SELL_OUT_V4','KONIMEX_UNIT_SELL_OUT_V5','KONIMEX_UNIT_SELL_OUT_V6'].includes(book.Sheets._TEMPLATE?.A1?.v)) add('TARGET UNIT SELL OUT');
     if (book.Sheets._TEMPLATE?.A1?.v === 'KONIMEX_BIAYA_V1') add('BIAYA');
     if (names.includes('PRODUK NAS') && /TOTAL EXISTING/.test(text) && /\bHNA\b/.test(text)) add('ETHICAL');
-    if (names.includes('HRU') && /SALES REVENUE.*\(UNIT\)/.test(text)) add('TARGET UNIT SELL OUT', 'Target unit IB');
+    if (!(book.Sheets._TEMPLATE?.A1?.v === 'KONIMEX_INPUT_V1' && book.Sheets._TEMPLATE?.A2?.v === 'IB') && names.includes('HRU') && /SALES REVENUE.*\(UNIT\)/.test(text)) add('TARGET UNIT SELL OUT', 'Target unit IB');
     if (names.some(n => /YFR\s*-\s*IBFM|^IAP$/.test(n))) add('IB', 'Laporan IB / ekspor');
     if (!ethicalSource && names.includes('GMEB') && /EXISTING PRODUCT\s*\(UNIT\)/.test(text)) add('TARGET UNIT SELL OUT', 'Target unit Ethical');
     if (names.some(n => /^PRODUK\s+(NAS|PID|PE_1|PE_2)$/.test(n))) add('ETHICAL', 'Data produk Ethical');
@@ -37,6 +49,7 @@
         add('UNIT & Revenue'); add('REVENUE VERSI EDP MNJ');
       } else if (/REVENUE TAHUN/.test(text) && /EXIST(?:ING)?\s+GB/.test(text) && /NP\s+GB/.test(text)) add('REVENUE VERSI EDP MNJ Target');
     }
+    if (templateSection) { choices.length = 0; add(templateSection); }
     // An appendix's left-hand year is authoritative, even with next year's block.
     const first = book.Sheets[book.SheetNames[0]];
     const appendix = choices.some(c => c.section === 'MTM') && /BUDGET SPENDING/.test(text) && normalize(first.A1 && first.A1.v).match(/^Y\s*(20\d{2})$/);

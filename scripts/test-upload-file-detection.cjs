@@ -65,3 +65,14 @@ assert.deepEqual(result.choices.map(c => c.section), ['ETHICAL']);assert.equal(r
 
 result = detect(book({'PRODUK NAS': ['TOTAL EXISTING','UNIT','HNA'],GMEB: ['Existing Product (Unit)']}), 'KPI ETH 09-2026.ods');
 assert.deepEqual(result.choices.map(c => c.section), ['ETHICAL']);
+
+// A downloaded template always routes to its origin despite shared UNIT KPIs.
+for (const section of ['IB','MTM']) {
+ const template=book({HRU:['SALES REVENUE (UNIT)','SALES REVENUE NEW BUSINESS PRODUCT (UNIT)'], 'YFR - IBFM':[], IAP:[], MTM:['INCREASE REVENUE','BUDGET SPENDING'],_TEMPLATE:['KONIMEX_INPUT_V1',section]});
+ assert.deepEqual(detect(template,'renamed.ods').choices.map(c=>c.section),[section]);
+}
+for (const version of [1,2,3,4,5,6]) {
+ const template=book({HRU:['SALES REVENUE (UNIT)'],'YFR - IBFM':[],IAP:[],_TEMPLATE:['KONIMEX_UNIT_SELL_OUT_V'+version,'TARGET UNIT SELL OUT']});
+ assert.deepEqual(detect(template,'Template_IB_2026-08.ods').choices.map(c=>c.section),['TARGET UNIT SELL OUT']);
+}
+console.log('PASS template origin is authoritative, including shared IB UNIT data, renamed files and legacy target template versions.');

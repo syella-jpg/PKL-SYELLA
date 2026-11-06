@@ -366,6 +366,9 @@ try {
     if ($divisi === 'IB') {
         $inputBook = IOFactory::load($file);
         validateReportInputTemplate($inputBook, 'IB', $period);
+        $ibUnitParts=$inputBook->getSheetByName('_TEMPLATE')?->getCell('A5')->getValue()==='IB_UNIT_KPI_V1'?readIbUnitTable($inputBook->getSheetByName('HRU'),true):null;
+        $hasUnitData=$ibUnitParts!==null&&count(array_filter(array_merge(...array_values($ibUnitParts)),static fn($v)=>$v!==null))>0;
+        if($hasUnitData){ensureUnitSellOutTargets($conn);ensureUnitSellOutInputStore($conn);}
         $inputBook->disconnectWorksheets();
         unset($inputBook);
         // Pengguna dapat mengisi salah satu sheet lebih dahulu; simpan nilai
@@ -383,7 +386,7 @@ try {
                 }
             }
         }
-        if (!$hasRevenueData) throw new Exception('Nilai kumulatif REVENUE EXIST pada sheet YFR - IBFM dan IAP masih kosong.');
+        if (!$hasRevenueData&&!$hasUnitData) throw new Exception('Nilai kumulatif REVENUE EXIST pada sheet YFR - IBFM dan IAP masih kosong.');
         $hasFoodData = false;
         foreach ([$monthlyFd, $monthlyNewFd] as $foodData) {
             foreach (['target', 'actual'] as $kind) {
@@ -411,7 +414,7 @@ try {
         $insertCanonical = $conn->prepare('INSERT INTO `ib_monthly_values` (report_period, month_number, metric_code, business_unit, value_type, amount) VALUES (?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE amount = COALESCE(VALUES(amount), amount)');
         if (!$insertCanonical) throw new Exception('Gagal menyiapkan penyimpanan tabel IB baru: ' . $conn->error);
-        for ($month = 1; $month <= 12; $month++) {
+        for ($month = 1; $month <= ($hasRevenueData ? 12 : 0); $month++) {
             $targetFm = $monthlyFm['target'][$month]; $actualFm = $monthlyFm['actual'][$month];
             $targetFd = $monthlyFd['target'][$month]; $actualFd = $monthlyFd['actual'][$month];
             $targetNewFm = $monthlyNewFm['target'][$month]; $actualNewFm = $monthlyNewFm['actual'][$month];
@@ -443,10 +446,11 @@ try {
         $rateInsert->bind_param('id', $rateYear, $ibExchangeRate);
         if (!$rateInsert->execute()) throw new Exception('Kurs IB gagal disimpan.');
         $rateInsert->close();
+        if($hasUnitData)saveIbUnitInputs($conn,(int)substr($period,0,4),$period,$ibUnitParts);
         $insert->close(); $insertCanonical->close(); $conn->commit(); $conn->close();
-        echo json_encode(['success' => true, 'message' => $hasFoodData
+        echo json_encode(['success' => true, 'message' => !$hasRevenueData && $hasUnitData ? 'UNIT IB berhasil disimpan dan tersambung ke TARGET UNIT SELL OUT.' : ($hasFoodData
             ? 'REVENUE EXIST, REVENUE NEW, dan MCM berhasil dimuat ke sheet IB.'
-            : 'Data IB dan MCM berhasil dimuat; sheet IAP kosong sehingga baris IB FD belum memiliki nilai.',
+            : 'Data IB dan MCM berhasil dimuat; sheet IAP kosong sehingga baris IB FD belum memiliki nilai.'),
             'rows_inserted' => 12, 'ib_fd_has_data' => $hasFoodData, 'usd_rate' => $ibExchangeRate]);
         exit;
     }

@@ -50,8 +50,8 @@ foreach([2025,2026,2027] as $year){
  $b->disconnectWorksheets();$next->disconnectWorksheets();
 }
 // Full-capacity boundary is past the old 1,000-row read filter.
-$large=buildReportInputTemplate('TARGET UNIT SELL OUT','2026-11');$s=$large->getSheetByName('GB 1-6');
-foreach(['A1005'=>'6','B1005'=>'000LAST','C1005'=>'Synthetic final product','D1005'=>'D','Q1005'=>7] as $cell=>$value)$s->setCellValue($cell,$value);
-$path=tempnam('/tmp','product-boundary-');try{IOFactory::createWriter($large,'Xlsx')->setPreCalculateFormulas(false)->setForceFullCalc(true)->save($path);$loaded=readUnitSellOutTargetBook($path);$parsed=parseUnitSellOutInputTemplate($loaded,2026);checkProductTarget($parsed['inputs']['gb6']['rows'][0]['code']==='000LAST'&&$parsed['inputs']['gb6']['rows'][0]['months'][11]===7.0,'Final product row lost by upload filter');$loaded->disconnectWorksheets();}finally{unlink($path);}$large->disconnectWorksheets();
+$large=buildReportInputTemplate('TARGET UNIT SELL OUT','2026-11');$s=$large->getSheetByName('GB 6');
+foreach(['B222'=>'Synthetic final product','O222'=>7] as $cell=>$value)$s->setCellValue($cell,$value);
+$path=tempnam('/tmp','product-boundary-');try{IOFactory::createWriter($large,'Xlsx')->setPreCalculateFormulas(false)->setForceFullCalc(true)->save($path);$loaded=readUnitSellOutTargetBook($path);$parsed=parseUnitSellOutInputTemplate($loaded,2026);checkProductTarget($parsed['inputs']['gb6']['rows'][0]['name']==='Synthetic final product'&&$parsed['inputs']['gb6']['rows'][0]['category']==='D'&&$parsed['inputs']['gb6']['rows'][0]['months'][11]===7.0,'Final category row lost by upload filter');$loaded->disconnectWorksheets();}finally{unlink($path);}$large->disconnectWorksheets();
 if(in_array('--json',$argv,true))echo json_encode($data['records'],JSON_THROW_ON_ERROR);
 else echo "PASS product-level three-sheet template, 2025/2026/2027, XLSX/ODS, all GB/Ethical/IB totals, name/code/zero preservation, cumulative gaps, formulas, history/January and final capacity row\n";

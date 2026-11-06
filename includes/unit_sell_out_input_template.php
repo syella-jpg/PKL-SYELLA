@@ -16,7 +16,7 @@ function unitSellOutInputRows(): array {
     return $groups;
 }
 function isUnitSellOutInputTemplate(Spreadsheet $book): bool {
-    return in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_UNIT_SELL_OUT_V1','KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3'],true);
+    return in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_UNIT_SELL_OUT_V1','KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3','KONIMEX_UNIT_SELL_OUT_V4','KONIMEX_UNIT_SELL_OUT_V5','KONIMEX_UNIT_SELL_OUT_V6'],true);
 }
 function unitSellOutInputMonths(): array {
     return ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
@@ -91,7 +91,7 @@ function buildUnitSellOutSummaryTemplate(string $period): Spreadsheet {
 
 /** Read only editable inputs. Recompute summaries so stale/tampered formula caches cannot alter imports. */
 function parseUnitSellOutInputTemplate(Spreadsheet $book,int $year): array {
-    if(in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3'],true))return parseUnitSellOutProductTemplate($book,$year);
+    if(in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3','KONIMEX_UNIT_SELL_OUT_V4','KONIMEX_UNIT_SELL_OUT_V5','KONIMEX_UNIT_SELL_OUT_V6'],true))return parseUnitSellOutProductTemplate($book,$year);
     if(!isUnitSellOutInputTemplate($book)||(int)$book->getSheetByName('_TEMPLATE')->getCell('A3')->getValue()!==$year)throw new InvalidArgumentException('Tahun template TARGET UNIT SELL OUT berbeda dari periode upload.');
     $sheet=$book->getSheetByName('TARGET UNIT SELL OUT');if(!$sheet)throw new InvalidArgumentException('Sheet TARGET UNIT SELL OUT tidak ditemukan.');
     foreach([6,58,67] as $header)foreach(unitSellOutInputMonths() as $m=>$label){
@@ -142,7 +142,7 @@ function saveUnitSellOutInputs(mysqli $conn,int $year,string $period,array $prod
     foreach($inputs as $product=>$parts){$payload=json_encode($parts,JSON_THROW_ON_ERROR|JSON_PRESERVE_ZERO_FRACTION);$insert->bind_param('isss',$year,$product,$payload,$period);$insert->execute();}$insert->close();
 }
 function fillUnitSellOutInputHistory(Spreadsheet $book,string $period,array $history): void {
-    if(in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3'],true)){fillUnitSellOutProductHistory($book,$period,$history);return;}
+    if(in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3','KONIMEX_UNIT_SELL_OUT_V4','KONIMEX_UNIT_SELL_OUT_V5','KONIMEX_UNIT_SELL_OUT_V6'],true)){fillUnitSellOutProductHistory($book,$period,$history);return;}
     if(substr($period,5,2)==='01')return;
     $year=(int)substr($period,0,4);$rows=unitSellOutInputRows();$sheet=$book->getSheetByName('TARGET UNIT SELL OUT');
     foreach($history as $record){

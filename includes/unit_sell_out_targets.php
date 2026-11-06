@@ -9,14 +9,15 @@ require_once __DIR__.'/unit_sell_out_input_template.php';
 
 class UnitSellOutTargetFilter implements IReadFilter {
     public function readCell($columnAddress, $row, $worksheetName = ''): bool {
-        $limit=in_array(strtoupper(trim($worksheetName)),['GB 1-6','ETHICAL'],true)?5100:1000;
+        if(preg_match('/^GB [1-6]$/i',trim($worksheetName)))return true;
+        $limit=(in_array(strtoupper(trim($worksheetName)),['GB 1-6','ETHICAL'],true)||preg_match('/^GB [1-6]$/i',trim($worksheetName)))?5100:1000;
         return $row <= $limit && Coordinate::columnIndexFromString($columnAddress) <= (strtoupper(trim($worksheetName))==='GMEB'?27:(strtoupper(trim($worksheetName))==='HRU'?26:20));
     }
 }
 function readUnitSellOutTargetBook(string $path): Spreadsheet {
     $reader=IOFactory::createReaderForFile($path);
     if(!($reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Ods)&&!($reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Xlsx))throw new InvalidArgumentException('Gunakan workbook ODS atau XLSX.');
-    $names=array_values(array_filter($reader->listWorksheetNames($path),fn($name)=>preg_match('/^(?:TARGET\s+GB\s*[1-6]|HRU|GMEB|TARGET UNIT SELL OUT|GB 1-6|ETHICAL|IB|_TEMPLATE)$/i',trim($name))));
+    $names=array_values(array_filter($reader->listWorksheetNames($path),fn($name)=>preg_match('/^(?:TARGET\s+GB\s*[1-6]|HRU|GMEB|TARGET UNIT SELL OUT|GB 1-6|GB [1-6]|ETHICAL|IB|_TEMPLATE)$/i',trim($name))));
     if(!$names)throw new InvalidArgumentException('Sheet TARGET GB 1–6, HRU, atau GMEB tidak ditemukan. Sheet BUDGET tidak digunakan.');
     $reader->setLoadSheetsOnly($names);$reader->setReadFilter(new UnitSellOutTargetFilter());$reader->setReadDataOnly(true);$reader->setReadEmptyCells(false);
     return $reader->load($path);

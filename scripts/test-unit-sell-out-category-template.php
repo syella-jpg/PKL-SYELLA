@@ -1,0 +1,14 @@
+<?php
+require __DIR__.'/../vendor/autoload.php';require __DIR__.'/../includes/unit_sell_out_targets.php';
+function catCheck($ok,$message){if(!$ok)throw new RuntimeException($message);}
+foreach([2025,2026,2027] as $year){
+ $b=buildUnitSellOutProductTemplate($year.'-09');$blocks=unitSellOutCategoryBlocks();
+ foreach(range(1,6) as $gb){$s=$b->getSheetByName('GB '.$gb);foreach($blocks as $cat=>$block){catCheck($block['last']-$block['first']+1===50,'50 rows per category');catCheck($s->getCell('B'.$block['header'])->getValue()==='NAMA PRODUK','No product code');$r=$block['first'];$s->setCellValue('B'.$r,'Synthetic '.$cat);$s->setCellValue('D'.$r,$gb*(ord($cat)-64));$s->setCellValue('O'.$r,0);}$s->setCellValue('B222','Synthetic last row');$s->setCellValue('D222',1);catCheck($s->getCell('D58')->getValue()==='=SUM(D8:D57)'&&(float)$s->getCell('D228')->getCalculatedValue()===6.0*$gb&&(float)$s->getCell('D229')->getCalculatedValue()===4.0*$gb+1,'Simple category and Existing/NP formulas');}
+ $b->getSheetByName('ETHICAL')->setCellValue('C6',7);$b->getSheetByName('IB')->setCellValue('F7',10);$b->getSheetByName('IB')->setCellValue('F10',2);
+ $data=parseUnitSellOutInputTemplate($b,$year);catCheck($data['inputs']['gb6']['rows'][4]['category']==='D'&&$data['inputs']['gb6']['rows'][4]['months'][0]===1.0,'Last row imported');
+ $b->getSheetByName('GB 1')->setCellValue('D58',999999);catCheck(parseUnitSellOutInputTemplate($b,$year)===$data,'Do not count displayed category totals');
+ foreach(['Xlsx','Ods'] as $format){$path=tempnam('/tmp','gb-category-');try{$writer=\PhpOffice\PhpSpreadsheet\IOFactory::createWriter($b,$format);$writer->setPreCalculateFormulas(false);$writer->save($path);$loaded=readUnitSellOutTargetBook($path);catCheck(parseUnitSellOutInputTemplate($loaded,$year)===$data,'Xlsx/Ods upload roundtrip');$loaded->disconnectWorksheets();}finally{unlink($path);}}
+ $history=[];foreach($data['inputs'] as $product=>$parts)$history[]=['report_year'=>$year,'product'=>$product,'payload'=>json_encode($parts)];$next=buildUnitSellOutProductWithHistory($year.'-12',$history);catCheck(parseUnitSellOutInputTemplate($next,$year)===$data,'History returns to correct category and GB');$next->disconnectWorksheets();$empty=buildUnitSellOutProductWithHistory($year.'-01',$history);catCheck($empty->getSheetByName('GB 1')->getCell('B8')->getValue()===null,'January reset');$empty->disconnectWorksheets();
+ $s=$b->getSheetByName('GB 1');$s->setCellValue('B9','Synthetic A');try{parseUnitSellOutInputTemplate($b,$year);throw new RuntimeException('Duplicate accepted');}catch(InvalidArgumentException $expected){}$b->disconnectWorksheets();
+}
+echo "PASS six GB sheets with A/B/C/D blocks, 50 rows each, no code, simple subtotal formulas, final row, XLSX/ODS, history, January and duplicate validation\n";

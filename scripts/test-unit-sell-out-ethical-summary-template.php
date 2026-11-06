@@ -4,7 +4,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;use PhpOffice\PhpSpreadsheet\IOFactory;
 function checkEthSummary($test,$message){if(!$test)throw new RuntimeException($message);}
 foreach([2025,2026,2027] as $year){
  $b=buildUnitSellOutProductTemplate($year.'-09',2,2);$e=$b->getSheetByName('ETHICAL');
- checkEthSummary($b->getSheetNames()===['GB 1-6','ETHICAL','IB','_TEMPLATE'],'Keep three visible sheets');
+ checkEthSummary($b->getSheetNames()===['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6','ETHICAL','IB','_TEMPLATE'],'Keep separate GB sheets plus Ethical and IB');
  checkEthSummary($e->getHighestDataRow()===8,'Ethical must contain only the compact used inputs, not product rows');
  checkEthSummary($e->getCell('A6')->getValue()==='EXISTING PRODUCT (UNIT)'&&$e->getCell('B6')->getValue()==='TARGET'&&$e->getCell('A7')->getValue()==='NEW PRODUCT (UNIT)','Exact GMEB target labels');
  $source=new Spreadsheet();$g=$source->getSheet(0);$g->setTitle('GMEB');$g->setCellValue('A1','TAHUN '.$year);$g->setCellValue('A2','1. PERSPEKTIF FINANCIAL');

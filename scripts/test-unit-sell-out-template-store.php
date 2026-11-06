@@ -16,7 +16,7 @@ class UnitTargetStoreStatement {
     private array $params=[];
     public function __construct(private UnitTargetStoreConnection $conn,private string $sql){}
     public function bind_param($types,&...$params){$this->params=&$params;return true;}
-    public function get_result(){return new class{public function fetch_all($mode){return [];}};}
+    public function get_result(){return new class{public function fetch_all($mode){return [];}public function fetch_assoc(){return null;}};}
     public function close(){}
     public function execute(){
         if(str_starts_with($this->sql,'SELECT'))return true;
@@ -35,10 +35,10 @@ $source=file_get_contents(__DIR__.'/../dashboard/unit_sell_out_targets_api.php')
 $start=strpos($source,'  $products=array_values(');$end=strpos($source,' }else{',$start);$program=substr($source,$start,$end-$start);
 checkTargetStore($start!==false&&$end!==false,'Transaction block not found');
 if(in_array('--products',$argv,true)){
- $book=buildUnitSellOutProductTemplate('2026-11',12,2);$s=$book->getSheetByName('GB 1-6');$r=6;
- for($gb=1;$gb<=6;$gb++)foreach(['A','D'] as $cat){$s->setCellValue('A'.$r,$gb);$s->setCellValue('C'.$r,'Synthetic '.$gb.$cat);$s->setCellValue('D'.$r,$cat);$s->setCellValue('F'.$r,10);$r++;}
+ $book=buildUnitSellOutProductTemplate('2026-11');$blocks=unitSellOutCategoryBlocks();
+ for($gb=1;$gb<=6;$gb++)foreach(['A','D'] as $cat){$s=$book->getSheetByName('GB '.$gb);$r=$blocks[$cat]['first'];$s->setCellValue('B'.$r,'Synthetic '.$gb.$cat);$s->setCellValue('D'.$r,10);}
  $book->getSheetByName('ETHICAL')->setCellValue('C6',7);
- $book->getSheetByName('IB')->setCellValue('C6',10);$book->getSheetByName('IB')->setCellValue('C7',2);
+ $book->getSheetByName('IB')->setCellValue('F7',10);$book->getSheetByName('IB')->setCellValue('F10',2);
 }else{
  $book=buildUnitSellOutSummaryTemplate('2026-11');$s=$book->getSheetByName('TARGET UNIT SELL OUT');
  foreach(unitSellOutInputRows() as $rows)foreach($rows as $row)for($m=0;$m<12;$m++)$s->setCellValue([$m+3,$row],$m+1);

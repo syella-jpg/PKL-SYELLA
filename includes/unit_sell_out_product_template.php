@@ -3,18 +3,21 @@
 function unitSellOutProductHeaders(): array {
     return ['GB','KODE PRODUK','NAMA PRODUK','KATEGORI','SATUAN',...unitSellOutInputMonths()];
 }
-function buildUnitSellOutProductTemplate(string $period,int $gbCapacity=1000,int $ethicalCapacity=200,bool $ethicalSummary=true): \PhpOffice\PhpSpreadsheet\Spreadsheet {
+function buildUnitSellOutLegacyProductTemplate(string $period,int $gbCapacity=1000,int $ethicalCapacity=200,bool $ethicalSummary=true,bool $splitGb=true): \PhpOffice\PhpSpreadsheet\Spreadsheet {
     if(!preg_match('/^(20\d{2})-(0[1-9]|1[0-2])$/D',$period,$match))throw new InvalidArgumentException('Periode TARGET UNIT SELL OUT tidak valid.');
     $year=(int)$match[1];$month=(int)$match[2];$months=unitSellOutInputMonths();
     $gbCapacity=max(1,min(5000,$gbCapacity));$ethicalCapacity=max(1,min(5000,$ethicalCapacity));
     $book=new \PhpOffice\PhpSpreadsheet\Spreadsheet();$book->removeSheetByIndex(0);
     $book->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11)->getColor()->setARGB('FF263449');
     $numeric=(new \PhpOffice\PhpSpreadsheet\Cell\DataValidation())->setType('decimal')->setOperator('greaterThanOrEqual')->setFormula1('0')->setAllowBlank(true)->setShowErrorMessage(true)->setErrorStyle('stop')->setErrorTitle('Isi angka unit')->setError('Gunakan angka nol atau positif.');
-    foreach($ethicalSummary?['GB 1-6'=>$gbCapacity]:['GB 1-6'=>$gbCapacity,'ETHICAL'=>$ethicalCapacity] as $name=>$capacity){
+    $splitGb=$splitGb&&$ethicalSummary;
+    $sheets=$splitGb?array_fill_keys(['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6'],$gbCapacity):($ethicalSummary?['GB 1-6'=>$gbCapacity]:['GB 1-6'=>$gbCapacity,'ETHICAL'=>$ethicalCapacity]);
+    foreach($sheets as $name=>$capacity){
+        $fixedGb=$splitGb?(int)substr($name,3):null;
         $sheet=new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($book,$name);$book->addSheet($sheet);$ethical=$name==='ETHICAL';$end=5+$capacity;
         $sheet->setShowGridlines(false);$sheet->setCellValue('A1','TARGET UNIT SELL OUT — '.$name.' — TAHUN '.$year);$sheet->mergeCells('A1:S1');
         $sheet->setCellValue('A2','PERIODE LAPORAN: '.$months[$month-1].' '.$year);$sheet->mergeCells('A2:S2');
-        $sheet->setCellValue('A3',$ethical?'Isi satu produk per baris. EXIST = Existing; NP = New Product. Target dalam UNIT per bulan.':'Isi satu produk per baris. Pilih GB 1–6 dan kategori A/B/C/D. EXIST = A+B+C; NP = D. Target dalam UNIT per bulan.');$sheet->mergeCells('A3:S3');
+        $sheet->setCellValue('A3',$ethical?'Isi satu produk per baris. EXIST = Existing; NP = New Product. Target dalam UNIT per bulan.':($splitGb?'Isi produk '.$name.' saja. Kategori A/B/C = EXIST; D = NP. Target dalam UNIT per bulan.':'Isi satu produk per baris. Pilih GB 1–6 dan kategori A/B/C/D. EXIST = A+B+C; NP = D. Target dalam UNIT per bulan.'));$sheet->mergeCells('A3:S3');
         $sheet->setCellValue('A4','Sel kuning diisi. Kode produk dan satuan boleh kosong. Ringkasan otomatis tersedia di bawah rincian produk.');$sheet->mergeCells('A4:S4');
         foreach([...unitSellOutProductHeaders(),'YTD '.$months[$month-1],'TOTAL FY'] as $c=>$header)$sheet->setCellValue([$c+1,5],$header);
         foreach(['A'=>10,'B'=>20,'C'=>42,'D'=>16,'E'=>14] as $c=>$width)$sheet->getColumnDimension($c)->setWidth($width);
@@ -27,8 +30,9 @@ function buildUnitSellOutProductTemplate(string $period,int $gbCapacity=1000,int
         $categories=$ethical?'"EXIST,NP,KAT E,E,D"':'"A,B,C,D"';
         $categoryRule=(new \PhpOffice\PhpSpreadsheet\Cell\DataValidation())->setType('list')->setFormula1($categories)->setAllowBlank(true)->setShowDropDown(true)->setShowErrorMessage(true)->setErrorStyle('stop');
         $sheet->setDataValidation('D6:D'.$end,$categoryRule);
-        if(!$ethical)$sheet->setDataValidation('A6:A'.$end,(new \PhpOffice\PhpSpreadsheet\Cell\DataValidation())->setType('list')->setFormula1('"1,2,3,4,5,6"')->setAllowBlank(true)->setShowDropDown(true)->setShowErrorMessage(true)->setErrorStyle('stop'));
+        if(!$ethical)$sheet->setDataValidation('A6:A'.$end,(new \PhpOffice\PhpSpreadsheet\Cell\DataValidation())->setType('list')->setFormula1($fixedGb!==null?'"'.$fixedGb.'"':'"1,2,3,4,5,6"')->setAllowBlank(true)->setShowDropDown(true)->setShowErrorMessage(true)->setErrorStyle('stop'));
         for($r=6;$r<=$end;$r++){
+            if($fixedGb!==null)$sheet->setCellValue('A'.$r,$fixedGb);
             if($ethical){$sheet->setCellValue('A'.$r,'ET');$sheet->setCellValue('D'.$r,'EXIST');}
             $sheet->setCellValue('R'.$r,'=SUM(F'.$r.':'.\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(5+$month).$r.')');
             $sheet->setCellValue('S'.$r,'=SUM(F'.$r.':Q'.$r.')');
@@ -38,7 +42,7 @@ function buildUnitSellOutProductTemplate(string $period,int $gbCapacity=1000,int
         foreach(['PARAMETER',...array_fill(0,4,''),...$months,'YTD '.$months[$month-1],'TOTAL FY'] as $c=>$v)if($v!=='')$sheet->setCellValue([$c+1,$header],$v);
         $sheet->mergeCells('A'.$header.':E'.$header);
         $summary=[];$row=$header+1;
-        foreach($ethical?['ET']:range(1,6) as $gb){
+        foreach($ethical?['ET']:($fixedGb!==null?[$fixedGb]:range(1,6)) as $gb){
             foreach(['EXIST','NP','TOTAL'] as $kind){
                 $label=$kind.' '.($ethical?'ETHICAL':'GB '.$gb);$sheet->setCellValue('A'.$row,$label);$sheet->mergeCells('A'.$row.':E'.$row);$summary[$label]=$row;
                 foreach(range('F','Q') as $c){
@@ -59,7 +63,7 @@ function buildUnitSellOutProductTemplate(string $period,int $gbCapacity=1000,int
         $sheet->getStyle('A'.($header+1).':S'.($row-1))->getFill()->setFillType('solid')->getStartColor()->setARGB('FFEAF1FF');
         $sheet->getStyle('F'.($header+1).':S'.($row-1))->getNumberFormat()->setFormatCode('#,##0;[Red](#,##0);0');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(19);$sheet->getRowDimension(1)->setRowHeight(36);
-        $sheet->freezePane('F6');$sheet->setAutoFilter('A5:S'.$end);$sheet->setSelectedCell($ethical?'C6':'A6');$sheet->getSheetView()->setZoomScale(85);
+        $sheet->freezePane('F6');$sheet->setAutoFilter('A5:S'.$end);$sheet->setSelectedCell($ethical||$splitGb?'C6':'A6');$sheet->getSheetView()->setZoomScale(85);
         $sheet->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(0)->setPrintArea('A1:S'.($row-1));
     }
     if($ethicalSummary)buildUnitSellOutEthicalSummarySheet($book,$period);
@@ -83,7 +87,7 @@ function buildUnitSellOutProductTemplate(string $period,int $gbCapacity=1000,int
     $reference->disconnectWorksheets();
     $sheet->setDataValidation('C6:N7',clone $numeric);$sheet->setShowGridlines(false);$sheet->freezePane('C6');$sheet->setSelectedCell('C6');$sheet->getStyle('A1')->getFont()->setBold(true)->setSize(19);$sheet->getRowDimension(1)->setRowHeight(36);$sheet->getRowDimension(5)->setRowHeight(30);
     $sheet->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(1)->setPrintArea('A1:P9');
-    $meta=new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($book,'_TEMPLATE');$book->addSheet($meta);$meta->fromArray([[$ethicalSummary?'KONIMEX_UNIT_SELL_OUT_V3':'KONIMEX_UNIT_SELL_OUT_V2'],['TARGET UNIT SELL OUT'],[$year],[$period],[$gbCapacity],[$ethicalCapacity]]);$meta->setSheetState('hidden');$book->setActiveSheetIndex(0);
+    $meta=new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($book,'_TEMPLATE');$book->addSheet($meta);$meta->fromArray([[$splitGb?'KONIMEX_UNIT_SELL_OUT_V4':($ethicalSummary?'KONIMEX_UNIT_SELL_OUT_V3':'KONIMEX_UNIT_SELL_OUT_V2')],['TARGET UNIT SELL OUT'],[$year],[$period],[$gbCapacity],[$ethicalCapacity]]);$meta->setSheetState('hidden');$book->setActiveSheetIndex(0);
     return $book;
 }
 function unitSellOutProductCapacity(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,string $sheet): int {
@@ -91,13 +95,15 @@ function unitSellOutProductCapacity(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,
     if(!is_numeric($value)||(int)$value<1||(int)$value>5000||(float)$value!==(float)(int)$value)throw new InvalidArgumentException('Kapasitas template berubah. Unduh kembali template.');
     return (int)$value;
 }
-function parseUnitSellOutProductTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,int $year): array {
+function parseUnitSellOutProductTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,int $year,bool $extraInput=false,?int $normalizedCapacity=null): array {
+    if(in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_UNIT_SELL_OUT_V5','KONIMEX_UNIT_SELL_OUT_V6'],true))return parseUnitSellOutCategoryTemplate($book,$year);
     if((int)$book->getSheetByName('_TEMPLATE')?->getCell('A3')->getValue()!==$year)throw new InvalidArgumentException('Tahun template berbeda dari periode upload.');
     $inputs=[];$monthly=[];$seen=[];$hasNumber=false;
-    $ethicalSummary=$book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue()==='KONIMEX_UNIT_SELL_OUT_V3';
+    $splitGb=$book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue()==='KONIMEX_UNIT_SELL_OUT_V4';
+    $ethicalSummary=$splitGb||$book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue()==='KONIMEX_UNIT_SELL_OUT_V3';
     foreach(['gb1','gb2','gb3','gb4','gb5','gb6','ethical'] as $group){$inputs[$group]=['__format'=>'products_v2','rows'=>[]];foreach(['existing','new'] as $kind)$monthly[$group][$kind]=array_fill(0,12,null);}
-    foreach($ethicalSummary?['GB 1-6']:['GB 1-6','ETHICAL'] as $name){
-        $sheet=$book->getSheetByName($name);if(!$sheet)throw new InvalidArgumentException('Sheet '.$name.' tidak ditemukan.');$ethical=$name==='ETHICAL';$capacity=unitSellOutProductCapacity($book,$name);
+    foreach($splitGb?['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6']:($ethicalSummary?['GB 1-6']:['GB 1-6','ETHICAL']) as $name){
+        $sheet=$book->getSheetByName($name);if(!$sheet)throw new InvalidArgumentException('Sheet '.$name.' tidak ditemukan.');$ethical=$name==='ETHICAL';$capacity=$normalizedCapacity??unitSellOutProductCapacity($book,$name);
         foreach(unitSellOutProductHeaders() as $c=>$v)if($sheet->getCell([$c+1,5])->getValue()!==$v)throw new InvalidArgumentException('Kolom '.$name.' berubah. Gunakan template yang diunduh.');
         for($r=6;$r<=5+$capacity;$r++){
             $identity=[];for($c=1;$c<=5;$c++)$identity[]=trim((string)$sheet->getCell([$c,$r])->getCalculatedValue());
@@ -110,6 +116,7 @@ function parseUnitSellOutProductTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $
                 $values[]=$v;
             }
             [$gb,$code,$product,$category,$unit]=$identity;
+            if($splitGb){$expected=substr($name,3);if($gb!==''&&$gb!==$expected)throw new InvalidArgumentException('GB tidak sesuai dengan sheet '.$name.' pada baris '.$r.'.');$gb=$expected;}
             if($code===''&&$product===''&&$unit===''&&!$hasValue)continue;
             $category=strtoupper($category);
             if($product==='')throw new InvalidArgumentException('Isi nama produk pada '.$name.' baris '.$r.'.');
@@ -162,7 +169,7 @@ function parseUnitSellOutProductTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $
             $inputs['ib'][$kind][$m]=$v;
         }
     }
-    if(!$hasNumber)throw new InvalidArgumentException('Template TARGET UNIT SELL OUT masih kosong. Isi minimal satu target unit.');
+    if(!$hasNumber&&!$extraInput)throw new InvalidArgumentException('Template TARGET UNIT SELL OUT masih kosong. Isi minimal satu target unit.');
     $records=[];
     foreach($monthly as $group=>$parts)foreach($parts as $kind=>$values)foreach($values as $m=>$v)$records[]=['report_year'=>$year,'product'=>$group,'kind'=>$kind,'month'=>$m+1,'units'=>$v===null?null:number_format($v,6,'.','')];
     $cumulative=[];for($m=0;$m<12;$m++)$cumulative[$m]=$inputs['ib']['A'][$m]===null||$inputs['ib']['B'][$m]===null?null:$inputs['ib']['A'][$m]+$inputs['ib']['B'][$m];
@@ -171,13 +178,14 @@ function parseUnitSellOutProductTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $
 }
 
 function fillUnitSellOutProductHistory(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,string $period,array $history): void {
-    if(substr($period,5,2)==='01')return;$year=(int)substr($period,0,4);$next=['GB 1-6'=>6,'ETHICAL'=>6];
+    if(in_array($book->getSheetByName('_TEMPLATE')?->getCell('A1')->getValue(),['KONIMEX_UNIT_SELL_OUT_V5','KONIMEX_UNIT_SELL_OUT_V6'],true)){fillUnitSellOutCategoryHistory($book,$period,$history);return;}
+    if(substr($period,5,2)==='01')return;$year=(int)substr($period,0,4);$next=array_fill_keys(['GB 1-6','GB 1','GB 2','GB 3','GB 4','GB 5','GB 6','ETHICAL'],6);$splitGb=$book->getSheetByName('_TEMPLATE')->getCell('A1')->getValue()==='KONIMEX_UNIT_SELL_OUT_V4';
     foreach($history as $record){
         if((int)$record['report_year']!==$year)continue;$product=$record['product'];$parts=json_decode($record['payload'],true,512,JSON_THROW_ON_ERROR);
         if($product==='ib'){
             $sheet=$book->getSheetByName('IB');foreach(['A'=>6,'B'=>7] as $kind=>$r){if(!isset($parts[$kind])||!is_array($parts[$kind])||count($parts[$kind])!==12)throw new RuntimeException('Riwayat target IB tidak lengkap.');foreach($parts[$kind] as $m=>$v)if($v!==null)$sheet->setCellValue([$m+3,$r],(float)$v);}continue;
         }
-        if($product==='ethical'&&$book->getSheetByName('_TEMPLATE')->getCell('A1')->getValue()==='KONIMEX_UNIT_SELL_OUT_V3'){
+        if($product==='ethical'&&in_array($book->getSheetByName('_TEMPLATE')->getCell('A1')->getValue(),['KONIMEX_UNIT_SELL_OUT_V3','KONIMEX_UNIT_SELL_OUT_V4'],true)){
             $values=['existing'=>array_fill(0,12,null),'new'=>array_fill(0,12,null)];
             if(($parts['__format']??'')==='products_v2'){
                 foreach($parts['rows'] as $detail){
@@ -194,9 +202,9 @@ function fillUnitSellOutProductHistory(\PhpOffice\PhpSpreadsheet\Spreadsheet $bo
         }
         if(!preg_match('/^(gb[1-6]|ethical)$/D',$product))throw new RuntimeException('Kelompok riwayat target tidak dikenal.');
         if(($parts['__format']??'')!=='products_v2'){
-            $book->getSheetByName($product==='ethical'?'ETHICAL':'GB 1-6')->setCellValue('A4','Riwayat lama berisi jumlah kategori. Isi rincian produk di template ini; target lama tetap tersimpan sampai upload berikutnya.');continue;
+            $book->getSheetByName($product==='ethical'?'ETHICAL':($splitGb?'GB '.substr($product,2):'GB 1-6'))->setCellValue('A4','Riwayat lama berisi jumlah kategori. Isi rincian produk di template ini; target lama tetap tersimpan sampai upload berikutnya.');continue;
         }
-        $name=$product==='ethical'?'ETHICAL':'GB 1-6';$sheet=$book->getSheetByName($name);$end=5+unitSellOutProductCapacity($book,$name);
+        $name=$product==='ethical'?'ETHICAL':($splitGb?'GB '.substr($product,2):'GB 1-6');$sheet=$book->getSheetByName($name);$end=5+unitSellOutProductCapacity($book,$name);
         foreach($parts['rows'] as $detail){
             $r=$next[$name]++;if($r>$end)throw new RuntimeException('Rincian tersimpan melebihi kapasitas template.');
             $sheet->setCellValue('A'.$r,$product==='ethical'?'ET':substr($product,2));
@@ -208,14 +216,13 @@ function fillUnitSellOutProductHistory(\PhpOffice\PhpSpreadsheet\Spreadsheet $bo
 }
 
 function buildUnitSellOutProductWithHistory(string $period,array $history): \PhpOffice\PhpSpreadsheet\Spreadsheet {
-    $counts=['GB 1-6'=>0,'ETHICAL'=>0];$year=(int)substr($period,0,4);
+    $capacities=[];$year=(int)substr($period,0,4);
     if(substr($period,5,2)!=='01')foreach($history as $record){
         if((int)$record['report_year']!==$year||$record['product']==='ib')continue;
         $parts=json_decode($record['payload'],true,512,JSON_THROW_ON_ERROR);
-        if($record['product']!=='ethical'&&($parts['__format']??'')==='products_v2')$counts[$record['product']==='ethical'?'ETHICAL':'GB 1-6']+=count($parts['rows']);
+        if(preg_match('/^gb[1-6]$/D',$record['product'])&&($parts['__format']??'')==='products_v2')foreach($parts['rows'] as $detail){$cat=$detail['category'];$capacities[$record['product']][$cat]=($capacities[$record['product']][$cat]??0)+1;}
     }
-    if(max($counts)>5000)throw new RuntimeException('Rincian target unit tersimpan melebihi 5.000 produk per sheet.');
-    $book=buildUnitSellOutProductTemplate($period,max(1000,$counts['GB 1-6']),max(200,$counts['ETHICAL']));
+    $book=buildUnitSellOutProductTemplate($period,1000,200,true,true,array_map(static fn($cats)=>array_map(static fn($count)=>max(50,$count),$cats),$capacities));
     fillUnitSellOutProductHistory($book,$period,$history);
     return $book;
 }
@@ -244,3 +251,5 @@ function buildUnitSellOutEthicalSummarySheet(\PhpOffice\PhpSpreadsheet\Spreadshe
     $sheet->freezePane('C6');$sheet->setSelectedCell('C6');$sheet->getSheetView()->setZoomScale(90);
     $sheet->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(1)->setPrintArea('A1:P8');
 }
+
+require_once __DIR__.'/unit_sell_out_category_template.php';
