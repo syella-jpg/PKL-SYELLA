@@ -34,6 +34,7 @@ sectionSelect.value='REVENUE VERSI EDP MNJ';context.updateTemplateDownload();ass
 sectionSelect.value='TARGET UNIT SELL OUT';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('GB 1–6'));
 sectionSelect.value='ETHICAL';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('HNA'));
 sectionSelect.value='BOD KX Sell In';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('PENJUALAN'));assert(element('templateDescription').textContent.includes('ROD'));
+sectionSelect.value='TARGET REVENUE';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,false);assert(element('templateDescription').textContent.includes('Rp (000)'));
 sectionSelect.value='OTHER';context.updateTemplateDownload();assert.equal(element('templateHelp').hidden,true);
 sectionSelect.value='TARGET UNIT SELL OUT';
 (async()=>{
@@ -43,5 +44,6 @@ sectionSelect.value='TARGET UNIT SELL OUT';
  assert.equal(download,'Template_TARGET UNIT SELL OUT_2027-02.xlsx');
  assert.equal(element('downloadTemplate').disabled,false);
  sectionSelect.value='BOD KX Sell In';await element('downloadTemplate').listeners.click();assert(requested.includes('section=BOD+KX+Sell+In'));assert.equal(download,'Template_BOD KX Sell In_2027-02.xlsx');
+ sectionSelect.value='TARGET REVENUE';await element('downloadTemplate').listeners.click();assert(requested.includes('section=TARGET+REVENUE'));assert.equal(download,'Template_TARGET REVENUE_2027-02.xlsx');
  console.log('PASS supported sections show template instructions before period selection; valid period enables download using current section/period.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

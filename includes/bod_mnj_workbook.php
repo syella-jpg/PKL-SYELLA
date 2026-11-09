@@ -289,6 +289,23 @@ function populateBodMnjYtd(Worksheet $sheet, string $period): void
     \PhpOffice\PhpSpreadsheet\Calculation\Calculation::getInstance($sheet->getParent())->clearCalculationCache();
 }
 
+/** Format monetary cells for export while retaining formulas, years and percentages. */
+function formatBodMnjDownloadNumbers(Worksheet $sheet): void
+{
+    foreach ($sheet->getCellCollection()->getCoordinates() as $address) {
+        [$column, $row] = Coordinate::coordinateFromString($address);
+        if (Coordinate::columnIndexFromString($column) < 3) continue;
+        $rowLabel = (string)$sheet->getCell('B'.$row)->getValue();
+        $cell = $sheet->getCell($address);
+        if (str_contains($sheet->getStyle($address)->getNumberFormat()->getFormatCode(), '%')) continue;
+        $value = $cell->getValue();
+        if (is_numeric($value) && preg_match('/\b20\d{2}\b/', $rowLabel, $year) && (float)$value === (float)$year[0]) continue;
+        if (!$cell->isFormula() && !is_numeric($value)) continue;
+        if (!$cell->isFormula() && is_string($value)) $cell->setValueExplicit((float)$value, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+        $sheet->getStyle($address)->getNumberFormat()->setFormatCode('#,##0');
+    }
+}
+
 /** Current year on top; preceding year's latest upload below, with three empty rows. */
 function buildBodMnjWorkbook(int $year, string $period, $conn = null): ?Spreadsheet
 {
@@ -299,7 +316,7 @@ function buildBodMnjWorkbook(int $year, string $period, $conn = null): ?Spreadsh
     populateBodMnjYtd($sheet, $period);
     scaleBodNonProduct2025($sheet);
     $previous = $year > 2025 ? readBodMnjWorkbook($year - 1, ($year - 1) . '-12', $conn) : null;
-    if (!$previous) return $book;
+    if (!$previous) { formatBodMnjDownloadNumbers($sheet); return $book; }
     $source = getBodMnjSheet($previous);
     populateBodMnjYtd($source, ($year - 1) . substr($period, 4));
     scaleBodNonProduct2025($source);
@@ -334,6 +351,7 @@ function buildBodMnjWorkbook(int $year, string $period, $conn = null): ?Spreadsh
     }
     $sheet->getPageSetup()->setPrintArea('A1:' . $sheet->getHighestDataColumn() . ($offset + $lastPrior));
     $book->removeSheetByIndex($book->getIndex($source));
+    formatBodMnjDownloadNumbers($sheet);
     return $book;
 }
 

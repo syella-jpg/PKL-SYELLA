@@ -37,6 +37,7 @@ const read = year => {
 const workbook = () => ({SheetNames: ['LAPORAN', 'BOD MNJ'], Sheets: {LAPORAN: X.utils.aoa_to_sheet([['unchanged']]), 'BOD MNJ': {}}});
 const same = (actual, expected, message) => assert.equal(JSON.stringify(actual), JSON.stringify(expected), message);
 function compareBlock(result, source, offset) {
+  source=context.window.formatBodMnjDownloadNumbers(JSON.parse(JSON.stringify(source)));
   for (const [address, cell] of Object.entries(source)) {
     if (address.startsWith('!')) continue;
     const pos = X.utils.decode_cell(address);

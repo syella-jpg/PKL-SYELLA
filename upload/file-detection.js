@@ -25,6 +25,7 @@
     else if (/^KONIMEX_ETHICAL_SOURCE_V[1-6]$/.test(marker)) templateSection = 'ETHICAL';
     else if (['KONIMEX_UNIT_REVENUE_V1','KONIMEX_UNIT_REVENUE_V2'].includes(marker)) templateSection = 'UNIT & Revenue';
     else if (['KONIMEX_BIAYA_V1','KONIMEX_BIAYA_V2'].includes(marker)) templateSection = 'BIAYA';
+    else if (marker === 'KONIMEX_TARGET_REVENUE_V1') templateSection = 'TARGET REVENUE';
     else if (marker === 'KONIMEX_BOD_KX_SELL_IN_V1') templateSection = 'BOD KX Sell In';
     const choices = [];
     const add = (section, label) => { if (!choices.some(c => c.section === section)) choices.push({ section, label: label || section }); };
@@ -56,7 +57,7 @@
     const appendix = choices.some(c => c.section === 'MTM') && /BUDGET SPENDING/.test(text) && normalize(first.A1 && first.A1.v).match(/^Y\s*(20\d{2})$/);
     const fileYears = [...new Set(file.match(/\b20\d{2}\b/g) || [])];
     const titleYears = [...new Set((labels.filter(l => /TAHUN|\bTH\.?\s|LAPORAN PENJUALAN|PERIODE/.test(l)).join(' ').match(/\b20\d{2}\b/g) || []))];
-    const bodPeriod = marker === 'KONIMEX_BOD_KX_SELL_IN_V1' && String(meta?.A4?.v || '').match(/^(20\d{2})-(0[1-9]|1[0-2])$/);
+    const bodPeriod = ['KONIMEX_BOD_KX_SELL_IN_V1','KONIMEX_TARGET_REVENUE_V1'].includes(marker) && String(meta?.A4?.v || '').match(/^(20\d{2})-(0[1-9]|1[0-2])$/);
     const year = bodPeriod ? Number(bodPeriod[1]) : appendix ? Number(appendix[1]) : fileYears.length === 1 ? Number(fileYears[0]) : titleYears.length === 1 ? Number(titleYears[0]) : null;
     const aliases = ['JANUARI|JANUARY|JAN','FEBRUARI|FEBRUARY|FEB','MARET|MARCH|MAR','APRIL|APR','MEI|MAY','JUNI|JUNE|JUN','JULI|JULY|JUL','AGUSTUS|AUGUST|AGT|AGS|AUG','SEPTEMBER|SEP','OKTOBER|OCTOBER|OKT|OCT','NOVEMBER|NOPEMBER|NOV|NOP','DESEMBER|DECEMBER|DES|DEC'];
     const monthsIn = input => aliases.flatMap((a,i) => new RegExp('\\b(?:'+a+')\\b').test(input) ? [i+1] : []);

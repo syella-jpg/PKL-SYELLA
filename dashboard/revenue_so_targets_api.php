@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../includes/target_revenue_input_template.php';
 
 // Target summaries are shared between the Upload and Dashboard pages through
 // MySQL, including when either page is opened from file://.
@@ -32,6 +34,17 @@ header('Pragma: no-cache');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 try {
+    $templateInput = null;
+    if ($method === 'POST' && isset($_FILES['file'])) {
+        $file=$_FILES['file'];
+        if (($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK || ($file['size']??0)>50*1024*1024 || !is_uploaded_file($file['tmp_name']??'')) throw new InvalidArgumentException('Upload file ODS/XLSX maksimal 50 MB.');
+        $extension=strtolower(pathinfo($file['name'],PATHINFO_EXTENSION));
+        if (!in_array($extension,['ods','xlsx'],true)) throw new InvalidArgumentException('Gunakan file ODS atau XLSX.');
+        $reader=\PhpOffice\PhpSpreadsheet\IOFactory::createReader($extension==='ods'?'Ods':'Xlsx');
+        $reader->setReadEmptyCells(false);
+        $book=$reader->load($file['tmp_name']);
+        try {$templateInput=parseTargetRevenueInputTemplate($book,(string)($_POST['period']??''));} finally {$book->disconnectWorksheets();}
+    }
     $conn = openReportConnection();
     if ($conn->connect_error) throw new RuntimeException('Database gagal terhubung: ' . $conn->connect_error);
     $conn->set_charset('utf8mb4');
@@ -99,7 +112,7 @@ try {
         throw new RuntimeException('Endpoint hanya menerima GET atau POST.');
     }
 
-    $payload = json_decode((string)file_get_contents('php://input'), true);
+    $payload = $templateInput ?? json_decode((string)file_get_contents('php://input'), true);
     $year = isset($payload['year']) ? (string)$payload['year'] : '';
     $month = (int)($payload['month'] ?? 12);
     $rows = $payload['rows'] ?? null;
@@ -128,7 +141,13 @@ try {
         }
     }
 
+    ensureTargetRevenueInputStore($conn);
     $conn->begin_transaction();
+    // Serialize annual replacements and save detail with the canonical summaries.
+    $lock=$conn->prepare('INSERT IGNORE INTO target_revenue_inputs (report_year) VALUES (?)');
+    $lock->bind_param('i',$year);if(!$lock->execute()) throw new RuntimeException('Tahun Target Revenue gagal disiapkan.');$lock->close();
+    $lock=$conn->prepare('SELECT report_year FROM target_revenue_inputs WHERE report_year=? FOR UPDATE');
+    $lock->bind_param('i',$year);$lock->execute();$lock->get_result()->fetch_assoc();$lock->close();
     $prefix = $year . ' | %';
     $delete = $conn->prepare('DELETE FROM target_revenue WHERE product LIKE ?');
     if (!$delete) throw new RuntimeException('Gagal menyiapkan penggantian Target Revenue: ' . $conn->error);
@@ -165,6 +184,10 @@ try {
         if (!$insert->execute()) throw new RuntimeException('Gagal menyimpan ' . $product . ': ' . $insert->error);
     }
     $insert->close();
+    $detailPayload=$templateInput ? gzencode(json_encode($templateInput['details'],JSON_THROW_ON_ERROR),6) : null;
+    $detail=$conn->prepare('UPDATE target_revenue_inputs SET payload=? WHERE report_year=?');
+    $detail->bind_param('si',$detailPayload,$year);
+    if(!$detail->execute()) throw new RuntimeException('Rincian Target Revenue gagal disimpan.');$detail->close();
     $conn->commit();
     $conn->close();
 

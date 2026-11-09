@@ -20,8 +20,8 @@ class SharedEthicalStatement {
   $p=$this->p;$year=(int)$p[0];$s=$this->sql;
   if(str_starts_with($s,'SELECT')){$this->result=array_values(array_filter($this->c->data['monthly'],fn($r)=>$r['report_year']===$year));return true;}
   checkSharedStore($this->c->before!==null,'Write outside transaction');if($this->c->fail!==''&&str_starts_with($s,$this->c->fail))throw new RuntimeException('Simulated store failure');
-  if(str_contains($s,'ethical_source_inputs'))$this->c->data['inputs'][$year]=['report_year'=>$year,'payload'=>$p[1],'source_period'=>$p[2]];
-  elseif(str_contains($s,'ethical_source_monthly')){
+  if(str_contains($s,'template ethical'))$this->c->data['inputs'][$year]=['report_year'=>$year,'payload'=>$p[1],'source_period'=>$p[2]];
+  elseif(str_contains($s,'ethical HNA dan UNIT')){
    if(str_starts_with($s,'DELETE'))$this->c->data['monthly']=array_filter($this->c->data['monthly'],fn($r)=>$r['report_year']!==$year);
    else $this->c->data['monthly'][$year.'|'.$p[1].'|'.$p[2]]=['report_year'=>$year,'kind'=>$p[1],'month'=>$p[2],'unit_target'=>$p[3],'hna_target'=>$p[4]];
   }elseif(str_contains($s,'unit_sell_out_target_inputs')){

@@ -83,20 +83,20 @@ function parseEthicalNasSource(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,strin
     return ['year'=>$year,'inputs'=>$inputs,'summary'=>ethicalSourceSummary($inputs)];
 }
 function ensureEthicalSourceStore(mysqli $conn): void {
-    $conn->query('CREATE TABLE IF NOT EXISTS ethical_source_inputs (report_year SMALLINT UNSIGNED NOT NULL PRIMARY KEY,payload MEDIUMBLOB NOT NULL,source_period CHAR(7) NOT NULL,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
-    $conn->query('CREATE TABLE IF NOT EXISTS ethical_source_monthly (report_year SMALLINT UNSIGNED NOT NULL,kind VARCHAR(12) NOT NULL,month TINYINT UNSIGNED NOT NULL,unit_target DECIMAL(24,6) NULL,hna_target DECIMAL(24,6) NULL,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY(report_year,kind,month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    $conn->query('CREATE TABLE IF NOT EXISTS `template ethical` (report_year SMALLINT UNSIGNED NOT NULL PRIMARY KEY,payload MEDIUMBLOB NOT NULL,source_period CHAR(7) NOT NULL,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    $conn->query('CREATE TABLE IF NOT EXISTS `ethical HNA dan UNIT` (report_year SMALLINT UNSIGNED NOT NULL,kind VARCHAR(12) NOT NULL,month TINYINT UNSIGNED NOT NULL,unit_target DECIMAL(24,6) NULL,hna_target DECIMAL(24,6) NULL,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY(report_year,kind,month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 }
 function loadEthicalSourceMonthly(mysqli $conn,int $year,bool $lock=false): array {
-    try{$q=$conn->prepare('SELECT report_year,kind,month,unit_target,hna_target FROM ethical_source_monthly WHERE report_year=? ORDER BY kind,month'.($lock?' FOR UPDATE':''));$q->bind_param('i',$year);$q->execute();$rows=$q->get_result()->fetch_all(MYSQLI_ASSOC);$q->close();return $rows;}catch(mysqli_sql_exception $e){if($e->getCode()===1146)return [];throw $e;}
+    try{$q=$conn->prepare('SELECT report_year,kind,month,unit_target,hna_target FROM `ethical HNA dan UNIT` WHERE report_year=? ORDER BY kind,month'.($lock?' FOR UPDATE':''));$q->bind_param('i',$year);$q->execute();$rows=$q->get_result()->fetch_all(MYSQLI_ASSOC);$q->close();return $rows;}catch(mysqli_sql_exception $e){if($e->getCode()===1146)return [];throw $e;}
 }
 function ethicalSourceUnitInputs(array $rows): array {
     $parts=['existing'=>array_fill(0,12,null),'new'=>array_fill(0,12,null)];foreach($rows as $row){if(isset($parts[$row['kind']])&&(int)$row['month']>=1&&(int)$row['month']<=12)$parts[$row['kind']][(int)$row['month']-1]=$row['unit_target']===null?null:(float)$row['unit_target'];}return $parts;
 }
 function saveEthicalSource(mysqli $conn,string $period,array $data): void {
     $year=$data['year'];$payload=json_encode($data['inputs'],JSON_THROW_ON_ERROR|JSON_PRESERVE_ZERO_FRACTION);
-    $q=$conn->prepare('INSERT INTO ethical_source_inputs (report_year,payload,source_period) VALUES (?,?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),source_period=VALUES(source_period)');$q->bind_param('iss',$year,$payload,$period);$q->execute();$q->close();
-    $q=$conn->prepare('DELETE FROM ethical_source_monthly WHERE report_year=?');$q->bind_param('i',$year);$q->execute();$q->close();
-    $q=$conn->prepare('INSERT INTO ethical_source_monthly (report_year,kind,month,unit_target,hna_target) VALUES (?,?,?,?,?)');
+    $q=$conn->prepare('INSERT INTO `template ethical` (report_year,payload,source_period) VALUES (?,?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),source_period=VALUES(source_period)');$q->bind_param('iss',$year,$payload,$period);$q->execute();$q->close();
+    $q=$conn->prepare('DELETE FROM `ethical HNA dan UNIT` WHERE report_year=?');$q->bind_param('i',$year);$q->execute();$q->close();
+    $q=$conn->prepare('INSERT INTO `ethical HNA dan UNIT` (report_year,kind,month,unit_target,hna_target) VALUES (?,?,?,?,?)');
     foreach(['existing','new'] as $kind)for($month=1;$month<=12;$month++){$unit=$data['summary']['unit'][$kind][$month-1];$hna=$data['summary']['hna'][$kind][$month-1];$unit=$unit===null?null:number_format($unit,6,'.','');$hna=$hna===null?null:number_format($hna,6,'.','');$q->bind_param('isiss',$year,$kind,$month,$unit,$hna);$q->execute();}$q->close();
     $q=$conn->prepare("DELETE FROM `target unit sell out` WHERE report_year=? AND product='ethical'");$q->bind_param('i',$year);$q->execute();$q->close();
     $q=$conn->prepare("INSERT INTO `target unit sell out` (report_year,product,kind,month,units) VALUES (?,'ethical',?,?,?)");

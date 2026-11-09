@@ -139,9 +139,9 @@ try {
         $data[] = $record;
     }
     try{
-        $source=$conn->query('SELECT report_year,kind,month,unit_target,hna_target FROM ethical_source_monthly ORDER BY report_year,kind,month');
+        $source=$conn->query('SELECT report_year,kind,month,unit_target,hna_target FROM `ethical HNA dan UNIT` ORDER BY report_year,kind,month');
         $data=mergeEthicalSourceData($data,$source->fetch_all(MYSQLI_ASSOC));$source->free();
-        $inputs=$conn->query('SELECT report_year,payload FROM ethical_source_inputs');
+        $inputs=$conn->query('SELECT report_year,payload FROM `template ethical`');
         $data=mergeEthicalSourceActuals($data,$inputs->fetch_all(MYSQLI_ASSOC));$inputs->free();
     }catch(mysqli_sql_exception $sourceError){if($sourceError->getCode()!==1146)throw $sourceError;}
     usort($data, static fn($a, $b) => $b['year'] <=> $a['year']);

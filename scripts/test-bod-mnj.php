@@ -24,19 +24,33 @@ function compareBodBlock($source, $target, int $offset, bool $styles = true, boo
         }
         $expected = $source->getCell($address)->getValue();
         $actual = $target->getCell($destination)->getValue();
+        $numberCell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($column) >= 3
+            && ($sourceCell->isFormula() || is_numeric($expected))
+            && !str_contains($source->getStyle($address)->getNumberFormat()->getFormatCode(), '%');
+        if (is_numeric($expected) && preg_match('/\b20\d{2}\b/', (string)$source->getCell('B'.$row)->getValue(), $year) && (float)$expected === (float)$year[0]) $numberCell = false;
+        if ($numberCell && !$sourceCell->isFormula() && is_string($expected)) $expected = (float)$expected;
+        if ($numberCell && is_numeric($expected) && is_numeric($actual)) { $expected = (float)$expected; $actual = (float)$actual; }
         // ODF readers differ in collapsing literal whitespace in text paragraphs.
         if ($normalizeText && is_string($expected) && is_string($actual) && !$source->getCell($address)->isFormula()) {
             $expected = preg_replace('/\s+/u', ' ', trim($expected));
             $actual = preg_replace('/\s+/u', ' ', trim($actual));
         }
         checkBod($actual === $expected, 'Cell/formula changed at ' . $destination . ': ' . json_encode([$expected, $actual]));
-        if ($styles) checkBod($source->getStyle($address)->getHashCode() === $target->getStyle($destination)->getHashCode(), 'Style changed at ' . $destination);
+        if ($styles) {
+            $expectedStyle = $source->getStyle($address)->exportArray();
+            if ($numberCell) $expectedStyle['numberFormat']['formatCode'] = '#,##0';
+            checkBod($expectedStyle === $target->getStyle($destination)->exportArray(), 'Style changed at ' . $destination);
+        }
     }
 }
 // A small database adapter exercises upserts and year/month selection without a live database.
 class BodTestConnection
 {
     public array $records = [];
+    private array $snapshot = [];
+    public function begin_transaction() { $this->snapshot = $this->records; return true; }
+    public function commit() { $this->snapshot = []; return true; }
+    public function rollback() { $this->records = $this->snapshot; return true; }
     public function query($sql) { return true; }
     public function prepare($sql) { return new BodTestQuery($this, $sql); }
 }
@@ -48,7 +62,7 @@ class BodTestQuery
     public function __construct($conn, $sql) { $this->conn = $conn; $this->sql = $sql; }
     public function bind_param($types, &...$args) { $this->args = &$args; }
     public function execute() {
-        if (str_starts_with($this->sql, 'INSERT')) $this->conn->records[$this->args[0]] = $this->args[1];
+        if (str_starts_with($this->sql, 'INSERT INTO bod_mnj_files')) $this->conn->records[$this->args[0]] = $this->args[1];
         return true;
     }
     public function get_result() { return $this; }

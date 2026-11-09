@@ -774,7 +774,7 @@ try {
             }
         }
         $insert->close();
-        foreach(['ethical_source_inputs','ethical_source_monthly'] as $sourceTable){$clear=$conn->prepare('DELETE FROM `'.$sourceTable.'` WHERE report_year=?');$clear->bind_param('i',$sourceYear);$clear->execute();$clear->close();}
+        foreach(['template ethical','ethical HNA dan UNIT'] as $sourceTable){$clear=$conn->prepare('DELETE FROM `'.$sourceTable.'` WHERE report_year=?');$clear->bind_param('i',$sourceYear);$clear->execute();$clear->close();}
         $conn->commit();
         $conn->close();
 

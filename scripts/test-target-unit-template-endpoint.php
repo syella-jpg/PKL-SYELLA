@@ -20,17 +20,17 @@ $source=file_get_contents(__DIR__.'/../dashboard/report_input_template.php');
 $source=preg_replace('/^<\?php\s*/','',$source);
 // Keep all real template includes, replacing only the database connection dependency.
 $source=str_replace("require_once __DIR__.'/../includes/database.php';",'',$source);
-foreach([['TARGET UNIT SELL OUT','2026-09'],['TARGET UNIT SELL OUT','2027-01'],['ETHICAL','2026-09'],['ETHICAL','2027-01'],['UNIT & Revenue','2026-10'],['REVENUE VERSI EDP MNJ','2026-10'],['BOD KX Sell In','2026-10'],['BOD KX Sell In','2027-01']] as [$section,$period]){
+foreach([['TARGET REVENUE','2026-09'],['TARGET REVENUE','2027-01'],['TARGET UNIT SELL OUT','2026-09'],['TARGET UNIT SELL OUT','2027-01'],['ETHICAL','2026-09'],['ETHICAL','2027-01'],['UNIT & Revenue','2026-10'],['REVENUE VERSI EDP MNJ','2026-10'],['BOD KX Sell In','2026-10'],['BOD KX Sell In','2027-01']] as [$section,$period]){
     $_GET=['section'=>$section,'period'=>$period];
     ob_start();try{eval('namespace '.__NAMESPACE__.';'.$source);$xlsx=ob_get_contents();}finally{ob_end_clean();}
     if(!str_starts_with($xlsx,'PK'))throw new \RuntimeException('Download handler returned an error instead of Excel for '.$period);
     $path=tempnam('/tmp','endpoint-target-');try{
         file_put_contents($path,$xlsx);$loaded=\PhpOffice\PhpSpreadsheet\IOFactory::load($path);
-        $expected=$section==='BOD KX Sell In'?['PENJUALAN','ROD','_TEMPLATE']:($section==='ETHICAL'?['PRODUK NAS','_TEMPLATE']:(in_array($section,['UNIT & Revenue','REVENUE VERSI EDP MNJ'],true)?['UNIT','REVENUE','_TEMPLATE']:['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6','ETHICAL','IB','_TEMPLATE']));
+        $expected=$section==='TARGET REVENUE'?['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6','_TEMPLATE']:($section==='BOD KX Sell In'?['PENJUALAN','ROD','_TEMPLATE']:($section==='ETHICAL'?['PRODUK NAS','_TEMPLATE']:(in_array($section,['UNIT & Revenue','REVENUE VERSI EDP MNJ'],true)?['UNIT','REVENUE','_TEMPLATE']:['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6','ETHICAL','IB','_TEMPLATE'])));
         if($loaded->getSheetNames()!==$expected)throw new \RuntimeException('Wrong template sheets');
         if(!str_contains($loaded->getSheet(0)->getCell('A1')->getValue(),substr($period,0,4)))throw new \RuntimeException('Wrong template year');
         $loaded->disconnectWorksheets();
     }finally{unlink($path);}
 }
-if($connections!==7)throw new \RuntimeException('History connections must match section/year reset rules');
+if($connections!==8)throw new \RuntimeException('History connections must match section/year reset rules');
 echo "PASS actual template handler: September as first request, history dependencies loaded, valid separate GB sheets; January keeps GB inputs empty while checking current-year Ethical source\n";

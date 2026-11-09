@@ -162,6 +162,17 @@
     return sheet;
   };
 
+  global.formatBodMnjDownloadNumbers = function (sheet) {
+    for (const [address, cell] of Object.entries(sheet)) {
+      if (!/^[A-Z]+\d+$/.test(address) || !cell || global.XLSX.utils.decode_cell(address).c < 2 || String(cell.z || "").includes("%")) continue;
+      const rowYear = String(sheet["B" + (global.XLSX.utils.decode_cell(address).r + 1)]?.v ?? "").match(/\b20\d{2}\b/);
+      if (rowYear && Number(cell.v) === Number(rowYear[0])) continue;
+      if (typeof cell.v === "string" && /^-?\d+(?:\.\d+)?$/.test(cell.v.trim())) { cell.v = Number(cell.v); cell.t = "n"; }
+      if (typeof cell.v === "number" || cell.f) { cell.z = "#,##0"; delete cell.w; }
+    }
+    return sheet;
+  };
+
   global.replaceBodMnjTemplateSheet = async function (workbook, period) {
     if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period)) throw new Error("Periode BOD MNJ tidak valid.");
     const year = Number(period.slice(0, 4));
@@ -184,6 +195,7 @@
     if (previous) global.populateBodMnjYtd(previous, (year - 1) + period.slice(4));
     const sheet = global.combineBodMnjSheets(current, previous);
     global.scaleBodNonProduct2025(sheet);
+    global.formatBodMnjDownloadNumbers(sheet);
     if (!workbook.SheetNames.includes("BOD MNJ")) workbook.SheetNames.push("BOD MNJ");
     workbook.Sheets["BOD MNJ"] = sheet;
     global.fillEdpEthicalCost2025(workbook, period);

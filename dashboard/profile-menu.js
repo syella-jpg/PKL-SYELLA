@@ -10,11 +10,26 @@
   const profile = document.createElement('button');
   profile.type = 'button';
   profile.textContent = 'Profil Saya';
+  const clearStorage = document.createElement('button');
+  clearStorage.type = 'button';
+  clearStorage.textContent = 'Kosongkan penyimpanan lokal';
+  clearStorage.addEventListener('click', () => {
+    if (!window.confirm('Kosongkan penyimpanan lokal aplikasi di browser ini? Draf lokal, cache laporan, pengaturan tampilan, dan sesi login akan dihapus. Data database tetap tersimpan. Halaman akan dimuat ulang.')) return;
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (_) {
+      window.alert('Penyimpanan lokal belum berhasil dikosongkan seluruhnya. Periksa izin penyimpanan situs di browser, lalu coba lagi.');
+      return;
+    }
+    window.alert('Penyimpanan lokal berhasil dikosongkan. Halaman akan dimuat ulang; data dari database dapat muncul kembali.');
+    window.location.reload();
+  });
   const logout = document.createElement('a');
   logout.textContent = 'Keluar';
   logout.href = '../login/login.html';
   logout.addEventListener('click', () => { sessionStorage.removeItem('konimex_login_user'); });
-  menu.append(profile, logout);
+  menu.append(profile, clearStorage, logout);
   const style = document.createElement('style');
   style.textContent = `
     .dots .menu > button {display:block;width:100%;border:0;background:transparent;text-align:left;padding:10px 14px;font:inherit;color:inherit;cursor:pointer;}

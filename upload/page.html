@@ -230,14 +230,14 @@
   </form>
 </main>
 
-<script src="file-detection.js?v=bod-kx-input-template-20261106"></script>
+<script src="file-detection.js?v=target-revenue-20261109"></script>
 <script src="bod-upload-type.js?v=20261109"></script>
 <script src="../dashboard/report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="../dashboard/unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
 <script src="../dashboard/bod-kx-sell-in.js?v=source-type-20261109"></script>
 <script src="../dashboard/mtm-appendix.js?v=ytd-idr-qty-20261103"></script>
-<script src="../dashboard/report-templates.js?v=ib-mtm-period-history-20261104"></script>
+<script src="../dashboard/report-templates.js?v=bod-mnj-number-format-20261109"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -328,7 +328,7 @@
 
   function updateTemplateDownload() {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    const visible = ["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
+    const visible = ["TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
     const validPeriod = /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
     $("templateHelp").hidden = !visible;
     $("downloadTemplate").disabled = busy || !validPeriod;
@@ -339,7 +339,9 @@
       return;
     }
     $("templateTitle").textContent = "Template " + section + " · " + period;
-    $("templateDescription").textContent = section === "BOD KX Sell In"
+    $("templateDescription").textContent = section === "TARGET REVENUE"
+      ? "Enam sheet GB 1–6, masing-masing berisi rincian produk kategori A/B/C/D dan Non Target. Isi target dalam Rp (000); subtotal dan total dihitung otomatis. Baris produk boleh ditambah/dihapus. Unduhan lanjutan hanya memuat produk tersimpan. Januari dimulai kosong dengan 50 baris per kategori."
+      : section === "BOD KX Sell In"
       ? "Pilih jenis Laporan Penjualan atau ROD, lalu unggah lewat File Dokumen. Hasilnya otomatis mengisi sheet PENJUALAN atau ROD pada template. Sub Total dan Unit × Harga Beli dihitung otomatis. Template awal menyediakan 200 baris per tabel; unduhan lanjutan mengikuti isian tersimpan."
       : section === "ETHICAL"
       ? "Empat tabel rincian produk. Setiap bulan berisi TARGET dan REAL, masing-masing UNIT dan HNA; subtotal, Existing, dan NP dihitung otomatis. Upload sekali di ETHICAL untuk mengisi kedua laporan."
@@ -357,7 +359,7 @@
   window.addEventListener("pageshow", updateIbRateField);
   $("downloadTemplate").addEventListener("click", async () => {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    if (!["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
+    if (!["TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
     const button = $("downloadTemplate");
     button.disabled = true;
     try {
@@ -918,6 +920,19 @@
     if (sectionSelect.value === "IB" && !$("ibRate").reportValidity()) return;
     setBusy(true);
     try {
+      if (sectionSelect.value === "TARGET REVENUE") {
+        const probe = XLSX.read(await chosen.arrayBuffer(), {type:"array", bookSheets:false});
+        if (probe.Sheets._TEMPLATE?.A1?.v === "KONIMEX_TARGET_REVENUE_V1") {
+          const body = new FormData();
+          body.append("file", chosen); body.append("period", periodSelect.value);
+          const response = await fetch(TARGET_API_URL, {method:"POST", body});
+          const saved = await response.json();
+          if (!response.ok || !saved.success) throw new Error(saved.message || "Target Revenue gagal disimpan.");
+          barFill.style.width="100%";
+          setMsg("Target Revenue tahun " + saved.year + " berhasil disimpan di database. Rincian produk tersedia kembali melalui Unduh Template Excel.", "ok");
+          clearFile(); updateTemplateDownload(); return;
+        }
+      }
       if (sectionSelect.value === "TARGET UNIT SELL OUT") {
         const saved=await uploadUnitSellOutTargets(chosen,periodSelect.value);
         barFill.style.width="100%";
