@@ -7,6 +7,7 @@ require_once __DIR__.'/../includes/biaya_template_history.php';
 require_once __DIR__.'/../includes/unit_revenue_template_history.php';
 require_once __DIR__.'/../includes/unit_sell_out_input_template.php';
 require_once __DIR__.'/../includes/ethical_source_template.php';
+require_once __DIR__.'/../includes/bod_kx_sell_in_input_store.php';
 
 // Match the upload page's file:// and local-server access.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -19,15 +20,17 @@ try {
     $section = is_string($_GET['section'] ?? null) ? $_GET['section'] : '';
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
     reportInputTemplateSpec($section, $period);
-    $rebuildFromHistory = in_array($section,['BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL'],true) && (substr($period,5,2) !== '01' || $section==='TARGET UNIT SELL OUT');
+    $rebuildFromHistory = in_array($section,['BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL','BOD KX Sell In'],true) && (substr($period,5,2) !== '01' || in_array($section,['TARGET UNIT SELL OUT','BOD KX Sell In'],true));
     $book = $rebuildFromHistory ? null : buildReportInputTemplate($section, $period);
-    if ($section === 'MTM' || $section === 'TARGET UNIT SELL OUT' || (in_array($section,['IB','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL'],true) && substr($period,5,2) !== '01')) {
+    if ($section === 'MTM' || $section === 'TARGET UNIT SELL OUT' || $section === 'BOD KX Sell In' || (in_array($section,['IB','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL','BOD KX Sell In'],true) && substr($period,5,2) !== '01')) {
         require_once __DIR__.'/../includes/database.php';
         $conn = openReportConnection();
         try {
             if ($conn->connect_error) throw new RuntimeException('Database laporan tidak dapat dihubungkan.');
             $conn->set_charset('utf8mb4');
-            if ($section === 'ETHICAL') {
+            if ($section === 'BOD KX Sell In') {
+                $book=buildBodKxInputTemplate($period,loadBodKxInputHistory($conn,$period));
+            } elseif ($section === 'ETHICAL') {
                 ensureEthicalSourceStore($conn);$year=(int)substr($period,0,4);
                 $query=$conn->prepare('SELECT report_year,payload FROM ethical_source_inputs WHERE report_year=?');
                 $query->bind_param('i',$year);$query->execute();$record=$query->get_result()->fetch_assoc();$query->close();
@@ -65,7 +68,7 @@ try {
     }
     $stream = fopen('php://temp', 'w+b');
     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book);
-    if (in_array($section,['TARGET UNIT SELL OUT','ETHICAL','UNIT & Revenue','REVENUE VERSI EDP MNJ'],true)) {
+    if (in_array($section,['TARGET UNIT SELL OUT','ETHICAL','UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In'],true)) {
         // Excel/Calc recalculates the visible summaries on open and on edits.
         $writer->setPreCalculateFormulas(false)->setForceFullCalc(true);
     }

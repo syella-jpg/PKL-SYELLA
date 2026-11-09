@@ -3,9 +3,11 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 function parseBodKxSellInMonthly(Worksheet $sheet, string $period): array {
     $normal = fn($v) => strtoupper(preg_replace('/\s+/u',' ',trim((string)$v)));
     $months=['JANUARI'=>1,'FEBRUARI'=>2,'MARET'=>3,'APRIL'=>4,'MEI'=>5,'JUNI'=>6,'JULI'=>7,'AGUSTUS'=>8,'SEPTEMBER'=>9,'OKTOBER'=>10,'NOVEMBER'=>11,'DESEMBER'=>12];
-    $rows=$sheet->toArray(null,false,false,false);
+    $rows=[];
+    foreach($sheet->getCellCollection()->getCoordinates() as $address){[$column,$row]=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::coordinateFromString($address);$rows[$row-1][\PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($column)-1]=$sheet->getCell($address)->getValue();}
+    ksort($rows);
     $unit=null;$rupiah=null;$header=null;
-    foreach(array_slice($rows,0,20,true) as $r=>$row) foreach($row as $c=>$value){
+    foreach($rows as $r=>$row) foreach($row as $c=>$value){
         // A single-month heading only; cumulative headings never match this expression.
         if(!preg_match('/^BULAN ('.implode('|',array_keys($months)).') (20\d{2})$/',$normal($value),$m))continue;
         $sourcePeriod=$m[2].'-'.str_pad($months[$m[1]],2,'0',STR_PAD_LEFT);
@@ -28,8 +30,8 @@ function parseBodKxSellInMonthly(Worksheet $sheet, string $period): array {
     };
     $result=[];
     foreach($rows as $r=>$row){
-        if($r<=$header||!in_array('SUB TOTAL',array_map($normal,array_slice($row,0,$unit)),true))continue;
-        $label=$normal(implode(' ',array_map(fn($v)=>is_scalar($v)?$v:'',array_slice($row,0,$unit))));
+        if($r<=$header||!in_array('SUB TOTAL',array_map($normal,array_filter($row,static fn($c)=>$c<$unit,ARRAY_FILTER_USE_KEY)),true))continue;
+        $label=$normal(implode(' ',array_map(fn($v)=>is_scalar($v)?$v:'',array_filter($row,static fn($c)=>$c<$unit,ARRAY_FILTER_USE_KEY))));
         $code=null;
         if(preg_match('/\bGB\s*([1-6])\b/',$label,$m))$code='gb'.$m[1];
         elseif(str_contains($label,'INTERNATIONAL BUSINESS PHARMA'))$code='ib_pharma';
@@ -40,7 +42,7 @@ function parseBodKxSellInMonthly(Worksheet $sheet, string $period): array {
         elseif(str_contains($label,'KODC')||str_contains($label,'KONIMEX DIAGNOSTIC CENTER'))$code='kodc';
         if(!$code)continue; // The grand Sub Total and item detail rows are excluded.
         if(isset($result[$code]))throw new InvalidArgumentException('Baris Sub Total '.$code.' berulang; periksa file.');
-        $result[$code]=['product'=>$code,'units'=>$number($row[$unit]??null),'rupiah'=>$number($row[$rupiah]??null)];
+        $result[$code]=['product'=>$code,'units'=>$number($sheet->getCell([$unit+1,$r+1])->getCalculatedValue()),'rupiah'=>$number($sheet->getCell([$rupiah+1,$r+1])->getCalculatedValue())];
     }
     if(!$result)throw new InvalidArgumentException('Baris Sub Total per Group Brand tidak ditemukan.');
     return array_values($result);

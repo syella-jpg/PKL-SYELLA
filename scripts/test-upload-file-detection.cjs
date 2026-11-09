@@ -81,3 +81,5 @@ result = detect(book({TARGET:['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6'],REALISA
 assert.deepEqual(result.choices.map(c=>c.section),['BIAYA']);
 
 result=detect(book({UNIT:[],REVENUE:[],_TEMPLATE:['KONIMEX_UNIT_REVENUE_V2','UNIT & Revenue']}),'renamed.ods');assert.deepEqual(result.choices.map(c=>c.section),['UNIT & Revenue']);
+result=detect(book({PENJUALAN:['BULAN JANUARI 2026','BULAN DESEMBER 2026'],ROD:['ROD Unit Terkecil Dari Unit Pesan','Nilai ROD Unit Terkecil Dari Unit Pesan'],_TEMPLATE:['KONIMEX_BOD_KX_SELL_IN_V1','BOD KX Sell In',2026,'2026-10']}),'renamed.ods');
+assert.deepEqual(result.choices.map(c=>c.section),['BOD KX Sell In']);assert.equal(result.year,2026);assert.equal(result.month,10);

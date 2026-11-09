@@ -18,8 +18,8 @@
   if(value!==null){cell.v=value;if(formula)cell.f=formula;}
   sheet[address]=cell;
  }
- global.uploadBodKxSellInFile=async(file,period)=>{
-  const body=new FormData();body.append('file',file);body.append('period',period);
+ global.uploadBodKxSellInFile=async(file,period,sourceType="")=>{
+  const body=new FormData();body.append('file',file);body.append('period',period);if(sourceType)body.append('source_type',sourceType);
   const response=await fetch(endpoint,{method:'POST',body});const result=await response.json();
   if(!response.ok||!result.success)throw new Error(result.message||'BOD KX SELL IN gagal disimpan.');
   return result;

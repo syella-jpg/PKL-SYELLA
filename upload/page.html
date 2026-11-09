@@ -107,6 +107,7 @@
   .template-help p { font-size: 11px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
   #downloadTemplate { flex-shrink: 0; padding: 10px 12px; border: 1px solid #e31e24; border-radius: 9px; color: #c8141a; background: #fff; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
   #downloadTemplate:disabled { opacity: .55; cursor: wait; }
+  #bodUploadTypeHelp { font-size:12px;color:#64748b;line-height:1.6;margin:8px 0 16px; }
   @media (max-width: 520px) {
     .template-help { align-items: flex-start; flex-direction: column; }
     header { padding: 0 14px; }
@@ -167,6 +168,18 @@
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
     </div>
 
+    <div id="bodUploadTypeWrap" hidden>
+      <label class="label" for="bodUploadType">Jenis File BOD KX Sell In</label>
+      <div class="select-wrap">
+        <select id="bodUploadType" aria-describedby="bodUploadTypeHelp" disabled>
+          <option value="sales">Laporan Penjualan</option>
+          <option value="rod">ROD</option>
+        </select>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <p id="bodUploadTypeHelp"></p>
+    </div>
+
     <label class="label" for="periode">Periode Laporan</label>
     <div class="select-wrap">
       <select id="periode" required aria-label="Periode laporan"></select>
@@ -217,11 +230,12 @@
   </form>
 </main>
 
-<script src="file-detection.js?v=unit-revenue-gb-tables-20261106"></script>
+<script src="file-detection.js?v=bod-kx-input-template-20261106"></script>
+<script src="bod-upload-type.js?v=20261109"></script>
 <script src="../dashboard/report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="../dashboard/unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
-<script src="../dashboard/bod-kx-sell-in.js"></script>
+<script src="../dashboard/bod-kx-sell-in.js?v=source-type-20261109"></script>
 <script src="../dashboard/mtm-appendix.js?v=ytd-idr-qty-20261103"></script>
 <script src="../dashboard/report-templates.js?v=ib-mtm-period-history-20261104"></script>
 <script>
@@ -273,6 +287,7 @@
   }
   function updateIbRateField() {
     updateTemplateDownload();
+    window.updateBodUploadType?.();
     const isIb = sectionSelect.value.trim().toUpperCase() === "IB";
     $("ibRateWrap").hidden = !isIb;
     $("ibRate").disabled = !isIb;
@@ -313,7 +328,7 @@
 
   function updateTemplateDownload() {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    const visible = ["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL"].includes(section);
+    const visible = ["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
     const validPeriod = /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
     $("templateHelp").hidden = !visible;
     $("downloadTemplate").disabled = busy || !validPeriod;
@@ -324,7 +339,9 @@
       return;
     }
     $("templateTitle").textContent = "Template " + section + " · " + period;
-    $("templateDescription").textContent = section === "ETHICAL"
+    $("templateDescription").textContent = section === "BOD KX Sell In"
+      ? "Pilih jenis Laporan Penjualan atau ROD, lalu unggah lewat File Dokumen. Hasilnya otomatis mengisi sheet PENJUALAN atau ROD pada template. Sub Total dan Unit × Harga Beli dihitung otomatis. Template awal menyediakan 200 baris per tabel; unduhan lanjutan mengikuti isian tersimpan."
+      : section === "ETHICAL"
       ? "Empat tabel rincian produk. Setiap bulan berisi TARGET dan REAL, masing-masing UNIT dan HNA; subtotal, Existing, dan NP dihitung otomatis. Upload sekali di ETHICAL untuk mengisi kedua laporan."
       : section === "TARGET UNIT SELL OUT"
       ? "Sheet GB 1–6 terpisah, masing-masing dengan tabel kategori A/B/C/D dengan baris produk yang dapat ditambah/dikurangi dan subtotal otomatis; Ethical terisi otomatis dari upload bagian ETHICAL; IB berisi tabel UNIT dua KPI kumulatif dan kalkulasi bulanan, tersambung dengan HRU pada template IB. Ringkasan dihitung otomatis. Isian diteruskan pada tahun yang sama; Januari dimulai kosong."
@@ -340,7 +357,7 @@
   window.addEventListener("pageshow", updateIbRateField);
   $("downloadTemplate").addEventListener("click", async () => {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    if (!["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL"].includes(section) || !period) return;
+    if (!["IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
     const button = $("downloadTemplate");
     button.disabled = true;
     try {
@@ -774,6 +791,8 @@
     btnText.textContent = on ? "Mengunggah..." : "Upload File";
     bar.classList.toggle("on", on);
     if (!on) barFill.style.width = "0";
+    updateTemplateDownload();
+    window.updateBodUploadType?.();
   }
 
   async function parseBiayaPreview(file) {
@@ -907,10 +926,10 @@
         return;
       }
       if (sectionSelect.value === "BOD KX Sell In") {
-        const saved = await uploadBodKxSellInFile(chosen, periodSelect.value);
+        const saved = await uploadBodKxSellInFile(chosen, periodSelect.value, $("bodUploadType").value);
         barFill.style.width = "100%";
-        setMsg(saved.kind === "target" ? "Target SELL IN tahun " + saved.year + " berhasil disimpan dari nilai ROD per GB untuk Januari–Desember." : "BOD KX SELL IN berhasil disimpan untuk " + periodSelect.value + ".", "ok");
-        clearFile(); sectionSelect.value = ""; updateIbRateField();
+        setMsg(saved.source === "monthly" ? "Laporan penjualan " + periodSelect.value + " berhasil disimpan ke database dan template. Klik Unduh Template Excel untuk melihat hasilnya." : saved.source === "rod" ? "ROD tahun " + saved.year + " berhasil disimpan. Harga Beli dan unit per produk terisi pada sheet ROD di template; Nilai ROD dihitung dari Unit × Harga Beli. Klik Unduh Template Excel untuk melihat hasilnya." : saved.kind === "combined" ? "BOD KX SELL IN tahun " + saved.year + " berhasil disimpan di database: penjualan bulanan serta target ROD dalam unit dan rupiah. Rincian produk tersedia kembali saat mengunduh template." : saved.kind === "target" ? "Target SELL IN tahun " + saved.year + " berhasil disimpan dari nilai ROD per GB untuk Januari–Desember." : "BOD KX SELL IN berhasil disimpan untuk " + periodSelect.value + ".", "ok");
+        clearFile(); updateIbRateField();
         return;
       }
       if (sectionSelect.value === "BOD MNJ") {
@@ -1107,6 +1126,7 @@
     localStorage.removeItem(ETHICAL_HJP_KEY);
     setMsg("Data laporan yang tersimpan di browser sudah dihapus.", "ok");
   });
+  window.initBodUploadType({ section:sectionSelect, period:periodSelect, isBusy:()=>busy });
 </script>
 </body>
 </html>

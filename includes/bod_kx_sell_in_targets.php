@@ -1,8 +1,8 @@
 <?php
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 function isBodKxRodSheet(Worksheet $sheet): bool {
-    foreach($sheet->rangeToArray('A2:CX2',null,false,false)[0] as $v)
-        if(strtoupper(preg_replace('/\s+/u',' ',trim((string)$v)))==='NILAI ROD UNIT TERKECIL DARI UNIT PESAN')return true;
+    foreach($sheet->getCellCollection()->getCoordinates() as $address)
+        if(strtoupper(preg_replace('/\s+/u',' ',trim((string)$sheet->getCell($address)->getValue())))==='NILAI ROD UNIT TERKECIL DARI UNIT PESAN')return true;
     return false;
 }
 function parseBodKxRodTargets(Worksheet $sheet,int $year): array {
