@@ -40,10 +40,10 @@ try {
             throw new RuntimeException('Gagal menyiapkan kolom data IB.');
         }
     }
-    $records=loadIbPeriodHistory($conn,$requestedPeriod);
+    $records=loadIbPeriodHistory($conn,$requestedPeriod,true);
     $data=['period'=>null,'target'=>array_fill(0,12,null),'actual'=>array_fill(0,12,null),'targetFd'=>array_fill(0,12,null),'actualFd'=>array_fill(0,12,null),'newTarget'=>array_fill(0,12,null),'newActual'=>array_fill(0,12,null),'newTargetFd'=>array_fill(0,12,null),'newActualFd'=>array_fill(0,12,null),'mcmTarget'=>array_fill(0,12,null),'mcmActual'=>array_fill(0,12,null)];
     foreach($records as $row){ $i=(int)$row['month_number']-1; if($i<0||$i>11)continue; $data['period']=$row['report_period']; $data['target'][$i]=$row['target_ib_fm']===null?null:(float)$row['target_ib_fm']; $data['actual'][$i]=$row['actual_ib_fm']===null?null:(float)$row['actual_ib_fm']; $data['targetFd'][$i]=$row['target_ib_fd']===null?null:(float)$row['target_ib_fd']; $data['actualFd'][$i]=$row['actual_ib_fd']===null?null:(float)$row['actual_ib_fd']; $data['newTarget'][$i]=$row['target_new_ib_fm']===null?null:(float)$row['target_new_ib_fm']; $data['newActual'][$i]=$row['actual_new_ib_fm']===null?null:(float)$row['actual_new_ib_fm']; $data['newTargetFd'][$i]=$row['target_new_ib_fd']===null?null:(float)$row['target_new_ib_fd']; $data['newActualFd'][$i]=$row['actual_new_ib_fd']===null?null:(float)$row['actual_new_ib_fd']; $data['mcmTarget'][$i]=$row['target_mcm']===null?null:(float)$row['target_mcm']; $data['mcmActual'][$i]=$row['actual_mcm']===null?null:(float)$row['actual_mcm']; }
-    $sum=static function(array $values):?float { return in_array(null,$values,true)?null:array_sum($values); };
+    $sum=static function(array $values):?float { $known=array_filter($values,static fn($value)=>$value!==null); return $known ? array_sum($known) : null; };
     $sumYtd=static function(array $values,int $month):?float {
         $selected=array_slice($values,0,$month);
         if (!array_filter($selected,static fn($value)=>$value!==null)) return null;

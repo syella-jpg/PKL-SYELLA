@@ -896,7 +896,10 @@
         const write = (row, values, ytd, total) => {
           put("D" + row, ytd);
           values.forEach((value, index) => put(String.fromCharCode(70 + index) + row, value));
-          put("R" + row, total);
+          const annualValues = values.filter(value => typeof value === "number" && Number.isFinite(value));
+          const annualTotal = annualValues.length ? annualValues.reduce((sum, value) => sum + value, 0) : null;
+          put("R" + row, annualTotal);
+          if (annualTotal !== null) sheet["R" + row].f = "SUM(F" + row + ":Q" + row + ")";
         };
         const numeric = value => typeof value === "number" && Number.isFinite(value);
         const addMonthly = (first, second) => Array.from({ length: 12 }, (_, index) => {

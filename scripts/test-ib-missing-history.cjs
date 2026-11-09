@@ -25,6 +25,17 @@ vm.createContext(ctx);vm.runInContext(fs.readFileSync('dashboard/report-template
  previous.period='2025-12';previous.target[0]=7;previous.fullYear.target=7;
  book={SheetNames:[],Sheets:{}};await ctx.window.replaceIBTemplateSheet(book,'2026-11');
  assert.equal(book.Sheets.IB.F46.v,7);assert.equal(book.Sheets.IB.F47.v,'');
+ // Annual MCM target remains complete; actuals use only known reported months.
+ current=blank();current.period='2026-11';
+ current.mcmTarget=Array(12).fill(10);current.mcmActual=Array(9).fill(8).concat(Array(3).fill(null));
+ current.ytd={mcmTarget:90,mcmActual:72};current.fullYear={mcmTarget:120,mcmActual:null};current.usdRate=16700;
+ book={SheetNames:[],Sheets:{}};await ctx.window.replaceIBTemplateSheet(book,'2026-09');
+ const sheet=book.Sheets.IB;
+ assert.equal(sheet.Q4.v,10);assert.equal(sheet.D4.v,90);assert.equal(sheet.R4.v,120);assert.equal(sheet.R4.f,'SUM(F4:Q4)');
+ assert.equal(sheet.Q5.v,'');assert.equal(sheet.R5.v,72);assert.equal(sheet.R5.f,'SUM(F5:Q5)');
+ assert.equal(sheet.R22.v,120*16700/1000);assert(sheet.R22.f.includes('R4*$C$20/1000'));
+ assert.equal(sheet.R23.v,72*16700/1000);assert(sheet.R23.f.includes('R5*$C$20/1000'));
+ assert.equal(sheet.Q23.v,'');
  fail=true;await assert.rejects(()=>ctx.window.replaceIBTemplateSheet({SheetNames:[],Sheets:{}},'2026-11'),/database failure/);
  console.log('PASS missing prior-year/partial IB keeps available data, unknown values blank, zeros retained; backend failures still reported.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

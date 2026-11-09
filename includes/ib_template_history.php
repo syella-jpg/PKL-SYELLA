@@ -9,7 +9,7 @@ function ibHistoryPeriod(string $period): array
 }
 
 /** Prefer an existing historical snapshot; otherwise use the earliest later upload, limited to the requested months. */
-function loadIbPeriodHistory(mysqli $conn,string $period): array
+function loadIbPeriodHistory(mysqli $conn,string $period,bool $annualTargets=false): array
 {
     [$year] = ibHistoryPeriod($period);
     try {
@@ -18,6 +18,36 @@ function loadIbPeriodHistory(mysqli $conn,string $period): array
                 WHERE report_period LIKE CONCAT(?,"-%")) ORDER BY month_number');
         $stmt->bind_param('ss',$period,$year);$stmt->execute();
         $records=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);$stmt->close();
+        if ($annualTargets) {
+            // Annual targets remain visible even when an earlier report uses a later upload.
+            // Actuals stop at the report period, independently of the source snapshot.
+            $month=(int)substr($period,5,2);
+            $byMonth=[];
+            foreach ($records as $record) $byMonth[(int)$record['month_number']]=$record;
+            $missingMcm=false;
+            for($m=1;$m<=12;$m++) if(($byMonth[$m]['target_mcm']??null)===null) {$missingMcm=true;break;}
+            if($missingMcm) {
+                // A historical upload may only have targets through its own month.
+                // Fill its missing MCM target months from the latest known annual plan.
+                $targetQuery=$conn->prepare('SELECT report_period,month_number,target_mcm FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,"-%") AND target_mcm IS NOT NULL ORDER BY report_period DESC,month_number');
+                $targetQuery->bind_param('s',$year);$targetQuery->execute();
+                $annual=$targetQuery->get_result()->fetch_all(MYSQLI_ASSOC);$targetQuery->close();
+                $sourcePeriod=$records[0]['report_period']??$period;
+                $fields=['target_ib_fm','actual_ib_fm','target_ib_fd','actual_ib_fd','target_new_ib_fm','actual_new_ib_fm','target_new_ib_fd','actual_new_ib_fd','target_mcm','actual_mcm'];
+                foreach($annual as $target) {
+                    $m=(int)$target['month_number'];
+                    if($m<1||$m>12||substr((string)$target['report_period'],0,4)!==$year||($target['target_mcm']??null)===null)continue;
+                    if(!isset($byMonth[$m]))$byMonth[$m]=array_merge(array_fill_keys($fields,null),['report_period'=>$sourcePeriod,'month_number'=>$m]);
+                    if($byMonth[$m]['target_mcm']===null)$byMonth[$m]['target_mcm']=$target['target_mcm'];
+                }
+                ksort($byMonth);$records=array_values($byMonth);
+            }
+            foreach ($records as &$record) if ((int)$record['month_number']>$month) {
+                foreach (array_keys($record) as $key) if (str_starts_with($key,'actual_')) $record[$key]=null;
+            }
+            unset($record);
+            return $records;
+        }
         return array_values(array_filter($records,static fn($r)=>$r['report_period']<=$period || (int)$r['month_number']<=(int)substr($period,5,2)));
     } catch(mysqli_sql_exception $error) {
         if($error->getCode()===1146)return [];
