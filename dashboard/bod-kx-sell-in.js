@@ -108,6 +108,36 @@
     setNumber(unit,r,15,sum(values),`SUM(D${r+1}:O${r+1})`);
    }
   }
+  global.syncUnitIbRevenue(workbook,period);
+ };
+ // Revenue IB Sell Out follows the corresponding Sell In row; target tables are independent.
+ global.syncUnitIbRevenue=function(workbook,period){
+  const sheet=workbook.Sheets.UNIT;if(!sheet)return;
+  const utils=global.XLSX.utils,year=Number(period.slice(0,4)),month=Number(period.slice(5,7));
+  const normalize=value=>String(value??'').trim().toUpperCase().replace(/\s+/g,' ');
+  const rows=utils.sheet_to_json(sheet,{header:1,defval:'',raw:true}),sections=new Map();let active=null;
+  rows.forEach((row,r)=>{
+   const heading=row.map(normalize).map(value=>/^REVENUE TAHUN (20\d{2}) \(SELL (IN|OUT)\)$/.exec(value)).find(Boolean);
+   if(heading){active={year:Number(heading[1]),kind:heading[2]};return;}
+   if(row.some(value=>/^(?:REVENUE TAHUN|TARGET(?: SELL OUT| SELL IN)? TAHUN)/.test(normalize(value))))active=null;
+   if(active&&normalize(row[1])==='IB'){
+    const pair=sections.get(active.year)||{};pair[active.kind]=r;sections.set(active.year,pair);
+   }
+  });
+  for(const targetYear of [year,year-1]){
+   const pair=sections.get(targetYear);if(pair?.IN===undefined||pair?.OUT===undefined)continue;
+   const values=[];
+   for(let m=0;m<12;m++){
+    const source=utils.encode_cell({r:pair.IN,c:m+3});
+    // Temporary reporting rule pending confirmation: only SELL OUT January 2025 is zero.
+    const january2025=targetYear===2025&&m===0,value=january2025?0:numeric(sheet[source]?.v);
+    values.push(value);setNumber(sheet,pair.OUT,m+3,value,january2025?undefined:source);
+   }
+   const row=pair.OUT+1;
+   setNumber(sheet,pair.OUT,2,sum(values.slice(0,month)),`SUM(D${row}:${utils.encode_col(month+2)}${row})`);
+   setNumber(sheet,pair.OUT,15,sum(values),`SUM(D${row}:O${row})`);
+   for(let c=2;c<=15;c++)sheet[utils.encode_cell({r:pair.OUT,c})].z='#,##0';
+  }
  };
  global.fillSellingInReportTargets=function(workbook,period){
   const report=workbook.Sheets.LAPORAN,source=workbook.Sheets['BOD KX SELL IN'],utils=global.XLSX.utils;
