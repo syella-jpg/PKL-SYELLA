@@ -37,7 +37,7 @@ function writeBodKxInputState(mysqli $conn,string $period,array $state): void {
     $year=$state['year'];$payload=gzencode(json_encode($state,JSON_THROW_ON_ERROR|JSON_PRESERVE_ZERO_FRACTION),6);
     $q=$conn->prepare('UPDATE `BOD KX SELL IN TEMPLATE` SET report_period=?,payload=?,updated_at=NOW() WHERE report_year=?');$q->bind_param('ssi',$period,$payload,$year);$q->execute();$q->close();
 }
-/** Empty months/groups preserve saved inputs; an explicit zero replaces their values. */
+/** Partial imports preserve blanks; a validated combined template also declares the ROD product list. */
 function mergeBodKxInputState(array $saved,array $incoming): array {
     if($saved['year']!==$incoming['year'])throw new InvalidArgumentException('Tahun rincian BOD KX SELL IN berbeda.');
     $state=bodKxInputEmptyState($incoming['year']);if(isset($saved['monthly_imports']))$state['monthly_imports']=$saved['monthly_imports'];if(!empty($saved['rod_imported']))$state['rod_imported']=true;$touches=['sales'=>[],'rod'=>[]];
@@ -46,6 +46,13 @@ function mergeBodKxInputState(array $saved,array $incoming): array {
         $replace=[];
         foreach($incoming[$kind] as $record){$group=$record['product'];foreach($fields as $field)foreach($record[$field] as $m=>$value)if($value!==null)$replace[$group][$m][$field]=true;}
         $touches[$kind]=$replace;
+        if($rod&&!empty($incoming['_rod_template'])){
+            $present=[];foreach($incoming['rod'] as $record)$present[bodKxInputKey($record,true)]=true;
+            foreach($map as $key=>$record)if(!isset($present[$key])){
+                foreach($record['units'] as $m=>$value)if($value!==null)$touches['rod'][$record['product']][$m]['units']=true;
+                unset($map[$key]);
+            }
+        }
         // A corrected price changes every existing monthly value for that product.
         if($rod)foreach($incoming[$kind] as $record){$old=$map[bodKxInputKey($record,true)]??null;if($old&&$record['price']!==null&&$record['price']!==$old['price'])foreach($old['units'] as $m=>$value)if($value!==null)$touches[$kind][$record['product']][$m]['units']=true;}
         foreach($map as &$record)foreach($replace[$record['product']]??[] as $m=>$flags)foreach($flags as $field=>$yes)$record[$field][$m]=null;unset($record);
@@ -75,12 +82,22 @@ function saveBodKxCombinedInput(mysqli $conn,string $period,array $incoming): ar
         $saved=lockBodKxInputState($conn,$period);
         if(!empty($incoming['_rod_import']))$saved['rod']=[];
         $merged=mergeBodKxInputState($saved,$incoming);
+        $deletedRodGroups=!empty($incoming['_rod_template'])
+            ?array_values(array_unique(array_diff(array_column($saved['rod'],'product'),array_column($merged['state']['rod'],'product'))))
+            :[];
+        if(!empty($incoming['_empty_template'])&&!$deletedRodGroups)throw new InvalidArgumentException('Template BOD KX SELL IN masih kosong. Isi penjualan atau target ROD sebelum upload.');
         if(!empty($incoming['_rod_import'])){
             $merged['state']['rod_imported']=true;
             foreach($incoming['rod'] as $record)foreach(range(0,11) as $m)$merged['touches']['rod'][$record['product']][$m]['units']=true;
             $q=$conn->prepare('DELETE FROM `BOD KX SELL IN target` WHERE report_year=?');$q->bind_param('i',$year);$q->execute();$q->close();
         }
         $totals=bodKxInputAggregates($merged['state'],$merged['touches']);
+        if($deletedRodGroups){
+            $q=$conn->prepare('DELETE FROM `BOD KX SELL IN target` WHERE report_year=? AND product=?');
+            foreach($deletedRodGroups as $group){$q->bind_param('is',$year,$group);$q->execute();}$q->close();
+            // A removed group has no target rows; do not recreate it with null aggregates.
+            $totals['rod']=array_values(array_filter($totals['rod'],static fn($row)=>!in_array($row['product'],$deletedRodGroups,true)));
+        }
         if(isset($incoming['_monthly_import']))$merged['state']['monthly_imports'][(int)$incoming['_monthly_import']]=true;
         foreach($totals['sales'] as $record){$p=$year.'-'.str_pad((string)$record['month'],2,'0',STR_PAD_LEFT);$updates=[];foreach(['units','rupiah'] as $field)if(isset($record['fields'][$field]))$updates[]=$field.'=VALUES('.$field.')';
             $q=$conn->prepare('INSERT INTO bod_kx_sell_in_monthly (report_period,product,units,rupiah) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE '.implode(',',$updates).',updated_at=NOW()');$q->bind_param('ssss',$p,$record['product'],$record['units'],$record['rupiah']);$q->execute();$q->close();

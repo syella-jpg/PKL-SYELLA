@@ -30,7 +30,8 @@ try{
   $year=(int)substr($period,0,4);$targetSheet=$book->getSheetByName((string)$year);
   if(isBodKxInputTemplate($book)){
    if(($_POST['monthly_template']??'')==='1')throw new InvalidArgumentException('Pilih file laporan penjualan bulanan asli. Template gabungan diunggah melalui File Dokumen.');
-   $combined=parseBodKxInputTemplate($book,$period);
+   $combined=parseBodKxInputTemplate($book,$period,true);
+   $combined['_rod_template']=true;
   }
   else {
    $rodSheets=[];foreach($book->getAllSheets() as $candidate)if(isBodKxRodSheet($candidate))$rodSheets[]=$candidate;$isTarget=(bool)$rodSheets;

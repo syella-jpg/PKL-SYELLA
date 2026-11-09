@@ -102,7 +102,7 @@ function bodKxInputCellNumber(Worksheet $sheet,int $column,int $row): ?float {
     $cell=$sheet->getCell([$column,$row]);try{$value=$cell->getCalculatedValue();}catch(Throwable $e){throw new InvalidArgumentException('Rumus tidak dapat dihitung pada '.$sheet->getTitle().' '.$cell->getCoordinate().'.');}
     return bodKxInputNumber($value,$sheet->getTitle().' '.$cell->getCoordinate());
 }
-function parseBodKxInputTemplate(Spreadsheet $book,string $period): array {
+function parseBodKxInputTemplate(Spreadsheet $book,string $period,bool $allowRodDeletion=false): array {
     [$year]=bodKxInputPeriod($period);if(!isBodKxInputTemplate($book)||(int)$book->getSheetByName('_TEMPLATE')->getCell('A3')->getValue()!==$year)throw new InvalidArgumentException('Tahun template BOD KX SELL IN tidak sesuai periode upload.');
     $result=['year'=>$year,'sales'=>[],'rod'=>[]];$hasInput=false;
     foreach(['PENJUALAN'=>'sales','ROD'=>'rod'] as $name=>$kind){$sheet=$book->getSheetByName($name);if(!$sheet)throw new InvalidArgumentException('Sheet '.$name.' tidak ditemukan.');$rod=$kind==='rod';$seen=[];
@@ -118,6 +118,10 @@ function parseBodKxInputTemplate(Spreadsheet $book,string $period): array {
             if(isset($seen[$key]))throw new InvalidArgumentException('Produk berulang pada '.$name.' baris '.$row.'.');$seen[$key]=true;$result[$kind][]=$record;$hasInput=$hasInput||$has;
         }
     }
-    if(!$hasInput)throw new InvalidArgumentException('Template BOD KX SELL IN masih kosong. Isi penjualan atau target ROD sebelum upload.');
+    if(!$hasInput){
+        if(!$allowRodDeletion)throw new InvalidArgumentException('Template BOD KX SELL IN masih kosong. Isi penjualan atau target ROD sebelum upload.');
+        // The store must confirm an existing ROD deletion before accepting an empty workbook.
+        $result['_empty_template']=true;
+    }
     return $result;
 }

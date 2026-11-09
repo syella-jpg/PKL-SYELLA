@@ -751,6 +751,7 @@ if ($bodBook) {
 }
 fillEdpEthicalCost2025($output, $period);
 fillEdpEthicalCost2025($output, $period, 2026);
+fillEdpEthicalBudget($output, $period);
 fillEdpMcmEthical($output);
 $conn->close();
 $filename = 'Revenue_Konimex_Selling_In_' . str_replace('-', '_', $period) . '.xlsx';

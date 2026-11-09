@@ -356,7 +356,7 @@ function buildBodMnjWorkbook(int $year, string $period, $conn = null): ?Spreadsh
 }
 
 /** Populate only the requested actual cost ETHICAL row; other sections stay intact. */
-function fillEdpEthicalCost2025(Spreadsheet $book, string $period, int $year = 2025): void
+function fillEdpEthicalCost2025(Spreadsheet $book, string $period, int $year = 2025, string $targetSection = 'BIAYA TAHUN'): void
 {
     $target=$book->getSheetByName('REVENUE EDP MNJ');
     $source=$book->getSheetByName('BOD MNJ');
@@ -375,7 +375,7 @@ function fillEdpEthicalCost2025(Spreadsheet $book, string $period, int $year = 2
         return null;
     };
     $from=$find($source,'BIAYA PROMOSI MNJ TH '.$year,'ETHICAL');
-    $to=$find($target,'BIAYA TAHUN '.$year,'TOTAL ETHICAL');
+    $to=$find($target,$targetSection.' '.$year,'TOTAL ETHICAL');
     if(!$from || !$to)return;
     $values=[];
     for($m=0;$m<12;$m++) {
@@ -393,6 +393,12 @@ function fillEdpEthicalCost2025(Spreadsheet $book, string $period, int $year = 2
         if(!count(array_filter($selected,static fn($v)=>$v!==null)))$cell->setValue(null);
         else {$cell->setValue('=SUM(D'.$to.':'.Coordinate::stringFromColumnIndex($count+3).$to.')');$cell->setCalculatedValue(array_sum($selected));}
     }
+}
+
+function fillEdpEthicalBudget(Spreadsheet $book, string $period): void
+{
+    $year=(int)substr($period,0,4);
+    foreach([$year-1,$year] as $targetYear)fillEdpEthicalCost2025($book,$period,$targetYear,'TARGET BIAYA');
 }
 
 /** Refresh only TOTAL ETHICAL after its BOD cost has been loaded. */

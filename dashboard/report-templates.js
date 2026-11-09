@@ -200,6 +200,7 @@
     workbook.Sheets["BOD MNJ"] = sheet;
     global.fillEdpEthicalCost2025(workbook, period);
     global.fillEdpEthicalCost2025(workbook, period, 2026);
+    global.fillEdpEthicalBudget(workbook, period);
     global.fillEdpMcmEthical(workbook);
     global.fillReportMcmEthicalPrior(workbook);
   };
@@ -224,7 +225,7 @@
     }
   };
 
-  global.fillEdpEthicalCost2025 = function (workbook, period, year = 2025) {
+  global.fillEdpEthicalCost2025 = function (workbook, period, year = 2025, targetSection = "BIAYA TAHUN") {
     const utils=global.XLSX.utils, target=workbook.Sheets["REVENUE EDP MNJ"], source=workbook.Sheets["BOD MNJ"];
     if (!target || !source) return;
     const norm=(v)=>String(v ?? "").trim().toUpperCase().replace(/\s+/g," ");
@@ -239,7 +240,7 @@
       return -1;
     };
     const from=findRow(source,"BIAYA PROMOSI MNJ TH " + year,"ETHICAL");
-    const to=findRow(target,"BIAYA TAHUN " + year,"TOTAL ETHICAL");
+    const to=findRow(target,targetSection + " " + year,"TOTAL ETHICAL");
     if(from<0 || to<0)return;
     const values=[];
     for(let m=0;m<12;m++) {
@@ -258,6 +259,13 @@
       if(selected.every((v)=>v===null)){cell.t="s";cell.v="";continue;}
       cell.t="n";cell.v=selected.reduce((sum,v)=>sum+(v??0),0);
       cell.f="SUM(D"+(to+1)+":"+utils.encode_col(count+2)+(to+1)+")";
+    }
+  };
+
+  global.fillEdpEthicalBudget = function (workbook, period) {
+    const year = Number(period.slice(0, 4));
+    for (const targetYear of [year - 1, year]) {
+      global.fillEdpEthicalCost2025(workbook, period, targetYear, "TARGET BIAYA");
     }
   };
 
