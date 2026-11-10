@@ -24,21 +24,22 @@ function loadIbPeriodHistory(mysqli $conn,string $period,bool $annualTargets=fal
             $month=(int)substr($period,5,2);
             $byMonth=[];
             foreach ($records as $record) $byMonth[(int)$record['month_number']]=$record;
-            $missingMcm=false;
-            for($m=1;$m<=12;$m++) if(($byMonth[$m]['target_mcm']??null)===null) {$missingMcm=true;break;}
-            if($missingMcm) {
+            $targetFields=['target_ib_fm','target_ib_fd','target_new_ib_fm','target_new_ib_fd','target_mcm'];
+            $missingTargets=false;
+            for($m=1;$m<=12&&!$missingTargets;$m++)foreach($targetFields as $field)if(($byMonth[$m][$field]??null)===null){$missingTargets=true;break;}
+            if($missingTargets) {
                 // A historical upload may only have targets through its own month.
-                // Fill its missing MCM target months from the latest known annual plan.
-                $targetQuery=$conn->prepare('SELECT report_period,month_number,target_mcm FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,"-%") AND target_mcm IS NOT NULL ORDER BY report_period DESC,month_number');
+                // Complete every target series from same-year annual plans; never copy later actuals.
+                $targetQuery=$conn->prepare('SELECT report_period,month_number,'.implode(',',$targetFields).' FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,"-%") AND ('.implode(' OR ',array_map(static fn($field)=>$field.' IS NOT NULL',$targetFields)).') ORDER BY report_period DESC,month_number');
                 $targetQuery->bind_param('s',$year);$targetQuery->execute();
                 $annual=$targetQuery->get_result()->fetch_all(MYSQLI_ASSOC);$targetQuery->close();
                 $sourcePeriod=$records[0]['report_period']??$period;
                 $fields=['target_ib_fm','actual_ib_fm','target_ib_fd','actual_ib_fd','target_new_ib_fm','actual_new_ib_fm','target_new_ib_fd','actual_new_ib_fd','target_mcm','actual_mcm'];
                 foreach($annual as $target) {
                     $m=(int)$target['month_number'];
-                    if($m<1||$m>12||substr((string)$target['report_period'],0,4)!==$year||($target['target_mcm']??null)===null)continue;
+                    if($m<1||$m>12||substr((string)$target['report_period'],0,4)!==$year)continue;
                     if(!isset($byMonth[$m]))$byMonth[$m]=array_merge(array_fill_keys($fields,null),['report_period'=>$sourcePeriod,'month_number'=>$m]);
-                    if($byMonth[$m]['target_mcm']===null)$byMonth[$m]['target_mcm']=$target['target_mcm'];
+                    foreach($targetFields as $field)if(($byMonth[$m][$field]??null)===null&&($target[$field]??null)!==null)$byMonth[$m][$field]=$target[$field];
                 }
                 ksort($byMonth);$records=array_values($byMonth);
             }

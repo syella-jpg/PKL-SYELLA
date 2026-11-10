@@ -883,7 +883,7 @@
     sheet.B112 = { ...(sheet.B112 || {}), t: "s", v: "LAMPIRAN : EXPORT " + (year - 2) };
     const revenueApi = new URL("revenue_ibfm_api.php", apiBase).href;
     try {
-      const response = await fetchReportApi(revenueApi + "?" + new URLSearchParams({ year: String(year), month: String(month), period: String(period) }), { cache: "no-store" });
+      const response = await fetchReportApi(revenueApi + "?" + new URLSearchParams({ year: String(year), month: String(month), period: String(period), target_view: "annual-all-v2" }), { cache: "no-store" });
       const payload = await response.json();
       const data = payload && payload.success && payload.data;
       if (!response.ok || !data) {
@@ -972,7 +972,7 @@
         // pada sheet IB yang sama (baris 41–56), tanpa membuat sheet tambahan.
         if (exportYear >= 2026) {
           const previousYear = exportYear - 1;
-          const previousResponse = await fetchReportApi(revenueApi + "?" + new URLSearchParams({ year: String(previousYear), month: String(month), period: previousYear + "-12" }), { cache: "no-store" });
+          const previousResponse = await fetchReportApi(revenueApi + "?" + new URLSearchParams({ year: String(previousYear), month: String(month), period: previousYear + "-12", target_view: "annual-all-v2" }), { cache: "no-store" });
           const previousPayload = await previousResponse.json();
           const previousData = previousPayload && previousPayload.success && previousPayload.data;
           if (!previousResponse.ok || !previousData) {
@@ -1949,13 +1949,123 @@
     sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,11)}});
   };
 
+  global.appendAchievementGrowthReportTable = function (workbook, period) {
+    const sheet=workbook.Sheets.LAPORAN,utils=global.XLSX.utils;
+    if(!sheet)throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const title="ACHIEVEMENT & GROWTH SELL OUT & SELL IN (RP & UNIT)";
+    if(Object.values(sheet).some(cell=>cell?.v===title))return;
+    const range=utils.decode_range(sheet["!ref"]||"A1:J1"),first=range.e.r+3;
+    const year=Number(period.slice(0,4)),months=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"];
+    const growth="Growth YTD "+months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(["top","bottom","left","right"].map(side=>[side,{style:"thin",color:{rgb:"000000"}}]));
+    const merges=sheet["!merges"]||(sheet["!merges"]=[]),heights=sheet["!rows"]||(sheet["!rows"]=[]);
+    const put=(row,values,fill="FFFFFF",header=false)=>{
+      for(let c=0;c<10;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
+        font:{name:"Arial",sz:header?10:11,bold:header,color:{rgb:"000000"}},fill:{fgColor:{rgb:fill}},border,
+        alignment:{horizontal:header?"center":"left",vertical:"center",wrapText:true}
+      }};
+    };
+    sheet[utils.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:16,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
+    merges.push({s:{r:first,c:0},e:{r:first,c:9}});heights[first]={hpt:28};
+    put(first+1,["No","Parameter","SELL OUT (RUPIAH)","","SELL OUT (UNIT)","","SELL IN (RUPIAH)","","SELL IN (UNIT)",""],"8FC9F4",true);
+    put(first+2,["","",...Array.from({length:4},()=>["% Ach "+year,growth]).flat()],"8FC9F4",true);
+    heights[first+1]={hpt:24};heights[first+2]={hpt:24};
+    for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
+    for(const c of [2,4,6,8])merges.push({s:{r:first+1,c},e:{r:first+1,c:c+1}});
+    const labels=["CORPORATE","","PHARMA","GB 1","GB 4","","HCE","GB 2","GB 3","","FOOD","GB 5","GB 6","","ETHICAL","","INTERNATIONAL BUSINESS"];
+    labels.forEach((label,i)=>{
+      const row=first+3+i,section=["PHARMA","HCE","FOOD","ETHICAL","INTERNATIONAL BUSINESS"].includes(label);
+      put(row,["",label],label==="CORPORATE"?"DDE8CF":section?"FFF7DF":"FFFFFF");heights[row]={hpt:20};
+      if(label){const cell=sheet[utils.encode_cell({r:row,c:1})];cell.s.font.bold=true;cell.s.font.italic=true;}
+      for(let c=2;c<10;c++)sheet[utils.encode_cell({r:row,c})].z="0.00%";
+    });
+    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,9)}});
+  };
+
+  global.fillAchievementGrowthReportValues = function (workbook, period) {
+    const sheet=workbook.Sheets.LAPORAN,utils=global.XLSX.utils;
+    if(!sheet)return;
+    const norm=value=>String(value??"").trim().toUpperCase().replace(/[\u2010-\u2015]/g,"-").replace(/\s+/g," ").replace(/\(\s+/g,"(").replace(/\s+\)/g,")");
+    const grid=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true}),year=String(period).slice(0,4);
+    const boundary=row=>row.some(value=>/^(?:REVENUE KONIMEX|RATIO |MTM CONTRIBUTION|MCM KONIMEX|ACHIEVEMENT & GROWTH)/.test(norm(value)));
+    const table=pattern=>{
+      const start=grid.findIndex(row=>pattern.test(norm(row[0]))),rows=new Map();let end=grid.length,header=-1;
+      if(start<0)return {rows,header};
+      for(let r=start+1;r<grid.length;r++)if(boundary(grid[r])){end=r;break;}
+      for(let r=start+1;r<Math.min(start+7,end);r++)if(norm(grid[r][1])==="PARAMETER"){header=r;break;}
+      if(header>=0)for(let r=header+2;r<end;r++)if(norm(grid[r][1]))rows.set(norm(grid[r][1]),r);
+      return {rows,header};
+    };
+    const column=(source,predicate,fullYear=false)=>{
+      if(source.header<0)return -1;
+      const headers=grid[source.header],first=headers.findIndex(value=>predicate(norm(value)));
+      if(first<0||!fullYear)return first;
+      const merged=(sheet["!merges"]||[]).find(m=>m.s.r===source.header&&m.s.c===first&&m.e.r===source.header);
+      let last=merged?merged.e.c:first;
+      if(!merged)for(let c=first+1;c<headers.length&&!norm(headers[c]);c++)last=c;
+      if(last===first)return first;
+      const sub=grid[source.header+1]||[];
+      for(let c=first;c<=last;c++)if(norm(sub[c])===year||/^(?:FY(?:\s|$)|FULL YEAR$)/.test(norm(sub[c])))return c;
+      return -1;
+    };
+    const sources=[
+      table(/^REVENUE KONIMEX \(SELLING OUT\).*RP\.?\s*\(000\)$/),
+      table(/^REVENUE KONIMEX \(UNIT\)\s*-\s*SELL OUT$/),
+      table(/^REVENUE KONIMEX \(SELLING IN\).*RP\.?\s*\(000\)$/),
+      table(/^REVENUE KONIMEX \(UNIT\)\s*-\s*SELL IN$/)
+    ];
+    const summary=grid.findIndex(row=>norm(row[0])==="ACHIEVEMENT & GROWTH SELL OUT & SELL IN (RP & UNIT)");
+    if(summary<0)return;
+    const numeric=value=>typeof value==="number"&&Number.isFinite(value);
+    const write=(r,c,value,formula)=>{
+      const address=utils.encode_cell({r,c}),cell={...(sheet[address]||{}),t:numeric(value)?"n":"s",v:numeric(value)?value:"",z:"0.00%"};
+      delete cell.f;delete cell.F;delete cell.w;
+      if(numeric(value))cell.f=formula;
+      sheet[address]=cell;
+    };
+    const sourceRow=(source,label)=>{
+      const aliases={"GB 5":["BISKUIT"],"GB 6":["CANDY"],"INTERNATIONAL BUSINESS":["EKSPOR","EXPORT","IB"]};
+      return [label,...(aliases[label]||[])].map(name=>source.rows.get(name)).find(r=>r!==undefined);
+    };
+    const sum=refs=>{
+      const values=refs.map(ref=>sheet[ref]?.v).filter(numeric);
+      return values.length?values.reduce((a,b)=>a+b,0):null;
+    };
+    const groups={PHARMA:["GB 1","GB 4"],HCE:["GB 2","GB 3"],FOOD:["GB 5","GB 6"]};
+    const labels=new Set(["CORPORATE",...Object.keys(groups),"ETHICAL","INTERNATIONAL BUSINESS",...Array.from({length:6},(_,i)=>"GB "+(i+1))]);
+    for(let r=summary+3;r<grid.length;r++){
+      if(boundary(grid[r]))break;
+      const label=norm(grid[r][1]);if(!labels.has(label))continue;
+      sources.forEach((source,i)=>{
+        const destination=2+i*2;
+        if(i===2&&label==="CORPORATE"){write(r,destination,null);write(r,destination+1,null);return;}
+        if(i===2&&groups[label]){
+          const members=groups[label].map(name=>sourceRow(source,name));
+          const actual=column(source,value=>/^ACH(?:IEVEMENT)?(?:\s+20\d{2})?$/.test(value));
+          const target=column(source,value=>value==="TARGET "+year,true);
+          if(actual<0||target<0||members.some(row=>row===undefined)){write(r,destination,null);write(r,destination+1,null);return;}
+          const aRefs=members.map(row=>utils.encode_cell({r:row,c:actual})),bRefs=members.map(row=>utils.encode_cell({r:row,c:target}));
+          const a=sum(aRefs),b=sum(bRefs),ratio=numeric(a)&&numeric(b)&&b!==0?a/b:null;
+          const formula="("+aRefs.join("+")+")/("+bRefs.join("+")+")";
+          write(r,destination,ratio,formula);write(r,destination+1,numeric(ratio)?ratio-1:null,formula+"-1");
+          return;
+        }
+        const row=sourceRow(source,label),ach=column(source,value=>value.startsWith("% ACHIEVEMENT"),true),growth=column(source,value=>/^GROWTH(?:\s|$)/.test(value));
+        for(const [offset,col]of [[0,ach],[1,growth]]){
+          const ref=row===undefined||col<0?null:utils.encode_cell({r:row,c:col});
+          write(r,destination+offset,ref?sheet[ref]?.v:null,ref);
+        }
+      });
+    }
+  };
+
   global.fillUnitSellInReportValues = function (workbook, period) {
     const report=workbook.Sheets.LAPORAN,utils=global.XLSX.utils;
     if(!report)return;
     const norm=value=>String(value??"").trim().toUpperCase().replace(/\s+/g," ");
     const grid=sheet=>sheet?utils.sheet_to_json(sheet,{header:1,defval:"",raw:true}):[];
     const reportGrid=grid(report),unit=workbook.Sheets.UNIT,unitGrid=grid(unit),year=Number(period.slice(0,4));
-    const boundary=row=>row.some(value=>/^(?:REVENUE KONIMEX|RATIO |MTM CONTRIBUTION|MCM KONIMEX)/.test(norm(value)));
+    const boundary=row=>row.some(value=>/^(?:REVENUE KONIMEX|RATIO |MTM CONTRIBUTION|MCM KONIMEX|ACHIEVEMENT & GROWTH)/.test(norm(value)));
     const reportRows=title=>{
       const start=reportGrid.findIndex(row=>row.some(value=>norm(value)===title)),rows=new Map();
       if(start<0)return rows;
