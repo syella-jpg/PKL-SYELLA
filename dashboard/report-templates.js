@@ -1949,6 +1949,78 @@
     sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,11)}});
   };
 
+  global.fillUnitSellInReportValues = function (workbook, period) {
+    const report=workbook.Sheets.LAPORAN,utils=global.XLSX.utils;
+    if(!report)return;
+    const norm=value=>String(value??"").trim().toUpperCase().replace(/\s+/g," ");
+    const grid=sheet=>sheet?utils.sheet_to_json(sheet,{header:1,defval:"",raw:true}):[];
+    const reportGrid=grid(report),unit=workbook.Sheets.UNIT,unitGrid=grid(unit),year=Number(period.slice(0,4));
+    const boundary=row=>row.some(value=>/^(?:REVENUE KONIMEX|RATIO |MTM CONTRIBUTION|MCM KONIMEX)/.test(norm(value)));
+    const reportRows=title=>{
+      const start=reportGrid.findIndex(row=>row.some(value=>norm(value)===title)),rows=new Map();
+      if(start<0)return rows;
+      for(let r=start+3;r<reportGrid.length;r++){
+        if(boundary(reportGrid[r]))break;
+        if(norm(reportGrid[r][1]))rows.set(norm(reportGrid[r][1]),r);
+      }
+      return rows;
+    };
+    const destinations=reportRows("REVENUE KONIMEX (UNIT) – SELL IN");
+    if(!destinations.size)return;
+    const sellOut=reportRows("REVENUE KONIMEX (UNIT) – SELL OUT");
+    const total=value=>["TOTAL","FULL YEAR","TOTAL FY","JAN-DES"].includes(norm(value));
+    const ytd=value=>/^YTD(?:\s|$)/.test(norm(value));
+    const source=heading=>{
+      const start=unitGrid.findIndex(row=>norm(row[0])===heading),rows=new Map();let header=-1;
+      if(start>=0)for(let r=start+1;r<unitGrid.length;r++){
+        if(/^(?:REVENUE TAHUN|TARGET(?: SELL OUT| SELL IN)? TAHUN) 20\d{2}/.test(norm(unitGrid[r][0])))break;
+        if(unitGrid[r].some(ytd))header=r;
+        if(norm(unitGrid[r][1]))rows.set(norm(unitGrid[r][1]),r);
+      }
+      return {rows,full:header<0?-1:unitGrid[header].findIndex(total),ytd:header<0?-1:unitGrid[header].findIndex(ytd)};
+    };
+    const prior=source("REVENUE TAHUN "+(year-1)+" (SELL IN)"),target=source("TARGET SELL IN TAHUN "+year),actual=source("REVENUE TAHUN "+year+" (SELL IN)");
+    const mapping={PHARMA:["TOTAL GB 1","TOTAL GB 4"],HCE:["TOTAL GB 2","TOTAL GB 3"],FOOD:["TOTAL GB 5","TOTAL GB 6"],ETHICAL:["TOTAL ETHICAL"],"INTERNATIONAL BUSINESS":["IB"]};
+    for(let gb=1;gb<=6;gb++)mapping["GB "+gb]=["TOTAL GB "+gb];
+    mapping.CORPORATE=[...Array.from({length:6},(_,i)=>"TOTAL GB "+(i+1)),"TOTAL ETHICAL","IB"];
+    const numeric=value=>typeof value==="number"&&Number.isFinite(value);
+    const write=(row,column,value,formula,percent=false)=>{
+      const address=column+(row+1),cell={...(report[address]||{}),t:numeric(value)?"n":"s",v:numeric(value)?value:"",z:percent?"0.00%":"#,##0"};
+      delete cell.f;delete cell.F;delete cell.w;
+      if(numeric(value))cell.f=formula;
+      report[address]=cell;
+    };
+    const sum=(sheet,refs)=>{
+      const values=refs.map(ref=>sheet?.[ref]?.v).filter(numeric);
+      return values.length?values.reduce((a,b)=>a+b,0):null;
+    };
+    for(const [label,row]of destinations){
+      const labels=mapping[label];if(!labels)continue;
+      for(const [column,block,index]of [["C",prior,prior.full],["D",prior,prior.ytd],["F",target,target.ytd],["G",actual,actual.ytd]]){
+        const refs=index<0?[]:labels.filter(name=>block.rows.has(name)).map(name=>utils.encode_cell({r:block.rows.get(name),c:index}));
+        write(row,column,sum(unit,refs),refs.map(ref=>"'UNIT'!"+ref).join("+"));
+      }
+      const from=sellOut.get(label),ref=from===undefined?null:"E"+(from+1);
+      write(row,"E",ref?report[ref]?.v:null,ref);
+    }
+    // Use the displayed GB values for divisions, then the displayed divisions for Corporate.
+    for(const [label,members]of [["PHARMA",["GB 1","GB 4"]],["HCE",["GB 2","GB 3"]],["FOOD",["GB 5","GB 6"]],["CORPORATE",["PHARMA","HCE","FOOD","ETHICAL","INTERNATIONAL BUSINESS"]]]){
+      const row=destinations.get(label);if(row===undefined)continue;
+      for(const column of ["C","D","F","G"]){
+        const refs=members.filter(name=>destinations.has(name)).map(name=>column+(destinations.get(name)+1));
+        write(row,column,sum(report,refs),refs.join("+"));
+      }
+    }
+    for(const [label,row]of destinations){
+      if(!mapping[label])continue;
+      const r=row+1,a=report["G"+r]?.v;
+      for(const [column,denominator,growth]of [["H","F",false],["I","E",false],["J","D",true]]){
+        const b=report[denominator+r]?.v,value=numeric(a)&&numeric(b)&&b!==0?a/b-(growth?1:0):null;
+        write(row,column,value,"G"+r+"/"+denominator+r+(growth?"-1":""),true);
+      }
+    }
+  };
+
   global.fillUnitSellOutReportRatios = function (workbook) {
     const sheet=workbook.Sheets.LAPORAN,utils=global.XLSX.utils;
     if(!sheet)return;
