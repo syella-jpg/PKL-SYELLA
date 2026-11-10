@@ -1880,48 +1880,38 @@
     sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,7)}});
   };
 
-  global.appendUnitSellOutReportTable = function (workbook, period, sellIn = false) {
+  global.appendUnitSellOutReportTable = function (workbook, period) {
     const sheet=workbook.Sheets.LAPORAN, utils=global.XLSX.utils;
     if(!sheet)throw new Error("Sheet LAPORAN tidak ditemukan.");
-    const title=sellIn?"REVENUE KONIMEX (UNIT) – SELL IN":"REVENUE KONIMEX (UNIT) – SELL OUT";
+    const title="REVENUE KONIMEX (UNIT) – SELL OUT";
     if(Object.values(sheet).some((cell)=>cell?.v===title))return;
     const range=utils.decode_range(sheet["!ref"]||"A1:J1"),first=range.e.r+3;
     const year=Number(period.slice(0,4)),prior=year-1;
-    const lastColumn=sellIn?11:9;
     const months=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"];
     const ytd="YTD "+months[Number(period.slice(5,7))-1];
     const border=Object.fromEntries(["top","bottom","left","right"].map((side)=>[side,{style:"thin",color:{rgb:"000000"}}]));
     const merges=sheet["!merges"]||(sheet["!merges"]=[]),heights=sheet["!rows"]||(sheet["!rows"]=[]);
     const put=(row,values,fill="FFFFFF",header=false)=>{
-      for(let c=0;c<=lastColumn;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
+      for(let c=0;c<10;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
         font:{name:"Arial",sz:header?10:11,bold:header,color:{rgb:"000000"}},
         fill:{fgColor:{rgb:fill}},border,
         alignment:{horizontal:header?"center":"left",vertical:"center",wrapText:true}
       }};
     };
     sheet[utils.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:16,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
-    merges.push({s:{r:first,c:0},e:{r:first,c:lastColumn}});heights[first]={hpt:28};
-    put(first+1,["No","Parameter","Ach Last Year ("+prior+")","","Target "+year,"",sellIn?"Achievement":"Achievement "+year,sellIn?"% Achievement":"% Achievement "+year,"","Growth",...(sellIn?["Contribution",""]:[])],"8FC9F4",true);
-    put(first+2,["","","Full Year",ytd,"Full Year",ytd,ytd,ytd,sellIn?String(year):"FY",ytd,...(sellIn?["vs Divisi","vs Corporate"]:[])],"8FC9F4",true);
+    merges.push({s:{r:first,c:0},e:{r:first,c:9}});heights[first]={hpt:28};
+    put(first+1,["No","Parameter","Ach Last Year ("+prior+")","","Target "+year,"","Achievement "+year,"% Achievement "+year,"","Growth"],"8FC9F4",true);
+    put(first+2,["","","Full Year",ytd,"Full Year",ytd,ytd,ytd,"FY",ytd],"8FC9F4",true);
     heights[first+1]={hpt:24};heights[first+2]={hpt:24};
     for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
     for(const c of [2,4,7])merges.push({s:{r:first+1,c},e:{r:first+1,c:c+1}});
-    if(sellIn)merges.push({s:{r:first+1,c:10},e:{r:first+1,c:11}});
     const labels=["CORPORATE","","PHARMA","GB 1","GB 4","","HCE","GB 2","GB 3","","FOOD","GB 5","GB 6","","ETHICAL","","INTERNATIONAL BUSINESS"];
     labels.forEach((label,i)=>{
       const row=first+3+i,section=["PHARMA","HCE","FOOD","ETHICAL","INTERNATIONAL BUSINESS"].includes(label);
       put(row,["",label],label==="CORPORATE"?"DDE8CF":section?"FFF7DF":"FFFFFF");heights[row]={hpt:20};
       if(label){const cell=sheet[utils.encode_cell({r:row,c:1})];cell.s.font.bold=true;cell.s.font.italic=true;}
-      if(sellIn){
-        for(let c=2;c<=lastColumn;c++)sheet[utils.encode_cell({r:row,c})].z=c>=7?"0.00%":"#,##0";
-        if(label==="PHARMA")for(const c of [10,11])sheet[utils.encode_cell({r:row,c})].s.fill.fgColor.rgb="DDE8CF";
-      }
     });
-    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,lastColumn)}});
-  };
-
-  global.appendUnitSellInReportTable = function (workbook, period) {
-    global.appendUnitSellOutReportTable(workbook, period, true);
+    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,9)}});
   };
 
   global.fillUnitSellOutReportRatios = function (workbook) {
