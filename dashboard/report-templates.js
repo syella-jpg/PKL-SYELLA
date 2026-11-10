@@ -1914,19 +1914,52 @@
     sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,9)}});
   };
 
-  global.fillUnitSellOutPrior = function (workbook, period, achievement = false) {
+  global.fillUnitSellOutReportRatios = function (workbook) {
+    const sheet=workbook.Sheets.LAPORAN,utils=global.XLSX.utils;
+    if(!sheet)return;
+    const norm=value=>String(value??"").trim().toUpperCase().replace(/\s+/g," ");
+    const rows=utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+    const start=rows.findIndex(row=>row.some(value=>norm(value)==="REVENUE KONIMEX (UNIT) – SELL OUT"));
+    if(start<0)return;
+    const labels=new Set(["CORPORATE","PHARMA","HCE","FOOD","ETHICAL","INTERNATIONAL BUSINESS",...Array.from({length:6},(_,i)=>"GB "+(i+1))]);
+    const numeric=value=>typeof value==="number"&&Number.isFinite(value);
+    for(let row=start+3;row<rows.length;row++){
+      if(rows[row].some(value=>/^(?:REVENUE KONIMEX|RATIO |MTM CONTRIBUTION|MCM KONIMEX)/.test(norm(value))))break;
+      if(!labels.has(norm(rows[row][1])))continue;
+      const r=row+1,numerator=sheet["G"+r]?.v;
+      for(const [column,source,growth] of [["H","F",false],["I","E",false],["J","D",true]]){
+        const denominator=sheet[source+r]?.v,address=column+r;
+        const cell={...(sheet[address]||{}),t:"s",v:"",z:"0.00%"};
+        delete cell.f;delete cell.F;delete cell.w;
+        if(numeric(numerator)&&numeric(denominator)&&denominator!==0){
+          cell.t="n";cell.v=numerator/denominator-(growth?1:0);
+          cell.f="G"+r+"/"+source+r+(growth?"-1":"");
+        }
+        sheet[address]=cell;
+      }
+    }
+  };
+
+  global.fillUnitSellOutReportTargets = function (workbook, period) {
+    global.fillUnitSellOutPrior(workbook, period, false, true);
+  };
+
+  global.fillUnitSellOutPrior = function (workbook, period, achievement = false, targets = false) {
     const report=workbook.Sheets.LAPORAN, source=workbook.Sheets.UNIT, utils=global.XLSX.utils;
     if(!report || !source)return;
     const norm=(v)=>String(v??"").trim().toUpperCase().replace(/\s+/g," ");
     const grid=utils.sheet_to_json(source,{header:1,defval:"",raw:true});
     const rows=utils.sheet_to_json(report,{header:1,defval:"",raw:true});
-    const start=grid.findIndex((row)=>norm(row[0])==="REVENUE TAHUN "+(Number(period.slice(0,4))-(achievement?0:1))+" (SELL OUT)");
+    const year=Number(period.slice(0,4))-(achievement||targets?0:1);
+    const heading=targets?"TARGET SELL OUT TAHUN "+year:"REVENUE TAHUN "+year+" (SELL OUT)";
+    const start=grid.findIndex((row)=>norm(row[0])===heading);
     const target=rows.findIndex((row)=>row.some((v)=>norm(v)==="REVENUE KONIMEX (UNIT) – SELL OUT"));
     if(start<0 || target<0)return;
     let header=-1;const sourceRows=new Map();
+    const fullYear=(value)=>["TOTAL","FULL YEAR","TOTAL FY","JAN-DES"].includes(norm(value));
     for(let r=start+1;r<grid.length;r++) {
-      if(/^(?:REVENUE|TARGET) TAHUN 20\d{2}/.test(norm(grid[r][0])))break;
-      if((achievement || grid[r].some((v)=>norm(v)==="TOTAL")) && grid[r].some((v)=>/^YTD(?:\s|$)/.test(norm(v))))header=r;
+      if(/^(?:REVENUE TAHUN|TARGET(?: SELL OUT| SELL IN)? TAHUN) 20\d{2}/.test(norm(grid[r][0])))break;
+      if((achievement || grid[r].some(fullYear)) && grid[r].some((v)=>/^YTD(?:\s|$)/.test(norm(v))))header=r;
       if(norm(grid[r][1]))sourceRows.set(norm(grid[r][1]),r);
     }
     if(header<0)return;
@@ -1934,7 +1967,8 @@
     for(let gb=1;gb<=6;gb++)mapping["GB "+gb]=["TOTAL GB "+gb];
     mapping.CORPORATE=[...Array.from({length:6},(_,i)=>"TOTAL GB "+(i+1)),"TOTAL ETHICAL","IB"];
     const numeric=(v)=>typeof v==="number" && Number.isFinite(v);
-    const columns=achievement ? [["G",grid[header].findIndex((v)=>/^YTD(?:\s|$)/.test(norm(v)))]] : [["C",grid[header].findIndex((v)=>norm(v)==="TOTAL")],["D",grid[header].findIndex((v)=>/^YTD(?:\s|$)/.test(norm(v)))]];
+    const totalColumn=grid[header].findIndex(fullYear),ytdColumn=grid[header].findIndex((v)=>/^YTD(?:\s|$)/.test(norm(v)));
+    const columns=targets?[["E",totalColumn],["F",ytdColumn]]:achievement?[["G",ytdColumn]]:[["C",totalColumn],["D",ytdColumn]];
     for(let r=target+3;r<rows.length;r++) {
       if(rows[r].some((v)=>/^(?:REVENUE KONIMEX|RATIO |MTM CONTRIBUTION|MCM KONIMEX)/.test(norm(v))))break;
       const labels=mapping[norm(rows[r][1])];if(!labels)continue;
