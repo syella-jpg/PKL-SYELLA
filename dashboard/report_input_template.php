@@ -70,9 +70,20 @@ try {
             }
         } finally { $conn->close(); }
     }
+    if ($section === 'MNJ' && substr($period,5,2) !== '01') {
+        require_once __DIR__.'/../includes/database.php';
+        $conn=openReportConnection();
+        try {
+            $record=findMnjInput($conn,$period);
+            if($record){$old=readMnjInput($record['base64'],$record['report_period']);$from=$old->getSheetByName('MNJ');$to=$book->getSheetByName('MNJ');
+                foreach([5,6,7,9,10,11,13,14,15] as $r)foreach(range(4,15) as $c){$cell=$from->getCell([$c,$r]);$to->setCellValue([$c,$r],$cell->isFormula()?$cell->getCalculatedValue():$cell->getValue());}
+                $old->disconnectWorksheets();
+            }
+        } finally { $conn->close(); }
+    }
     $stream = fopen('php://temp', 'w+b');
     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book);
-    if (in_array($section,['TARGET REVENUE','TARGET UNIT SELL OUT','ETHICAL','UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In'],true)) {
+    if (in_array($section,['MNJ','TARGET REVENUE','TARGET UNIT SELL OUT','ETHICAL','UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In'],true)) {
         // Excel/Calc recalculates the visible summaries on open and on edits.
         $writer->setPreCalculateFormulas(false)->setForceFullCalc(true);
     }
