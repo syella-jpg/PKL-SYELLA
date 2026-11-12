@@ -156,7 +156,7 @@
         <option value="BOD JML SDM"></option>
         <option value="BOD BI. Opr"></option>
         <option value="RATIO UPB"></option>
-        <option value="UP BJ kx"></option>
+        <option value="UPB BJ kx"></option>
         <option value="UPB non BJ"></option>
         <option value="UPB Distr"></option>
         <option value="PARETO UPB DISTR"></option>
@@ -231,14 +231,14 @@
   </form>
 </main>
 
-<script src="file-detection.js?v=target-revenue-20261109"></script>
+<script src="file-detection.js?v=upb-monthly-period-20261111"></script>
 <script src="bod-upload-type.js?v=20261109"></script>
 <script src="../dashboard/report-api-cache.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="../dashboard/unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
 <script src="../dashboard/bod-kx-sell-in.js?v=ib-revenue-sync-20261109"></script>
 <script src="../dashboard/mtm-appendix.js?v=ytd-idr-qty-20261103"></script>
-<script src="../dashboard/report-templates.js?v=sales-mnj-ratio-row-20261111"></script>
+<script src="../dashboard/report-templates.js?v=upb-bj-monthly-totals-20261111"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -329,8 +329,9 @@
 
   function updateTemplateDownload() {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    const visible = ["MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
+    const visible = ["UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
     const validPeriod = /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
+    $("downloadTemplate").textContent = section === "UPB BJ kx" ? "Unduh Template ODS" : "Unduh Template Excel";
     $("templateHelp").hidden = !visible;
     $("downloadTemplate").disabled = busy || !validPeriod;
     if (!visible) return;
@@ -340,7 +341,9 @@
       return;
     }
     $("templateTitle").textContent = "Template " + section + " · " + period;
-    $("templateDescription").textContent = section === "MNJ"
+    $("templateDescription").textContent = section === "UPB BJ kx"
+      ? "Sheet Januari sampai bulan pilihan berisi data kumulatif. KESIMPULAN menghitung nilai bulanan dengan selisih kumulatif. Upload ODS untuk menyimpan isian; unduhan berikutnya melanjutkan data tahun yang sama, dengan bulan baru menyalin kerangka dan rumus bulan sebelumnya; identitas produk, kategori, kuantiti, satuan, dan nilai inputnya kosong. Januari kosong jika belum ada upload pada tahun tersebut."
+      : section === "MNJ"
       ? "Satu tabel DCM, Revenue, dan Biaya untuk tahun yang dipilih. Isi Target Awal, Target Rolling, dan Aktual bulanan dalam (000.000); YTD, Full Year, dan persentase dihitung otomatis."
       : section === "TARGET REVENUE"
       ? "Enam sheet GB 1–6, masing-masing berisi rincian produk kategori A/B/C/D dan Non Target. Isi target dalam Rp (000); subtotal dan total dihitung otomatis. Baris produk boleh ditambah/dihapus. Unduhan lanjutan hanya memuat produk tersimpan. Januari dimulai kosong dengan 50 baris per kategori."
@@ -362,7 +365,7 @@
   window.addEventListener("pageshow", updateIbRateField);
   $("downloadTemplate").addEventListener("click", async () => {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    if (!["MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
+    if (!["UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
     const button = $("downloadTemplate");
     button.disabled = true;
     try {
@@ -373,7 +376,7 @@
         throw new Error(result.message || "Template gagal diunduh.");
       }
       const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
-      link.href = url; link.download = "Template_" + section + "_" + period + ".xlsx";
+      link.href = url; link.download = "Template_" + section + "_" + period + (section === "UPB BJ kx" ? ".ods" : ".xlsx");
       link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { setMsg(error.message || "Template gagal diunduh.", "error"); }
     finally { button.disabled = false; }
@@ -949,6 +952,13 @@
         setMsg(saved.source === "monthly" ? "Laporan penjualan " + periodSelect.value + " berhasil disimpan ke database dan template. Klik Unduh Template Excel untuk melihat hasilnya." : saved.source === "rod" ? "ROD tahun " + saved.year + " berhasil disimpan. Harga Beli dan unit per produk terisi pada sheet ROD di template; Nilai ROD dihitung dari Unit × Harga Beli. Klik Unduh Template Excel untuk melihat hasilnya." : saved.kind === "combined" ? "BOD KX SELL IN tahun " + saved.year + " berhasil disimpan di database: penjualan bulanan serta target ROD dalam unit dan rupiah. Rincian produk tersedia kembali saat mengunduh template." : saved.kind === "target" ? "Target SELL IN tahun " + saved.year + " berhasil disimpan dari nilai ROD per GB untuk Januari–Desember." : "BOD KX SELL IN berhasil disimpan untuk " + periodSelect.value + ".", "ok");
         clearFile(); updateIbRateField();
         return;
+      }
+      if (sectionSelect.value === "UPB BJ kx") {
+        const form=new FormData();form.append("file",chosen);form.append("period",periodSelect.value);
+        const endpoint=LOCAL_FILE_MODE?"http://127.0.0.1:8000/api/report.php?endpoint=upb_bj_input_api":"../api/report.php?endpoint=upb_bj_input_api";
+        const response=await fetch(endpoint,{method:"POST",body:form});const result=await response.json();
+        if(!response.ok||!result.success)throw new Error(result.message||"UPB BJ gagal disimpan.");
+        barFill.style.width="100%";setMsg("UPB BJ tersimpan di database. Unduh template bulan berikutnya untuk melanjutkan isian; KESIMPULAN menghitung nilai per bulan dari selisih kumulatif.","ok");clearFile();return;
       }
       if (sectionSelect.value === "MNJ") {
         const base64 = await new Promise((resolve,reject) => { const reader=new FileReader(); reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=()=>reject(new Error("File MNJ gagal dibaca."));reader.readAsDataURL(chosen); });

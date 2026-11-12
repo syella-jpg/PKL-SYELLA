@@ -1,0 +1,10 @@
+<?php
+require __DIR__.'/../includes/upb_bj_input_template.php';
+function checkSubtotal($ok,$msg){if(!$ok)throw new RuntimeException($msg);}
+$rows=[['','',''],['','',''],['','',''],['','',''],['No.','',''],['','',''],['',2,100],['',3,200],['Sub Total GB ETHICAL, Sub Kel. Barang FARMA','',''],['',4,50],['Sub Total GB ETHICAL, Sub Kel. Barang LAIN','',''],['Sub Total GB ETHICAL','',''],['',5,25],['Sub Total GB GB1, Sub Kel. Barang FARMA','',''],['Sub Total GB GB1','',''],['TOTAL','',''],['FARMASI','',''],['SOBISCO','',''],['CANDY','',''],['TOTAL','','']];
+$d=upbBjXml('<table:table xmlns:table="'.UPB_T.'" xmlns:office="'.UPB_O.'" xmlns:text="'.UPB_X.'" table:name="JANUARI"/>');$t=$d->documentElement;
+foreach($rows as $i=>$row){$node=$d->createElementNS(UPB_T,'table:table-row');$t->appendChild($node);$isBottom=$i>=16;foreach(range(1,9) as $c){$cell=$d->createElementNS(UPB_T,'table:table-cell');$node->appendChild($cell);if($c===($isBottom?6:1)&&$row[0]!==''){$cell->appendChild($d->createElementNS(UPB_X,'text:p',$row[0]));}if(($c===7||$c===9)&&$row[$c===7?1:2]!==''){$v=$row[$c===7?1:2];$cell->setAttributeNS(UPB_O,'office:value-type','float');$cell->setAttributeNS(UPB_O,'office:value',(string)$v);$cell->appendChild($d->createElementNS(UPB_X,'text:p',(string)$v));}}}
+upbBjApplySubtotals($t);$c=upbBjCells($t);
+foreach([9=>[5,300],11=>[4,50],12=>[9,350],14=>[5,25],15=>[5,25],16=>[14,375]] as $r=>$v){checkSubtotal((float)$c[$r][7]->getAttributeNS(UPB_O,'value')===$v[0]*1.0,'Quantity subtotal');checkSubtotal((float)$c[$r][9]->getAttributeNS(UPB_O,'value')===$v[1]*1.0,'Value subtotal');}
+checkSubtotal($c[9][9]->getAttributeNS(UPB_T,'formula')==='of:=SUM([.I7:.I8])','Simple product SUM');checkSubtotal($c[12][9]->getAttributeNS(UPB_T,'formula')==='of:=[.I9]+[.I11]','Group uses subgroup subtotals once');checkSubtotal($c[16][9]->getAttributeNS(UPB_T,'formula')==='of:=[.I12]+[.I15]','Grand total avoids double counting');checkSubtotal(upbBjBottom($t)['FARMASI']['value']===375.0,'Bottom follows group totals');
+echo "PASS: product sums, multiple subgroups, GB totals, grand total, quantities/rupiah and no double counting.\n";

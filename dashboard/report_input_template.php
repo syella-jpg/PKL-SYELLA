@@ -22,6 +22,21 @@ try {
     $section = is_string($_GET['section'] ?? null) ? $_GET['section'] : '';
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
     reportInputTemplateSpec($section, $period);
+    if ($section === 'UPB BJ kx') {
+        require_once __DIR__.'/../includes/upb_bj_input_template.php';
+        $historyBytes=null;$priorBytes=null;
+        {
+            require_once __DIR__.'/../includes/database.php';$conn=openReportConnection();
+            try{$record=findUpbBjTemplate($conn,$period);if($record)$historyBytes=base64_decode($record['base64'],true)?:null;$prior=findUpbBjTemplate($conn,((int)substr($period,0,4)-1).'-12');if($prior)$priorBytes=base64_decode($prior['base64'],true)?:null;}finally{$conn->close();}
+        }
+        $bytes=buildUpbBjInputTemplateOds($period,$historyBytes,$priorBytes);
+        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
+        header('Content-Disposition: attachment; filename="Template_UPB BJ kx_'.$period.'.ods"');
+        header('Cache-Control: no-store');
+        echo $bytes;
+        return;
+    }
+
     $rebuildFromHistory = in_array($section,['TARGET REVENUE','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL','BOD KX Sell In'],true) && (substr($period,5,2) !== '01' || in_array($section,['TARGET UNIT SELL OUT','BOD KX Sell In'],true));
     $book = $rebuildFromHistory ? null : buildReportInputTemplate($section, $period);
     if ($section === 'MTM' || $section === 'TARGET UNIT SELL OUT' || $section === 'BOD KX Sell In' || (in_array($section,['TARGET REVENUE','IB','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL','BOD KX Sell In'],true) && substr($period,5,2) !== '01')) {
