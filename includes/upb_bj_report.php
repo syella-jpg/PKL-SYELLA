@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/upb_bj_input_template.php';
+require_once __DIR__.'/upb_bj_pareto.php';
 /** Move local and monthly-sheet references when raw monthly blocks share one report sheet. */
 function upbBjReportFormula(string $formula,int $offset,array $offsets): string {
  return preg_replace_callback('/\[([^\]]+)\]/',static function($bracket)use($offset,$offsets){
@@ -19,11 +20,11 @@ function buildUpbBjReportOds(string $period,?string $current=null,?string $prior
   // ODF automatic styles must define borders directly, rather than inherit another automatic style.
   $auto=$doc->getElementsByTagNameNS(UPB_O,'automatic-styles')->item(0);
   $format='<style:style style:name="UPBReportNumber" style:family="table-cell" style:data-style-name="UPBSummaryInteger"><style:table-cell-properties fo:border="0.5pt solid #000000" fo:padding="0.04cm"/><style:paragraph-properties fo:text-align="right"/><style:text-properties fo:font-size="10pt" fo:language="en" fo:country="US"/></style:style>';
-  $auto->appendChild(upbBjFragment($doc,$format));
+  $auto->appendChild(upbBjFragment($doc,$format.upbBjParetoStyles()));
   $report=$doc->importNode(array_values(upbBjTables($layout))[0],true);$report->setAttributeNS(UPB_T,'table:name','UPB BJ kx');$rows=[];$r=1;
   foreach(iterator_to_array($report->childNodes) as $node)if($node instanceof DOMElement&&$node->localName==='table-row'){if($r>21)$report->removeChild($node);else $rows[$r]=$node;$r+=max(1,(int)$node->getAttributeNS(UPB_T,'number-rows-repeated'));}
   $year=(int)substr($period,0,4);$last=(int)substr($period,5,2);
-  // Keep the supplied Pareto area unchanged. Only populate the annual summary blocks.
+  // Annual summary cells remain independent of the dynamically sized Pareto area.
   foreach([9=>$year-1,16=>$year] as $r=>$y){foreach([9=>'UPB BJ KONIMEX TH. '.$y.' ( 000 )',12=>'PER BULAN TH. '.$y.' (000)'] as $c=>$title){$cell=upbBjColumnCell($rows[$r],$c);while($cell->firstChild)$cell->removeChild($cell->firstChild);$cell->setAttributeNS(UPB_O,'office:value-type','string');$cell->appendChild($doc->createElementNS(UPB_X,'text:p',$title));}}
   foreach([[3,11],[10,18]] as [$sourceStart,$destStart]){
    for($i=0;$i<4;$i++){$row=$destStart+$i;
@@ -34,9 +35,10 @@ function buildUpbBjReportOds(string $period,?string $current=null,?string $prior
     foreach([2=>10,16=>24] as $sourceCol=>$destCol){$from=$summary[$sourceStart+$i][$sourceCol]??null;$value=$from?(float)$from->getAttributeNS(UPB_O,'value'):0;$cell=upbBjColumnCell($rows[$row],$destCol);$end=$destCol===10?chr(75+$last):'W';upbBjSetFormula($cell,'SUM([.L'.$row.':.'.$end.$row.'])',$value);$cell->setAttributeNS(UPB_T,'table:style-name','UPBReportNumber');$cell->getElementsByTagNameNS(UPB_X,'p')->item(0)->nodeValue=number_format($value,0,'.',',');}
    }
   }
-  $names=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];$offsets=[];$sizes=[];$position=22;
+  $names=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];$pareto=upbBjParetoData($tables[$names[$last-1]]);$rendered=upbBjRenderPareto($report,$rows,$pareto,$period,$doc);$offsets=[];$sizes=[];$position=$rendered['height']+1;
   // Compute all offsets first, allowing formulas to refer to another month's block.
   for($m=1;$m<=$last;$m++){$name=$names[$m-1];$position+=3;$offsets[$name]=$position-1;$used=upbBjCells($tables[$name]);$sizes[$name]=$used?max(array_keys($used)):1;$position+=$sizes[$name];}
+  upbBjLinkPareto($rendered,$pareto,$rows,$offsets[$names[$last-1]]);
   for($m=1;$m<=$last;$m++){
    for($gap=0;$gap<3;$gap++){$row=$doc->createElementNS(UPB_T,'table:table-row');if($m<$last)$row->setAttributeNS(UPB_T,'table:visibility','collapse');$report->appendChild($row);}
    $copied=0;foreach($tables[$names[$m-1]]->childNodes as $sourceRow){if(!$sourceRow instanceof DOMElement||$sourceRow->localName!=='table-row')continue;if($copied>=$sizes[$names[$m-1]])break;$row=$sourceRow->cloneNode(true);$repeat=min(max(1,(int)$row->getAttributeNS(UPB_T,'number-rows-repeated')),$sizes[$names[$m-1]]-$copied);if($repeat>1)$row->setAttributeNS(UPB_T,'table:number-rows-repeated',(string)$repeat);else $row->removeAttributeNS(UPB_T,'number-rows-repeated');$copied+=$repeat;
