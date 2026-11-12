@@ -13,6 +13,16 @@
     }
     const text = labels.join('\n');
     const file = normalize(filename);
+    // NON BJ has its own annual summary and BB/BK/WIP detail blocks.
+    // Read the headings so renamed files and shifted rows remain recognizable.
+    const nonBjTitle=/UPB\s+NON\s+BJ\s+KONIMEX\s+TH\.?\s*(20\d{2})/;
+    if(labels.some(label=>nonBjTitle.test(label)) &&
+      [/UPB\s+BAHAN\s+BAKU/,/UPB\s+BAHAN\s+KEMAS/,/UPB\s+WIP/].every(pattern=>pattern.test(text))){
+      const years=[...new Set(labels.map(label=>label.match(nonBjTitle)?.[1]).filter(Boolean))];
+      const aliases=['JANUARI|JANUARY|JAN','FEBRUARI|FEBRUARY|FEB','MARET|MARCH|MAR','APRIL|APR','MEI|MAY','JUNI|JUNE|JUN','JULI|JULY|JUL','AGUSTUS|AUGUST|AGT|AGS|AUG','SEPTEMBER|SEP','OKTOBER|OCTOBER|OKT|OCT','NOVEMBER|NOPEMBER|NOV|NOP','DESEMBER|DECEMBER|DES|DEC'];
+      const months=[...new Set(labels.flatMap(label=>aliases.flatMap((alias,i)=>new RegExp('\\bYTD\\s+(?:'+alias+')\\b').test(label)?[i+1]:[])))];
+      return {choices:[{section:'UPB non BJ',label:'UPB non BJ'}],year:years.length===1?Number(years[0]):null,month:months.length===1?months[0]:null};
+    }
     // UPB tabs are cumulative. The latest monthly tab determines the upload
     // period; conclusion headers and renamed filenames must not override it.
     const upbNames=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
