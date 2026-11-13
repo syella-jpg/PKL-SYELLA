@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),X=require('/tmp/target-sheetjs.js');
+const c={window:{XLSX:X},location:{protocol:'file:'},document:{},URL};vm.runInNewContext(fs.readFileSync('dashboard/report-templates.js','utf8'),c);
+const s=X.utils.aoa_to_sheet([['REVENUE KONIMEX (SELLING OUT) – RP. (000)'],['No','Parameter','Target 2025','','Ach Last Year (2025)','','Target 2026',''],['','','Full Year','YTD SEP','Full Year','YTD SEP','Full Year','YTD SEP'],['','CORPORATE',999,999,1000,400,9999,800]]),b={SheetNames:['LAPORAN'],Sheets:{LAPORAN:s}};c.window.appendUpbKonimexReportTable(b,'2026-09');const grid=X.utils.sheet_to_json(s,{header:1}),row=label=>grid.findIndex(v=>v[1]===label)+1;
+for(const [label,values]of [['Barang Jadi',[100,40,80]],['Bahan Baku',[30,10,15]],['Kemasan',[20,5,20]],['WIP',[10,5,5]]])for(const [i,col]of ['C','D','E'].entries())s[col+row(label)]={t:'n',v:values[i]};
+const before=JSON.parse(JSON.stringify(s)),non=row('Rusak Produksi Non barang Jadi'),grand=row('UPB (000) KONIMEX');assert(grand<row('Barang Jadi'));
+c.window.fillUpbKonimexTotals(b);
+for(const [n,expected,members]of [[non,[60,20,40],['Bahan Baku','Kemasan','WIP']],[grand,[160,60,120],['Barang Jadi','Rusak Produksi Non barang Jadi']]])for(const [i,col]of ['C','D','E'].entries()){assert.equal(s[col+n].v,expected[i]);assert.equal(s[col+n].f,members.map(label=>col+row(label)).join('+'));}
+const changed=new Set([non,grand].flatMap(n=>['C','D','E'].map(col=>col+n)));for(const [a,v]of Object.entries(before))if(!changed.has(a))assert.deepEqual(s[a],v);
+c.window.fillUpbKonimexFinishedGoodsGrowth(b);c.window.fillUpbKonimexFinishedGoodsGrowth(b,true);c.window.fillUpbKonimexRatios(b,'2026-09');
+for(const n of [non,grand]){assert.equal(s['F'+n].v,1);assert.equal(s['F'+n].f,'E'+n+'/D'+n+'-1');for(const [col,input,den]of [['G','C','E4'],['H','D','F4'],['I','E','H4']]){assert.equal(s[col+n].f,input+n+'/'+den);assert.equal(s[col+n].z,'0.00%');}assert(Math.abs(s['J'+n].v)<1e-12);assert.equal(s['J'+n].f,'I'+n+'/H'+n+'-1');}
+for(const type of ['ods','xlsx']){const out=X.read(X.write(b,{type:'buffer',bookType:type}),{type:'buffer'});assert.equal(out.Sheets.LAPORAN['E'+grand].v,120);assert.equal(out.Sheets.LAPORAN['F'+grand].v,1);}
+console.log('PASS: NON BJ and grand totals sum only actual columns; growth and corporate ratios independently recalculated, export and unrelated cells preserved.');

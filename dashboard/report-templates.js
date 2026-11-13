@@ -2186,8 +2186,8 @@
     put(first+2,["","","Full Year",ytd,ytd,ytd,String(year-1),"YTD "+(year-1),"YTD "+year,"Growth YTD","Target Ratio\n"+year,"% Achievement\n"+year,"YTD"],true);
     for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
     merges.push({s:{r:first+1,c:2},e:{r:first+1,c:3}},{s:{r:first+1,c:6},e:{r:first+1,c:11}});
-    const labels=["","Barang Jadi","Farmasi","Sobisco","Candy","Rusak Produksi Non barang Jadi","Bahan Baku","BB FM","BB FD","Kemasan","BK FM","BK FD","WIP","WIP FM","WIP FD"];
-    labels.forEach((label,i)=>{const r=first+3+i;put(r,[label==="Barang Jadi"?1:label==="Rusak Produksi Non barang Jadi"?2:"",label]);if(["Barang Jadi","Rusak Produksi Non barang Jadi"].includes(label))sheet[X.encode_cell({r,c:1})].s.font.bold=true;});
+    const labels=["UPB (000) KONIMEX","Barang Jadi","Farmasi","Sobisco","Candy","Rusak Produksi Non barang Jadi","Bahan Baku","BB FM","BB FD","Kemasan","BK FM","BK FD","WIP","WIP FM","WIP FD"];
+    labels.forEach((label,i)=>{const r=first+3+i;put(r,[label==="Barang Jadi"?1:label==="Rusak Produksi Non barang Jadi"?2:"",label]);if(["UPB (000) KONIMEX","Barang Jadi","Rusak Produksi Non barang Jadi"].includes(label))sheet[X.encode_cell({r,c:1})].s.font.bold=true;});
     sheet["!ref"]=X.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,12)}});
   };
 
@@ -2271,6 +2271,26 @@
     fillUpbKonimexNonBjGroup(workbook, period, "wip");
   };
 
+  global.fillUpbKonimexTotals = function(workbook){
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;if(!sheet?.["!ref"])return;
+    const norm=v=>String(v??"").trim().toUpperCase().replace(/\s+/g," ");
+    const range=X.decode_range(sheet["!ref"]),grid=X.sheet_to_json(sheet,{header:1,defval:"",range:X.encode_range({s:{r:0,c:0},e:range.e})});
+    const start=grid.findIndex(row=>norm(row[0])==="UPB (000) KONIMEX");if(start<0)return;
+    const rows={};for(let r=start+3;r<grid.length;r++){
+      if(/^(?:UPB |REVENUE KONIMEX|MCM KONIMEX|SALES MNJ|RATIO |MTM CONTRIBUTION|ACHIEVEMENT & GROWTH)/.test(norm(grid[r][0])))break;
+      if(norm(grid[r][1]))rows[norm(grid[r][1])]=r;
+    }
+    for(const [label,members]of [["RUSAK PRODUKSI NON BARANG JADI",["BAHAN BAKU","KEMASAN","WIP"]],["UPB (000) KONIMEX",["BARANG JADI","RUSAK PRODUKSI NON BARANG JADI"]]]){
+      const row=rows[label];if(row===undefined)continue;
+      for(const col of [2,3,4]){
+        const refs=members.map(name=>rows[name]===undefined?null:X.encode_cell({r:rows[name],c:col})),values=refs.map(a=>a?sheet[a]?.v:null);
+        const valid=values.every(v=>typeof v==="number"&&Number.isFinite(v)),address=X.encode_cell({r:row,c:col});
+        const cell={...(sheet[address]||{}),t:valid?"n":"s",v:valid?values.reduce((a,b)=>a+b,0):"",z:"#,##0"};delete cell.f;delete cell.F;delete cell.w;
+        if(valid)cell.f=refs.join("+");sheet[address]=cell;
+      }
+    }
+  };
+
   global.fillUpbKonimexRatios = function(workbook, period){
     const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;if(!sheet?.["!ref"])return;
     const norm=v=>String(v??"").trim().toUpperCase().replace(/[–—]/g,"-").replace(/\s+/g," ");
@@ -2300,22 +2320,23 @@
       const ref=X.encode_cell({r,c}),cell={...(sheet[ref]||{}),t:valid?"n":"s",v:valid?numerator/denominator-(c===9?1:0):"",z:"0.00%"};delete cell.f;delete cell.F;delete cell.w;
       if(valid)cell.f=a+"/"+b+(c===9?"-1":"");sheet[ref]=cell;
     };
-    const labels=new Set(["BARANG JADI","FARMASI","SOBISCO","CANDY","RUSAK PRODUKSI NON BARANG JADI","BAHAN BAKU","BB FM","BB FD","KEMASAN","BK FM","BK FD","WIP","WIP FM","WIP FD"]);
+    const labels=new Set(["UPB (000) KONIMEX","BARANG JADI","FARMASI","SOBISCO","CANDY","RUSAK PRODUKSI NON BARANG JADI","BAHAN BAKU","BB FM","BB FD","KEMASAN","BK FM","BK FD","WIP","WIP FM","WIP FD"]);
     for(let r=first+3;r<grid.length;r++){
-      if(boundary(grid[r]))break;if(!labels.has(norm(grid[r][1])))continue;
+      if(boundary(grid[r])&&norm(grid[r][1])!=="UPB (000) KONIMEX")break;if(!labels.has(norm(grid[r][1])))continue;
       for(let i=0;i<3;i++)divide(r,6+i,X.encode_cell({r,c:2+i}),corporate>=0&&denominators[i]>=0?X.encode_cell({r:corporate,c:denominators[i]}):null);
       divide(r,9,X.encode_cell({r,c:8}),X.encode_cell({r,c:7}));
     }
   };
 
-  global.fillUpbKonimexFinishedGoodsGrowth = function (workbook) {
+  global.fillUpbKonimexFinishedGoodsGrowth = function (workbook, nonBj = false) {
     const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;if(!sheet?.["!ref"])return;
     const range=X.decode_range(sheet["!ref"]),grid=X.sheet_to_json(sheet,{header:1,defval:"",range:X.encode_range({s:{r:0,c:0},e:range.e})});
     const norm=v=>String(v??"").trim().toUpperCase().replace(/\s+/g," ");
     const start=grid.findIndex(row=>row.some(v=>norm(v)==="UPB (000) KONIMEX"));if(start<0)return;
     for(let r=start+3;r<grid.length;r++){
       if(/^(?:UPB |REVENUE KONIMEX|SALES MNJ|RATIO |MTM CONTRIBUTION|ACHIEVEMENT & GROWTH)/.test(norm(grid[r][0])))break;
-      if(!["BARANG JADI","FARMASI","SOBISCO","CANDY"].includes(norm(grid[r][1])))continue;
+      const labels=nonBj?["UPB (000) KONIMEX","RUSAK PRODUKSI NON BARANG JADI","BAHAN BAKU","BB FM","BB FD","KEMASAN","BK FM","BK FD","WIP","WIP FM","WIP FD"]:["BARANG JADI","FARMASI","SOBISCO","CANDY"];
+      if(!labels.includes(norm(grid[r][1])))continue;
       const actual=X.encode_cell({r,c:4}),prior=X.encode_cell({r,c:3}),address=X.encode_cell({r,c:5}),a=sheet[actual]?.v,b=sheet[prior]?.v;
       const valid=typeof a==="number"&&Number.isFinite(a)&&typeof b==="number"&&Number.isFinite(b)&&b!==0;
       const cell={...(sheet[address]||{}),t:valid?"n":"s",v:valid?a/b-1:"",z:"0.00%"};delete cell.f;delete cell.F;delete cell.w;
