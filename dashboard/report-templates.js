@@ -2237,8 +2237,10 @@
     const put=(r,c,value,formula)=>{if(r===undefined)return;const address=X.encode_cell({r,c}),valid=numeric(value),cell={...(report[address]||{}),t:valid?"n":"s",v:valid?value:"",z:"#,##0"};delete cell.f;delete cell.F;delete cell.w;if(valid&&formula)cell.f=formula;report[address]=cell;};
     const year=Number(period.slice(0,4));
     for(const [dest,y,kind] of [[2,year-1,"TOTAL"],[3,year-1,"YTD"],[4,year,"YTD"]]){
-      const title=new RegExp(wip?"^(?:RUSAK PRODUKSI WIP TAHUN|UPB WIP) "+y+"(?: |$)":packaging?"^(?:RUSAK PRODUKSI EMBALLAGE TAHUN|UPB BAHAN KEMAS) "+y+"(?: |$)":"^UPB BAHAN BAKU "+y+"(?: |$)");
-      const top=data.findIndex(row=>row.some(v=>title.test(norm(v))));let end=data.length,header=-1,column=-1,labelColumn=-1;
+      const title=new RegExp("^RUSAK PRODUKSI "+(wip?"WIP":packaging?"EMBALLAGE":"BAHAN BAKU")+" TAHUN "+y+"(?: |$)");
+      const fallback=new RegExp("^UPB "+(wip?"WIP":packaging?"BAHAN KEMAS":"BAHAN BAKU")+" "+y+"(?: |$)");
+      const preferred=data.findIndex(row=>row.some(v=>title.test(norm(v))));
+      const top=preferred>=0?preferred:data.findIndex(row=>row.some(v=>fallback.test(norm(v))));let end=data.length,header=-1,column=-1,labelColumn=-1;
       if(top>=0)for(let r=top+1;r<data.length;r++){
         if(data[r].some(v=>/^(?:UPB (?:BAHAN BAKU|BAHAN KEMAS|WIP)|RUSAK PRODUKSI (?:BAHAN BAKU|EMBALLAGE|WIP) TAHUN) 20\d{2}(?: |$)/.test(norm(v)))){end=r;break;}
         const c=data[r].findIndex(v=>norm(v)==="BAGIAN");if(c>=0){header=r;labelColumn=c;}
@@ -2246,7 +2248,8 @@
       if(header>=0)column=data[header].findIndex(v=>kind==="TOTAL"?norm(v)==="TOTAL":/^YTD(?: |$)/.test(norm(v)));
       for(const [label,names] of Object.entries(groups)){
         const selected=[];let value=0;
-        if(header>=0&&column>=0)for(let r=header+1;r<end;r++)if(names.includes(norm(data[r][labelColumn]))){selected.push(r);const ref=X.encode_cell({r,c:column});if(numeric(source[ref]?.v))value+=source[ref].v;}
+        const included=label===fm&&dest===4?[...names,"PROD FARMASI 1/EFF","PROD EKSTRAKSI"]:names;
+        if(header>=0&&column>=0)for(let r=header+1;r<end;r++)if(included.includes(norm(data[r][labelColumn]))){selected.push(r);const ref=X.encode_cell({r,c:column});if(numeric(source[ref]?.v))value+=source[ref].v;}
         // Compact adjacent matching rows into ranges without including other departments.
         const ranges=[];for(const r of selected){const last=ranges[ranges.length-1];if(last&&last[1]+1===r)last[1]=r;else ranges.push([r,r]);}
         const refs=ranges.map(([first,last])=>"'"+sourceName.replace(/'/g,"''")+"'!"+X.encode_cell({r:first,c:column})+(last===first?"":":"+X.encode_cell({r:last,c:column})));
