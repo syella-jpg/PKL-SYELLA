@@ -2271,6 +2271,43 @@
     fillUpbKonimexNonBjGroup(workbook, period, "wip");
   };
 
+  global.fillUpbKonimexRatios = function(workbook, period){
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;if(!sheet?.["!ref"])return;
+    const norm=v=>String(v??"").trim().toUpperCase().replace(/[–—]/g,"-").replace(/\s+/g," ");
+    const range=X.decode_range(sheet["!ref"]),grid=X.sheet_to_json(sheet,{header:1,defval:"",raw:true,range:X.encode_range({s:{r:0,c:0},e:range.e})});
+    const boundary=row=>row.some(v=>/^(?:UPB \(000\)|REVENUE KONIMEX|MCM KONIMEX|SALES MNJ|RATIO |MTM CONTRIBUTION|ACHIEVEMENT & GROWTH)/.test(norm(v)));
+    const first=grid.findIndex(row=>row.some(v=>norm(v)==="UPB (000) KONIMEX"));if(first<0)return;
+    const source=grid.findIndex(row=>row.some(v=>/^REVENUE KONIMEX \(SELLING OUT\).*RP\.?\s*\(000\)$/.test(norm(v))));
+    let header=-1,corporate=-1,sourceEnd=grid.length;
+    if(source>=0){
+      for(let r=source+1;r<grid.length;r++)if(boundary(grid[r])){sourceEnd=r;break;}
+      for(let r=source+1;r<sourceEnd;r++)if(grid[r].some(v=>norm(v)==="PARAMETER")){header=r;break;}
+      const parameter=header>=0?grid[header].findIndex(v=>norm(v)==="PARAMETER"):-1;
+      if(parameter>=0)for(let r=header+2;r<sourceEnd;r++)if(norm(grid[r][parameter])==="CORPORATE"){corporate=r;break;}
+    }
+    const year=Number(period.slice(0,4));
+    const column=(group,kind)=>{
+      if(header<0)return -1;const headings=grid[header],start=headings.findIndex(v=>group(norm(v)));if(start<0)return -1;
+      let end=start+1;while(end<headings.length&&!norm(headings[end]))end++;
+      for(let c=start;c<end;c++){const text=norm(grid[header+1]?.[c]);if(kind==="FY"?text==="FULL YEAR"||text==="FY":/^YTD(?: |$)/.test(text))return c;}
+      return -1;
+    };
+    const prior=v=>v==="ACH LAST YEAR ("+(year-1)+")",target=v=>v==="TARGET "+year;
+    const denominators=[column(prior,"FY"),column(prior,"YTD"),column(target,"YTD")];
+    const numeric=v=>typeof v==="number"&&Number.isFinite(v);
+    const divide=(r,c,a,b)=>{
+      const numerator=a?sheet[a]?.v:null,denominator=b?sheet[b]?.v:null,valid=numeric(numerator)&&numeric(denominator)&&denominator!==0;
+      const ref=X.encode_cell({r,c}),cell={...(sheet[ref]||{}),t:valid?"n":"s",v:valid?numerator/denominator-(c===9?1:0):"",z:"0.00%"};delete cell.f;delete cell.F;delete cell.w;
+      if(valid)cell.f=a+"/"+b+(c===9?"-1":"");sheet[ref]=cell;
+    };
+    const labels=new Set(["BARANG JADI","FARMASI","SOBISCO","CANDY","RUSAK PRODUKSI NON BARANG JADI","BAHAN BAKU","BB FM","BB FD","KEMASAN","BK FM","BK FD","WIP","WIP FM","WIP FD"]);
+    for(let r=first+3;r<grid.length;r++){
+      if(boundary(grid[r]))break;if(!labels.has(norm(grid[r][1])))continue;
+      for(let i=0;i<3;i++)divide(r,6+i,X.encode_cell({r,c:2+i}),corporate>=0&&denominators[i]>=0?X.encode_cell({r:corporate,c:denominators[i]}):null);
+      divide(r,9,X.encode_cell({r,c:8}),X.encode_cell({r,c:7}));
+    }
+  };
+
   global.fillUpbKonimexFinishedGoodsGrowth = function (workbook) {
     const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;if(!sheet?.["!ref"])return;
     const range=X.decode_range(sheet["!ref"]),grid=X.sheet_to_json(sheet,{header:1,defval:"",range:X.encode_range({s:{r:0,c:0},e:range.e})});
@@ -2918,8 +2955,9 @@
           const international = findRow("INTERNATIONAL BUSINESS");
           const ib = workbook.Sheets.IB;
           if (!ib) throw new Error("Sheet IB tidak ditemukan.");
-          // Full Year memakai YTD AKTUAL TOTAL; YTD memakai YTD AKTUAL IB FD tahun sebelumnya.
-          const addresses = column === "E" ? ["D66", "D72"] : ["D68", "D74"];
+          // Prior-year ACTUAL TOTAL EXIST/NEW: TOTAL FY in R, YTD in D.
+          const ibColumn = column === columns[0] ? "R" : "D";
+          const addresses = [ibColumn + "66", ibColumn + "72"];
           addresses.forEach((address, index) => {
             write(international + index + 1, "IB!" + address, ib[address]?.v);
           });
