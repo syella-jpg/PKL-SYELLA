@@ -1,9 +1,9 @@
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
 function storage() { const data = new Map(); return {get length(){return data.size},key:i=>[...data.keys()][i],getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)}; }
 (async()=>{
- const sessionStorage=storage(), localStorage=storage(); let calls=0, fail=false;
+ const sessionStorage=storage(), localStorage=storage(); let calls=0, fail=false,storageListener;
  function page(){
-  const window={addEventListener(){},fetch:async()=>{calls++; if(fail)throw Error('offline'); return new Response(JSON.stringify({success:true,data:[calls]}),{headers:{'content-type':'application/json'}});}};
+  const window={addEventListener(type,handler){if(type==='storage')storageListener=handler;},fetch:async()=>{calls++; if(fail)throw Error('offline'); return new Response(JSON.stringify({success:true,data:[calls]}),{headers:{'content-type':'application/json'}});}};
   vm.runInNewContext(fs.readFileSync('dashboard/report-api-cache.js','utf8'),{window,sessionStorage,localStorage,URL,Response,location:{href:'http://localhost/dashboard/test.html'}});
   return window.fetch;
  }
@@ -15,7 +15,7 @@ function storage() { const data = new Map(); return {get length(){return data.si
  await fetch('http://localhost/upload/process.php',{method:'POST'});assert.equal(calls,3);
  await fetch(url);assert.equal(calls,4,'upload invalidates cached reads');
  await fetch(url,{cache:'reload'});assert.equal(calls,5);
- const key='konimex_api_cache_v1:'+url;
+ const key='corporate_api_cache_v2:'+url;
  const record=JSON.parse(sessionStorage.getItem(key));record.time=0;sessionStorage.setItem(key,JSON.stringify(record));
  await fetch(url);assert.equal(calls,6,'expired data is reloaded');
  fail=true;await assert.rejects(fetch(url+'?year=2027'));fail=false;await fetch(url+'?year=2027');assert.equal(calls,8);
@@ -27,5 +27,11 @@ function storage() { const data = new Map(); return {get length(){return data.si
  const beforeRead=calls;await fetch(url);assert.equal(calls,beforeRead,'lock activity keeps existing chart data cached');
  await fetch('http://localhost/api/report.php?endpoint=bod_kx_sell_in_api',{method:'POST'});
  assert.notEqual(localStorage.getItem('konimex_report_revision'),revision,'real report uploads still invalidate data');
+ await fetch(url);const beforeStorage=calls;
+ storageListener({key:'corporate_api_cache_v2:'+url,storageArea:sessionStorage});await fetch(url);assert.equal(calls,beforeStorage,'session cache events cannot invalidate their own source');
+ storageListener({key:'konimex_api_cache_v1:'+url});await fetch(url);assert.equal(calls,beforeStorage,'legacy cache events also ignored');
+ const routed='http://localhost/api/report.php?endpoint=unit_sell_out_targets_api&period=2026-09';
+ const beforeRouted=calls;await fetch(routed);await fetch(routed);assert.equal(calls,beforeRouted+1,'router GET shares the same cache rules');
+ await fetch(routed,{cache:'reload'});assert.equal(calls,beforeRouted+2,'router explicit reload stays fresh');
  console.log('PASS shared requests, cross-menu cache, query isolation, upload invalidation, reload, expiry, retry');
 })().catch(error=>{console.error(error);process.exitCode=1});

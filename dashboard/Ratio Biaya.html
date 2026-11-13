@@ -196,10 +196,10 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script src="report-api-cache.js?v=lock-status-20261102"></script>
+<script src="report-api-cache.js?v=storage-loop-20261113"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="report-templates.js?v=upb-non-bj-report-20261112"></script>
-<script src="shared-report-download.js?v=ratio-chart-20261102"></script>
+<script src="report-templates.js?v=report-fast-layouts-20261113"></script>
+<script src="shared-report-download.js?v=reuse-builder-20261113"></script>
 <script src="ratio-biaya-chart.js?v=full-axis-20261102"></script>
 <script src="analysis-store.js"></script>
 <script src="analysis-to-tm-bod.js"></script>
@@ -304,6 +304,7 @@
   /* ---------- Data ---------- */
   const dashboardData = new Map();
   window.addEventListener("storage", (event) => {
+    if(event.storageArea && event.storageArea!==localStorage)return;
     if (event.key === null || /^konimex_/.test(event.key) && event.key !== "konimex_notes") {
       dashboardData.clear();
       chartBooks.clear();

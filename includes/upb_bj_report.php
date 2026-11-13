@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/ods_report_styles.php';
 require_once __DIR__.'/upb_bj_input_template.php';
 require_once __DIR__.'/upb_bj_pareto.php';
 /** Move local and monthly-sheet references when raw monthly blocks share one report sheet. */
@@ -48,6 +49,7 @@ function buildUpbBjReportOds(string $period,?string $current=null,?string $prior
    }
   }
   $parent=$doc->getElementsByTagNameNS(UPB_O,'spreadsheet')->item(0);foreach(array_values($tables) as $table)$parent->removeChild($table);$parent->appendChild($report);
+        trimUnusedReportOdsStyles($doc,$styles);
   $zip->addFromString('content.xml',$doc->saveXML());$zip->addFromString('styles.xml',$styles->saveXML());$zip->close();$native->close();return file_get_contents($temp);
  }finally{if(is_file($temp))unlink($temp);}
 }

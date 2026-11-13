@@ -44,7 +44,12 @@ try {
             require_once __DIR__.'/../includes/database.php';$conn=openReportConnection();
             try{$record=findUpbBjTemplate($conn,$period);if($record)$historyBytes=base64_decode($record['base64'],true)?:null;$prior=findUpbBjTemplate($conn,((int)substr($period,0,4)-1).'-12');if($prior)$priorBytes=base64_decode($prior['base64'],true)?:null;}finally{$conn->close();}
         }
-        $bytes=buildUpbBjInputTemplateOds($period,$historyBytes,$priorBytes);
+        require_once __DIR__.'/../includes/report_artifact_cache.php';
+        $key=reportArtifactKey([$period,$historyBytes??'',$priorBytes??''],[
+            __DIR__.'/../includes/upb_bj_input_template.php',__DIR__.'/../includes/upb_bj_template_history.php',
+            __DIR__.'/assets/input-templates/upb-bj-kx.ods'
+        ]);
+        $bytes=cachedReportArtifact('upb-bj-input',$key,static fn()=>buildUpbBjInputTemplateOds($period,$historyBytes,$priorBytes));
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_UPB BJ kx_'.$period.'.ods"');
         header('Cache-Control: no-store');

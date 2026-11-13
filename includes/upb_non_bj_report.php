@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/ods_report_styles.php';
 require_once __DIR__.'/upb_non_bj_input_template.php';
 /** Two annual summaries, then current-year and prior-year detail blocks. */
 function buildUpbNonBjReportOds(string $period,?string $current=null,?string $prior=null): string {
@@ -40,6 +41,7 @@ function buildUpbNonBjReportOds(string $period,?string $current=null,?string $pr
             $formula=preg_replace_callback('/\[([^\]]+)\]/',static function($match)use($maps,$i){return '['.preg_replace_callback('/(?:(?:\$?\x27[^\x27]*\x27|\$?[A-Za-z_][A-Za-z0-9_ ]*)?\.)(\$?[A-Z]+\$?)(\d+)/',static fn($ref)=>'.'.$ref[1].($maps[$i][(int)$ref[2]]??$ref[2]),$match[1]).']';},$formula);
             $cell->setAttributeNS(UPB_T,'table:formula',$formula);
         }
+        trimUnusedReportOdsStyles($doc,$styles);
         $zips[0]->addFromString('content.xml',$doc->saveXML());$zips[0]->addFromString('styles.xml',$styles->saveXML());
         foreach($zips as $zip)$zip->close();$zips=[];return file_get_contents($paths[0]);
     }finally{foreach($zips as $zip)$zip->close();foreach($paths as $path)@unlink($path);}

@@ -1,7 +1,7 @@
 /* Share successful report API reads across menus in this browser tab. */
 (() => {
   const nativeFetch = window.fetch.bind(window);
-  const prefix = 'konimex_api_cache_v1:';
+  const prefix = 'corporate_api_cache_v2:';
   const revisionKey = 'konimex_report_revision';
   const ttl = 5 * 60 * 1000;
   const pending = new Map();
@@ -24,11 +24,14 @@
     try { localStorage.setItem(revisionKey, revision); } catch (_) {}
   }
   window.addEventListener('storage', event => {
+    if(event.storageArea && event.storageArea!==localStorage)return;
+    if(event.key?.startsWith(prefix)||event.key?.startsWith('konimex_api_cache_v1:'))return;
     if (event.key === null || event.key === revisionKey || /^konimex_.*(?:processed|target)/.test(event.key || '')) clear();
   });
   window.fetch = async (input, options) => {
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href);
-    const isReport = /\/(?:dashboard|upload)\/[a-z_]+_api(?:\.php)?$/.test(url.pathname);
+    const isReport = /\/(?:dashboard|upload)\/[a-z_]+_api(?:\.php)?$/.test(url.pathname)
+      || (/\/api\/report(?:\.php)?$/.test(url.pathname)&&/^[a-z_]+_api$/.test(url.searchParams.get('endpoint')||''));
     const method = String(options?.method || input?.method || 'GET').toUpperCase();
     if (method !== 'GET' && (isReport || /\/(?:upload|api)\//.test(url.pathname))) {
       const response = await nativeFetch(input, options);

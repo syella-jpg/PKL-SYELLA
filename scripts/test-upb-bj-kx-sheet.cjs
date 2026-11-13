@@ -12,7 +12,7 @@ for(const withNew of [false,true]){
  if(withNew){book.SheetNames.push('UPB BJ kx');book.Sheets['UPB BJ kx']=X.utils.aoa_to_sheet([]);}
  c.window.replaceUpbBjKxSheet(book);assert(!book.SheetNames.includes('UP BJ kx'));assert(!book.Sheets['UP BJ kx']);assert.equal(book.SheetNames.filter(n=>n==='UPB BJ kx').length,1);if(!withNew)assert.equal(book.SheetNames[1],'UPB BJ kx');assert(book.Sheets['UPB BJ kx']['!ref']);assert.equal(book.Sheets['UPB non BJ'].A1.v,'keep non BJ');
 }
-const builder=fs.readFileSync('dashboard/Revenue SO(RP).html','utf8');assert(builder.includes('"RATIO UPB", "UPB BJ kx", "UPB non BJ"'));assert(builder.includes('await replaceUpbBjKxSheet(workbook, selectedPeriod);'));
+const builder=fs.readFileSync('dashboard/Revenue SO(RP).html','utf8');assert(builder.includes('"RATIO UPB", "UPB BJ kx", "UPB non BJ"'));assert.match(builder,/await replaceUpbBjKxSheet\(workbook, selectedPeriod(?:, upbPending\.bj)?\);/);
 const native=c.window.writeMtmOds(b),nativeZip=X.CFB.read(new Uint8Array(native),{type:'array'});
 const xml=new TextDecoder().decode(X.CFB.find(nativeZip,'content.xml').content);
 assert(xml.includes('table:name="UPB BJ kx"'));assert(xml.includes('table:style-name="UPBBJKX_'));assert(xml.includes('style:name="UPBBJKX_'));

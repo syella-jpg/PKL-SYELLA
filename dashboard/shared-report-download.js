@@ -12,14 +12,24 @@
     if (quarter && /^20\d{2}$/.test(String(year))) return `${year}-${String(Number(quarter[1])*3).padStart(2,'0')}`;
     throw new Error('Pilih periode laporan terlebih dahulu.');
   }
+  let builderReady=null;
+  function getBuilderFrame(){
+    if(builderReady)return builderReady;
+    const frame=document.createElement('iframe');frame.hidden=true;frame.setAttribute('aria-hidden','true');
+    builderReady=new Promise((resolve,reject)=>{
+      frame.onload=()=>resolve(frame);
+      frame.onerror=()=>reject(new Error('Halaman pembuat laporan gagal dimuat.'));
+      frame.src=builderUrl.href;document.body.append(frame);
+    }).catch(error=>{builderReady=null;frame.remove();throw error;});
+    return builderReady;
+  }
   function build(period, options = {}) {
     return new Promise((resolve, reject) => {
-      const frame = document.createElement('iframe');
-      frame.hidden = true; frame.setAttribute('aria-hidden', 'true');
+      let frame,active=true;
       const requestId = crypto.randomUUID();
-      const cleanup = () => { clearTimeout(timer); window.removeEventListener('message', receive); frame.remove(); };
+      const cleanup = () => { active=false;clearTimeout(timer); window.removeEventListener('message', receive); };
       const receive = (event) => {
-        if (event.source !== frame.contentWindow || event.data?.type !== 'corporate-report-result' || event.data.requestId !== requestId) return;
+        if (!frame || event.source !== frame.contentWindow || event.data?.type !== 'corporate-report-result' || event.data.requestId !== requestId) return;
         if (builderUrl.protocol !== 'file:' && event.origin !== builderUrl.origin) return;
         cleanup();
         if (event.data.error) reject(new Error(event.data.error));
@@ -28,10 +38,10 @@
       };
       const timer = setTimeout(() => { cleanup(); reject(new Error('Pembuatan laporan terlalu lama. Periksa koneksi server lalu coba lagi.')); }, 180000);
       window.addEventListener('message', receive);
-      frame.onload = () => frame.contentWindow.postMessage({type:'corporate-report-build',requestId,period,scope:options.scope||'full'}, builderUrl.protocol === 'file:' ? '*' : builderUrl.origin);
-      frame.onerror = () => { cleanup(); reject(new Error('Halaman pembuat laporan gagal dimuat.')); };
-      frame.src = builderUrl.href;
-      document.body.append(frame);
+      getBuilderFrame().then(ready=>{
+        if(!active)return;frame=ready;
+        frame.contentWindow.postMessage({type:'corporate-report-build',requestId,period,scope:options.scope||'full'}, builderUrl.protocol === 'file:' ? '*' : builderUrl.origin);
+      }).catch(error=>{cleanup();reject(error);});
     });
   }
   window.loadCorporateReportBuffer = build;

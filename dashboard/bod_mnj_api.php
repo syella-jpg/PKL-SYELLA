@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../includes/bod_mnj_workbook.php';
+require_once __DIR__.'/../includes/report_artifact_cache.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -38,10 +39,13 @@ try {
         echo json_encode(['success' => true, 'period' => $period]);
     } else {
         $record = findBodMnjRecord($conn, $period);
-        if ($record) {
-            $book = decodeBodMnjWorkbook($record['base64'], (int)substr($period, 0, 4));
-            $record['formulas'] = getBodMnjFormulaMap($book);
-            $book->disconnectWorksheets();
+        if ($record && !isset($record['formulas'])) {
+            $key=reportArtifactKey([$record['base64'],substr($period,0,4)],[__DIR__.'/../includes/bod_mnj_workbook.php',__DIR__.'/../composer.lock']);
+            $json=cachedReportArtifact('bod-mnj-formulas',$key,static function()use($record,$period){
+                $book=decodeBodMnjWorkbook($record['base64'],(int)substr($period,0,4));
+                try{return json_encode(getBodMnjFormulaMap($book),JSON_THROW_ON_ERROR);}finally{$book->disconnectWorksheets();}
+            });
+            $record['formulas']=json_decode($json,true,512,JSON_THROW_ON_ERROR);
         }
         echo json_encode(['success' => true, 'data' => $record]);
     }

@@ -195,9 +195,9 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script src="report-api-cache.js?v=lock-status-20261102"></script>
+<script src="report-api-cache.js?v=storage-loop-20261113"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="shared-report-download.js?v=selling-in-20261102"></script>
+<script src="shared-report-download.js?v=reuse-builder-20261113"></script>
 <script src="selling-in-chart.js?v=report-source-20261102"></script>
 <script src="analysis-store.js"></script>
 <script src="analysis-to-tm-bod.js"></script>
@@ -302,7 +302,7 @@
 
   /* ---------- Data grafik dari tabel Selling In di LAPORAN ---------- */
   const chartBooks=new Map();
-  window.addEventListener('storage',event=>{if(event.key===null||/^konimex_/.test(event.key||'')&&event.key!=='konimex_notes'){chartBooks.clear();render();}});
+  window.addEventListener('storage',event=>{if(event.storageArea&&event.storageArea!==localStorage)return;if(event.key===null||/^konimex_/.test(event.key||'')&&event.key!=='konimex_notes'){chartBooks.clear();render();}});
   async function getData(){
     const period=st.period,tab=st.tab;
     if(!chartBooks.has(period))chartBooks.set(period,window.loadCorporateReportBuffer(period,{scope:'selling-in-chart'}).then(buffer=>XLSX.read(buffer,{type:'array'})).catch(error=>{chartBooks.delete(period);throw error;}));

@@ -122,14 +122,14 @@ function saveBodMnjRecord($conn, string $period, string $base64): void
         throw new RuntimeException('Tabel BOD MNJ gagal disiapkan.');
     }
     $book=decodeBodMnjWorkbook($base64,(int)substr($period,0,4));
-    try { $nonProduct=parseBodMnjNonProduct($book,(int)substr($period,0,4)); }
+    try { $nonProduct=parseBodMnjNonProduct($book,(int)substr($period,0,4));$formulas=getBodMnjFormulaMap($book); }
     finally { $book->disconnectWorksheets(); }
     $conn->begin_transaction();
     try {
     $query = $conn->prepare('INSERT INTO bod_mnj_files (report_period, payload) VALUES (?, ?) ON DUPLICATE KEY UPDATE payload = VALUES(payload)');
     if (!$query) throw new RuntimeException('Data BOD MNJ gagal disimpan.');
     try {
-        $payload = json_encode(['base64' => $base64], JSON_THROW_ON_ERROR);
+        $payload = json_encode(['base64' => $base64,'formulas'=>$formulas], JSON_THROW_ON_ERROR);
         $query->bind_param('ss', $period, $payload);
         if (!$query->execute()) throw new RuntimeException('Data BOD MNJ gagal disimpan.');
     } finally { $query->close(); }
