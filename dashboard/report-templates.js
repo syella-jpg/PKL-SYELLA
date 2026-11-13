@@ -2248,7 +2248,7 @@
       if(header>=0)column=data[header].findIndex(v=>kind==="TOTAL"?norm(v)==="TOTAL":/^YTD(?: |$)/.test(norm(v)));
       for(const [label,names] of Object.entries(groups)){
         const selected=[];let value=0;
-        const included=label===fm&&dest===4?[...names,"PROD FARMASI 1/EFF","PROD EKSTRAKSI"]:names;
+        const included=label===fm?[...names,"PROD FARMASI 1/EFF","PROD EKSTRAKSI"]:names;
         if(header>=0&&column>=0)for(let r=header+1;r<end;r++)if(included.includes(norm(data[r][labelColumn]))){selected.push(r);const ref=X.encode_cell({r,c:column});if(numeric(source[ref]?.v))value+=source[ref].v;}
         // Compact adjacent matching rows into ranges without including other departments.
         const ranges=[];for(const r of selected){const last=ranges[ranges.length-1];if(last&&last[1]+1===r)last[1]=r;else ranges.push([r,r]);}
