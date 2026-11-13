@@ -13,6 +13,28 @@
     }
     const text = labels.join('\n');
     const file = normalize(filename);
+    const distrMonths=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
+    const distrShort=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const databaseSignature=['NAMA PRODUK','GB','QTY','SAT','NILAI','BULAN','TAHUN'].every(label=>labels.includes(label))&&labels.some(label=>/^DATABASE JAN SD /.test(label));
+    const paretoSignature=names.includes('DATA PARETO UPB')&&['DATA PARETO UPB','BERDASARKAN UNIT PRODUK','BERDASARKAN RUPIAH PRODUK'].every(label=>labels.includes(label));
+    if(databaseSignature||paretoSignature){
+      const choices=[];if(databaseSignature)choices.push({section:'UPB DISTR',label:'UPB DISTR'});if(paretoSignature)choices.push({section:'DATA PARETO UPB',label:'DATA PARETO UPB'});
+      const periods=[];let valid=true;
+      const monthly=book.SheetNames.filter(name=>distrMonths.includes(normalize(name)));
+      const relevant=databaseSignature?(monthly.length?monthly:book.SheetNames.filter(name=>normalize(name)==='DATABASE UPB')):book.SheetNames.filter(name=>normalize(name)==='DATA PARETO UPB');
+      for(const name of relevant){
+        const prefix=databaseSignature?'DATABASE':'PERIODE';
+        const matches=Object.values(book.Sheets[name]).filter(cell=>typeof cell?.v==='string').map(cell=>normalize(cell.v).match(new RegExp('^'+prefix+' JAN SD ([A-Z]+) (20\\d{2})$'))).filter(Boolean);
+        const unique=[...new Map(matches.map(m=>[m[1]+m[2],m])).values()];
+        if(unique.length!==1){valid=false;continue;}
+        const m=unique[0],month=distrShort.indexOf(m[1])+1;
+        if(!month||(monthly.length&&distrMonths[month-1]!==normalize(name))){valid=false;continue;}
+        periods.push({year:Number(m[2]),month});
+      }
+      const years=[...new Set(periods.map(p=>p.year))],last=periods.length?Math.max(...periods.map(p=>p.month)):null;
+      if(monthly.length&&(last!==monthly.length||periods.length!==monthly.length))valid=false;
+      return {choices,year:valid&&years.length===1?years[0]:null,month:valid&&years.length===1?last:null};
+    }
     // NON BJ has its own annual summary and BB/BK/WIP detail blocks.
     // Read the headings so renamed files and shifted rows remain recognizable.
     const nonBjTitle=/UPB\s+NON\s+BJ\s+KONIMEX\s+TH\.?\s*(20\d{2})/;

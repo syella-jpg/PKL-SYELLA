@@ -22,6 +22,18 @@ try {
     $section = is_string($_GET['section'] ?? null) ? $_GET['section'] : '';
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
     reportInputTemplateSpec($section, $period);
+    if (in_array($section,['UPB DISTR','DATA PARETO UPB'],true)) {
+        require_once __DIR__.'/../includes/upb_distr_input_store.php';
+        require_once __DIR__.'/../includes/database.php';
+        $conn=openReportConnection();
+        try{$record=findUpbDistrInput($conn,$period,$section);}finally{$conn->close();}
+        $saved=$record?base64_decode($record['base64'],true):null;
+        if($section==='UPB DISTR'&&$saved)$saved=prepareUpbDistrInputOds($saved,$record['report_period']);
+        $bytes=$section==='UPB DISTR'?buildUpbDistrInputTemplateOds($period,$saved?:null):buildDataParetoUpbTemplateOds($period,$saved?:null);
+        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
+        header('Content-Disposition: attachment; filename="Template_'.$section.'_'.$period.'.ods"');
+        header('Cache-Control: no-store');echo $bytes;return;
+    }
     if ($section === 'UPB non BJ') {
         require_once __DIR__.'/../includes/upb_non_bj_input_template.php';
         require_once __DIR__.'/../includes/database.php';

@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS `upb distr` (
+    report_period CHAR(7) PRIMARY KEY,
+    base64 LONGTEXT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `data pareto upb` (
+    report_period CHAR(7) PRIMARY KEY,
+    base64 LONGTEXT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
