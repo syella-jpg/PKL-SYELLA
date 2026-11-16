@@ -25,7 +25,10 @@ function distrFormulaKey(string $formula): string {
  foreach($parts as $i=>&$part)if($i%2===0)$part=strtoupper(preg_replace('/\s+/','',$part));unset($part);return implode('',$parts);
 }
 function distrTotalRef(DOMElement $table): ?string {
- foreach(upbBjCells($table) as $r=>$row)if(strtoupper(trim($row[1]->textContent??''))==='TOTAL')return 'E'.$r;
+ $r=1;foreach($table->childNodes as $row)if($row instanceof DOMElement&&$row->localName==='table-row'){
+  $cell=$row->firstChild;while($cell&&!($cell instanceof DOMElement))$cell=$cell->nextSibling;
+  if(strtoupper(trim($cell?->textContent??''))==='TOTAL')return 'E'.$r;$r+=max(1,(int)$row->getAttributeNS(UPB_T,'number-rows-repeated'));
+ }
  return null;
 }
 function distrSnapshotInfo(DOMDocument $doc): array {
@@ -46,14 +49,23 @@ function distrWriteFormulaState(ZipArchive $zip,array $state): void {
  $target->nodeValue='';$target->appendChild($doc->createTextNode(json_encode($state,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR)));$zip->addFromString('meta.xml',$doc->saveXML());
 }
 function distrRawFormulaSnapshot(DOMElement $table): array {
- $out=[];$total=distrTotalRef($table);foreach(upbBjCells($table) as $r=>$row)foreach($row as $c=>$cell)if($cell->hasAttributeNS(UPB_T,'formula')){
-  $address=$c.':'.$r;if($c===5&&'E'.$r===$total)continue;$out[$address]=$cell->getAttributeNS(UPB_T,'formula');
+ $out=[];$formulaRows=[];
+ foreach(distrFormulaCells($table) as $cell){$parent=$cell->parentNode;$key=spl_object_id($parent);$formulaRows[$key]['node']=$parent;$formulaRows[$key]['cells'][spl_object_id($cell)]=$cell;}
+ $r=1;foreach($table->childNodes as $row)if($row instanceof DOMElement&&$row->localName==='table-row'){
+  $key=spl_object_id($row);if(isset($formulaRows[$key])){$c=1;$label=strtoupper(trim(upbBjColumnCell($row,1)->textContent));
+   foreach($row->childNodes as $cell)if($cell instanceof DOMElement&&in_array($cell->localName,['table-cell','covered-table-cell'],true)){
+    if(isset($formulaRows[$key]['cells'][spl_object_id($cell)])&&!($c===5&&$label==='TOTAL'))$out[$c.':'.$r]=$cell->getAttributeNS(UPB_T,'formula');$c+=max(1,(int)$cell->getAttributeNS(UPB_T,'number-columns-repeated'));
+   }
+  }$r+=max(1,(int)$row->getAttributeNS(UPB_T,'number-rows-repeated'));
  }return $out;
 }
 function distrRawHasInputs(DOMElement $table): bool {
- $info=distrMonthInfo($table);$cells=upbBjCells($table);
- foreach($cells as $r=>$row){$product=false;foreach($info as $part)if($r>=$part['start']&&$r<=$part['last']){$product=true;break;}if(!$product)continue;
-  foreach($row as $cell)if(!$cell->hasAttributeNS(UPB_T,'formula')&&($cell->hasAttributeNS(UPB_O,'value')||trim($cell->textContent)!==''||trim($cell->getAttributeNS(UPB_O,'string-value'))!==''))return true;
+ $product=false;foreach($table->childNodes as $row)if($row instanceof DOMElement&&$row->localName==='table-row'){
+  $first=$row->firstChild;while($first&&!($first instanceof DOMElement))$first=$first->nextSibling;$label=strtoupper(trim($first?->textContent??''));
+  if($label==='NAMA PRODUK'){$product=true;continue;}
+  if(in_array($label,DISTR_GROUPS,true)||str_starts_with($label,'SUB TOTAL ')||$label==='TOTAL'){$product=false;continue;}
+  if(!$product)continue;
+  if(distrRowHasContent($row))return true;
  }return false;
 }
 function distrCaptureRawState(DOMDocument $doc,array $state): array {
@@ -71,7 +83,11 @@ function distrCaptureRawState(DOMDocument $doc,array $state): array {
 }
 /** Record user changes against the last generated formulas, including explicit resets. */
 function distrCaptureFormulaState(DOMDocument $doc,array $state,string $period): array {
- $state=distrCaptureRawState($doc,$state);$tables=upbBjTables($doc);$old=$tables['KESIMPULAN']??null;if(!$old)return $state+['rules'=>[],'baseline'=>[]];$monthly=distrSnapshotInfo($doc);if(!$monthly)return $state;
+ $state=distrCaptureRawState($doc,$state);
+ // Cumulative summary rules belong to the old input format. Replace them once
+ // with direct monthly formulas; preserve the month-specific raw table formulas.
+ if(($state['input_basis']??null)!=='monthly'){$state['input_basis']='monthly';$state['rules']=[];$state['baseline']=[];return $state;}
+ $tables=upbBjTables($doc);$old=$tables['KESIMPULAN']??null;if(!$old)return $state+['rules'=>[],'baseline'=>[]];$monthly=distrSnapshotInfo($doc);if(!$monthly)return $state;
  $last=max(array_keys($monthly));$year=(int)substr($period,0,4);$oldPeriod=$year.'-'.sprintf('%02d',$last);
  $complete=true;foreach($monthly as $parts)if(empty($parts['GB 1']['month_total']))$complete=false;
  $expectedTable=$complete?distrConclusion($doc,$old,$monthly,$oldPeriod):null;$expected=$expectedTable?upbBjCells($expectedTable):[];$actual=upbBjCells($old);$rules=$state['rules']??[];$baseline=[];
@@ -86,10 +102,23 @@ function distrCaptureFormulaState(DOMDocument $doc,array $state,string $period):
  $state['rules']=$rules;$state['baseline']=$baseline;return $state;
 }
 function distrRowHasContent(DOMElement $row): bool {
- foreach($row->childNodes as $cell)if($cell instanceof DOMElement){
-  if($cell->hasAttributeNS(UPB_T,'formula')||$cell->hasAttributeNS(UPB_O,'value')||$cell->hasAttributeNS(UPB_O,'date-value')||$cell->hasAttributeNS(UPB_O,'boolean-value')||trim($cell->getAttributeNS(UPB_O,'string-value'))!==''||trim($cell->textContent)!=='')return true;
+ $column=1;
+ foreach($row->childNodes as $cell)if($cell instanceof DOMElement&&in_array($cell->localName,['table-cell','covered-table-cell'],true)){
+  $repeat=max(1,(int)$cell->getAttributeNS(UPB_T,'number-columns-repeated'));
+  if($cell->hasAttributeNS(UPB_T,'formula')||$cell->hasAttributeNS(UPB_O,'date-value')||$cell->hasAttributeNS(UPB_O,'boolean-value'))return true;
+  $text=trim($cell->getAttributeNS(UPB_O,'string-value')?:$cell->textContent);
+  $numeric=$cell->hasAttributeNS(UPB_O,'value');$value=$cell->getAttributeNS(UPB_O,'value');
+  // Quantity/value/year zeros without a product identity are unused input rows.
+  // Keep identities (including a literal zero code), nonzero amounts and formulas.
+  foreach(range($column,$column+min($repeat,7)-1) as $c){
+   if(in_array($c,[1,2,4,6],true)&&($text!==''||$numeric))return true;
+  }
+  if($numeric&&(!is_numeric($value)||(float)$value!=0))return true;
+  if($text!==''&&(!is_numeric($text)||(float)$text!=0))return true;
+  $column+=$repeat;
  }return false;
 }
+
 /** A static, filtered selection avoids repeatedly traversing every formatted cell. */
 function distrFormulaCells(DOMElement $table): DOMNodeList {
  $xpath=new DOMXPath($table->ownerDocument);$xpath->registerNamespace('distr',UPB_T);
@@ -108,10 +137,14 @@ function distrCompactRows(DOMDocument $doc,array &$state): void {
    return [$s,$r,$c];
   });
  }
+ // Stored custom rules may reference otherwise blank product cells too.
+ foreach(['baseline','rules'] as $key)foreach($state[$key]??[] as $rows)foreach($rows as $value){
+  $formula=$key==='baseline'?$value:($value['formula']??'');
+  distrFormulaRefs($formula,'KESIMPULAN',static function($s,$r,$c,$role)use($protect){if($role==='single')$protect($s,$r);return [$s,$r,$c];});
+ }
  $deleted=[];
  foreach($info as $month=>$parts){$name=DISTR_MONTHS[$month-1];$table=$tables[$name];$r=1;
-  // An unfilled month is an input template, not an uploaded data table to trim.
-  if(!distrRawHasInputs($table))continue;
+  // Empty selected-month capacity is rebuilt with lightweight repeated rows.
   // Keep one editable row for an entirely empty group.
   foreach($parts as $part){$hasData=false;$hasProtected=false;foreach($used[$name]??[] as [$a,$b])if($b>=$part['start']&&$a<=$part['last']){$hasData=true;break;}
    foreach($protected[$name]??[] as $p=>$unused)if($p>=$part['start']&&$p<=$part['last']){$hasProtected=true;break;}
@@ -140,10 +173,10 @@ function distrCompactRows(DOMDocument $doc,array &$state): void {
   elseif(isset($value['formula']))$state[$key][$month][$row]['formula']=distrFormulaRefs($value['formula'],'KESIMPULAN',$map);
  }
 }
-/** Restore full input capacity for every unfilled month, including cloned ones. */
-function distrExpandEmptyMonths(DOMDocument $doc,array &$state): void {
+/** Restore full input capacity only for the selected unfilled month. */
+function distrExpandEmptyMonths(DOMDocument $doc,array &$state,int $selectedMonth): void {
  $tables=upbBjTables($doc);$inserted=[];
- foreach(DISTR_MONTHS as $name)if(isset($tables[$name])&&!distrRawHasInputs($tables[$name])){
+ foreach([DISTR_MONTHS[$selectedMonth-1]] as $name)if(isset($tables[$name])&&!distrRawHasInputs($tables[$name])){
   $table=$tables[$name];$info=distrMonthInfo($table);$rowNodes=[];$r=1;
   foreach($table->childNodes as $row)if($row instanceof DOMElement&&$row->localName==='table-row'){$rowNodes[$r]=$row;$r+=max(1,(int)$row->getAttributeNS(UPB_T,'number-rows-repeated'));}
   foreach($info as $part){$extra=DISTR_PRODUCT_ROWS-max(0,$part['last']-$part['start']+1);if($extra<=0)continue;
@@ -208,9 +241,6 @@ function distrCalculateSummary(DOMDocument $doc,array $custom): void {
 }
 /** Normalize an upload before persistence, preserving native formatting and custom rules. */
 function prepareUpbDistrInputOds(string $bytes,string $period): string {
- $path=tempnam(sys_get_temp_dir(),'distr-compact-');$zip=new ZipArchive();$opened=false;
- try{file_put_contents($path,$bytes);if($zip->open($path)!==true)throw new InvalidArgumentException('File ODS UPB DISTR tidak valid.');$opened=true;$doc=upbBjXml($zip->getFromName('content.xml'));
-  $state=distrCaptureFormulaState($doc,distrReadFormulaState($zip),$period);distrCompactRows($doc,$state);distrWriteFormulaState($zip,$state);$zip->addFromString('content.xml',$doc->saveXML());$zip->close();$opened=false;
-  return buildUpbDistrInputTemplateOds($period,file_get_contents($path));
- }finally{if($opened)$zip->close();@unlink($path);}
+ if(strlen($bytes)>50*1024*1024)throw new InvalidArgumentException('File maksimal 50 MB.');
+ return buildUpbDistrInputTemplateOds($period,$bytes,true);
 }

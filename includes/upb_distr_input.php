@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/upb_bj_template_history.php';
+require_once __DIR__.'/ods_upload_xml.php';
 const DISTR_MONTHS=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
 const DISTR_SHORT=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 const DISTR_GROUPS=['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6','ETHICAL','NON KONIMEX'];
@@ -13,27 +14,25 @@ function distrNumber(DOMElement $cell,string $formula,?float $value): void {
 }
 /** Detect groups and totals by their labels; product rows are never tied to fixed addresses. */
 function distrMonthInfo(DOMElement $table,bool $repair=false): array {
- $cells=upbBjCells($table);$rowNodes=[];$r=1;
- foreach($table->childNodes as $row)if($row instanceof DOMElement&&$row->localName==='table-row'){$rowNodes[$r]=$row;$r+=max(1,(int)$row->getAttributeNS(UPB_T,'number-rows-repeated'));}
- $out=[];$group=null;$start=null;
- foreach($cells as $r=>$row){$label=strtoupper(trim(preg_replace('/\s+/',' ',$row[1]->textContent??'')));
-  if(in_array($label,DISTR_GROUPS,true)){$group=$label;$start=null;continue;}
-  if($group&&$label==='NAMA PRODUK'){$start=$r+1;continue;}
-  if($group&&$start!==null&&$label==='SUB TOTAL '.$group){
-   $sum=0;$qty=0;$count=0;
-   foreach($cells as $p=>$product)if($p>=$start&&$p<$r){
-    $node=$rowNodes[$p];$repeat=min($r-$p,max(1,(int)$node->getAttributeNS(UPB_T,'number-rows-repeated')));$value=upbBjColumnCell($node,5);
-    if($value->hasAttributeNS(UPB_O,'value')){$sum+=(float)$value->getAttributeNS(UPB_O,'value')*$repeat;if(trim(($product[1]??null)?->textContent??'')!=='')$count+=$repeat;}
-    $qty+=(float)upbBjColumnCell($node,3)->getAttributeNS(UPB_O,'value')*$repeat;
-   }
-   $total=upbBjColumnCell($rowNodes[$r],5);
-   if($repair){foreach([3=>$qty,5=>$sum] as $c=>$value){$cell=upbBjColumnCell($rowNodes[$r],$c);$formula=$cell->getAttributeNS(UPB_T,'formula');$letter=chr(64+$c);
-    // Existing formulas belong to their month, including deliberately narrowed SUMs.
-    if($formula==='')distrNumber($cell,$r>$start?'SUM([.'.$letter.$start.':.'.$letter.($r-1).'])':'0',$value);
-   }}
-   $value=$total->hasAttributeNS(UPB_O,'value')?(float)$total->getAttributeNS(UPB_O,'value'):$sum;
-   $out[$group]=['row'=>$r,'ref'=>'E'.$r,'value'=>$value,'start'=>$start,'last'=>$r-1,'count'=>$count];$group=null;$start=null;
+ $out=[];$group=null;$start=null;$r=1;$sum=0;$qty=0;$count=0;
+ foreach($table->childNodes as $node)if($node instanceof DOMElement&&$node->localName==='table-row'){
+  $repeat=max(1,(int)$node->getAttributeNS(UPB_T,'number-rows-repeated'));
+  $columns=[];$c=1;foreach($node->childNodes as $cell)if($cell instanceof DOMElement&&in_array($cell->localName,['table-cell','covered-table-cell'],true)){
+   $n=max(1,(int)$cell->getAttributeNS(UPB_T,'number-columns-repeated'));foreach([1,3,5] as $wanted)if($wanted>=$c&&$wanted<$c+$n)$columns[$wanted]=$cell;$c+=$n;if($c>5)break;
   }
+  $label=strtoupper(trim(preg_replace('/\s+/',' ',$columns[1]->textContent??'')));
+  if(in_array($label,DISTR_GROUPS,true)){$group=$label;$start=null;}
+  elseif($group&&$label==='NAMA PRODUK'){$start=$r+1;$sum=0;$qty=0;$count=0;}
+  elseif($group&&$start!==null&&$label==='SUB TOTAL '.$group){
+   $total=$columns[5]??upbBjColumnCell($node,5);
+   if($repair)foreach([3=>$qty,5=>$sum] as $column=>$value){$cell=$columns[$column]??upbBjColumnCell($node,$column);$letter=chr(64+$column);
+    if($cell->getAttributeNS(UPB_T,'formula')==='')distrNumber($cell,$r>$start?'SUM([.'.$letter.$start.':.'.$letter.($r-1).'])':'0',$value);
+   }
+   $out[$group]=['row'=>$r,'ref'=>'E'.$r,'value'=>$total->hasAttributeNS(UPB_O,'value')?(float)$total->getAttributeNS(UPB_O,'value'):$sum,'start'=>$start,'last'=>$r-1,'count'=>$count];$group=null;$start=null;
+  }elseif($group&&$start!==null){
+   $value=$columns[5]??null;if($value&&$value->hasAttributeNS(UPB_O,'value')){$sum+=(float)$value->getAttributeNS(UPB_O,'value')*$repeat;if($label!=='')$count+=$repeat;}
+   if(isset($columns[3]))$qty+=(float)$columns[3]->getAttributeNS(UPB_O,'value')*$repeat;
+  }$r+=$repeat;
  }
  return $out;
 }
@@ -97,10 +96,10 @@ function distrConclusion(DOMDocument $doc,DOMElement $layout,array $monthly,stri
  $values=[];$map=array_combine(DISTR_GROUPS,[5,6,7,8,9,10,11,12]);
  $monthTotalRef=static fn($month)=>"['".DISTR_MONTHS[$month-1]."'.".$monthly[$month]['GB 1']['month_total']."]";
  for($month=1;$month<=12;$month++){
-  $col=$month+4;$letter=chr(64+$col);$current=$monthly[$month]??[];$previous=$monthly[$month-1]??[];
-  $hasData=$month<=$last&&array_sum(array_column($current,'count'))>0&&($month===1||array_sum(array_column($previous,'count'))>0);
-  foreach($map as $group=>$row){$cell=upbBjColumnCell($rows[$row],$col);$part=$current[$group]??null;$prior=$previous[$group]??null;
-   if($month<=$last&&$part){$ref="['".DISTR_MONTHS[$month-1]."'.".$part['ref']."]";$formula=$month===1?$ref:'('.$ref.'-'.($prior?"['".DISTR_MONTHS[$month-2]."'.".$prior['ref']."]":'0').')';$empty=$monthTotalRef($month).'=""';if($month>1)$empty='OR('.$empty.';'.$monthTotalRef($month-1).'="")';$formula='IF('.$empty.';"";'.$formula.'/1000)';$value=$hasData?($part['value']-($month===1?0:($prior['value']??0)))/1000:null;distrNumber($cell,$formula,$value);$values[$row][$month]=$value;
+  $col=$month+4;$letter=chr(64+$col);$current=$monthly[$month]??[];
+  $hasData=$month<=$last&&array_sum(array_column($current,'count'))>0;
+  foreach($map as $group=>$row){$cell=upbBjColumnCell($rows[$row],$col);$part=$current[$group]??null;
+   if($month<=$last&&$part){$ref="['".DISTR_MONTHS[$month-1]."'.".$part['ref']."]";$formula='IF('.$monthTotalRef($month).'="";"";'.$ref.'/1000)';$value=$hasData?$part['value']/1000:null;distrNumber($cell,$formula,$value);$values[$row][$month]=$value;
    }else{distrText($cell,'');$values[$row][$month]=null;}
   }
   foreach([4=>[5,6,7,8,9,10],13=>[4,11,12]] as $row=>$parts){$sum=0;foreach($parts as $p)$sum+=$values[$p][$month]??0;$formula=$row===4?'SUM([.'.$letter.'5:.'.$letter.'10])':implode('+',array_map(static fn($p)=>'[.'.$letter.$p.']',$parts));distrNumber(upbBjColumnCell($rows[$row],$col),$formula,$sum);$values[$row][$month]=$sum;}
@@ -109,11 +108,12 @@ function distrConclusion(DOMDocument $doc,DOMElement $layout,array $monthly,stri
  $total=array_sum($values[13]??[]);foreach(range(4,13) as $row){$value=array_sum($values[$row]??[]);distrNumber(upbBjColumnCell($rows[$row],3),'IF([.$B$13]=0;0;[.B'.$row.']/[.$B$13])',$total!=0?$value/$total:0);}
  return $table;
 }
-function buildUpbDistrInputTemplateOds(string $period,?string $history=null): string {
- [$year,$last]=distrPeriod($period);$path=tempnam(sys_get_temp_dir(),'distr-input-');$zip=new ZipArchive();$layout=new ZipArchive();$opened=false;$layoutOpened=false;
+function buildUpbDistrInputTemplateOds(string $period,?string $history=null,bool $validateUpload=false): string {
+ [$year,$last]=distrPeriod($period);$path=tempnam(sys_get_temp_dir(),'distr-input-');$zip=new ZipArchive();$layout=new ZipArchive();$opened=false;$layoutOpened=false;$contentPath=null;
  try{
   if($history!==null)file_put_contents($path,$history);else copy(__DIR__.'/../dashboard/assets/input-templates/upb-distr-raw.ods',$path);
-  if($zip->open($path)!==true)throw new InvalidArgumentException('Gunakan file ODS UPB DISTR.');$opened=true;$doc=upbBjXml($zip->getFromName('content.xml'));
+  if($zip->open($path)!==true)throw new InvalidArgumentException('Gunakan file ODS UPB DISTR.');$opened=true;$doc=loadOdsUploadDocument($path);
+  if($validateUpload)validateUpbDistrDocument($doc,$period,'UPB DISTR');
   $formulaState=distrCaptureFormulaState($doc,distrReadFormulaState($zip),$period);
   $saved=upbBjTables($doc);$parent=$doc->getElementsByTagNameNS(UPB_O,'spreadsheet')->item(0);foreach(array_values($saved) as $table)$parent->removeChild($table);
   $auto=$doc->getElementsByTagNameNS(UPB_O,'automatic-styles')->item(0);$definitions='<style:style style:name="DISTRRawCell" style:family="table-cell"><style:table-cell-properties fo:border="0.5pt solid #000000" fo:padding="0.04cm"/><style:text-properties fo:font-size="10pt"/></style:style><style:style style:name="DISTRRawHead" style:family="table-cell" style:parent-style-name="DISTRRawCell"><style:table-cell-properties fo:border="0.5pt solid #000000" fo:background-color="#dcefff"/><style:text-properties fo:font-size="10pt" fo:font-weight="bold"/></style:style><style:style style:name="DISTRRawProduct" style:family="table-column"><style:table-column-properties style:column-width="7cm"/></style:style><style:style style:name="DISTRRawColumn" style:family="table-column"><style:table-column-properties style:column-width="2.8cm"/></style:style>';
@@ -127,39 +127,43 @@ function buildUpbDistrInputTemplateOds(string $period,?string $history=null): st
    $parent->appendChild($table);$monthly[$month]=distrMonthInfo($table,true);
    $totalRef=distrMonthTotal($table,$monthly[$month]);$formulaState['raw_baseline'][$month]=distrRawFormulaSnapshot($table);foreach($monthly[$month] as &$part)$part['month_total']=$totalRef;unset($part);$previous=$table;
   }
-  distrExpandEmptyMonths($doc,$formulaState);$monthly=distrSnapshotInfo($doc);
+  distrCompactRows($doc,$formulaState);
+  distrExpandEmptyMonths($doc,$formulaState,$last);$monthly=distrSnapshotInfo($doc);
   if($layout->open(__DIR__.'/../dashboard/assets/input-templates/upb-distr-report.ods')!==true)throw new RuntimeException('Kerangka ringkasan UPB DISTR tidak tersedia.');$layoutOpened=true;$native=distrMergeLayout($doc,$zip,$layout);
   $conclusion=distrConclusion($doc,array_values(upbBjTables($native))[0],$monthly,$period);$parent->appendChild($conclusion);
   $custom=distrApplySummaryRules($doc,$conclusion,$monthly,$formulaState,$last);distrCalculateSummary($doc,$custom);distrWriteFormulaState($zip,$formulaState);
-  $zip->addFromString('content.xml',$doc->saveXML());$zip->close();$opened=false;$layout->close();$layoutOpened=false;return file_get_contents($path);
- }finally{if($opened)$zip->close();if($layoutOpened)$layout->close();@unlink($path);}
+  // Serialize to disk and let ZIP stream it; saveXML/addFromString duplicates hundreds of MB.
+  $contentPath=tempnam(sys_get_temp_dir(),'distr-content-');
+  if($contentPath===false||$doc->save($contentPath)===false||!$zip->addFile($contentPath,'content.xml'))throw new RuntimeException('File ODS UPB DISTR gagal ditulis.');
+  if(!$zip->close())throw new RuntimeException('File ODS UPB DISTR gagal dikemas.');$opened=false;$layout->close();$layoutOpened=false;return file_get_contents($path);
+ }finally{if($opened)$zip->close();if($layoutOpened)$layout->close();if($contentPath!==null)@unlink($contentPath);@unlink($path);}
 }
 require_once __DIR__.'/upb_distr_customization.php';
 function buildDataParetoUpbTemplateOds(string $period,?string $saved=null): string {
  [$year,$month]=distrPeriod($period);$path=tempnam(sys_get_temp_dir(),'pareto-input-');$zip=new ZipArchive();$opened=false;
  try{
   if($saved!==null)file_put_contents($path,$saved);else copy(__DIR__.'/../dashboard/assets/input-templates/upb-distr-raw.ods',$path);
-  if($zip->open($path)!==true)throw new InvalidArgumentException('Gunakan file ODS DATA PARETO UPB.');$opened=true;$doc=upbBjXml($zip->getFromName('content.xml'));$tables=upbBjTables($doc);$table=$tables['DATA PARETO UPB']??null;if(!$table)throw new InvalidArgumentException('Sheet DATA PARETO UPB tidak ditemukan.');
+  if($zip->open($path)!==true)throw new InvalidArgumentException('Gunakan file ODS DATA PARETO UPB.');$opened=true;$doc=upbBjXml(readOdsUploadContent($path));$tables=upbBjTables($doc);$table=$tables['DATA PARETO UPB']??null;if(!$table)throw new InvalidArgumentException('Sheet DATA PARETO UPB tidak ditemukan.');
   $parent=$doc->getElementsByTagNameNS(UPB_O,'spreadsheet')->item(0);foreach($tables as $name=>$other)if($name!=='DATA PARETO UPB')$parent->removeChild($other);
   if($saved===null)foreach($table->getElementsByTagNameNS(UPB_X,'p') as $text)if(preg_match('/^PERIODE JAN SD /i',$text->textContent)){$text->nodeValue='PERIODE JAN SD '.DISTR_SHORT[$month-1].' '.$year;}
   $zip->addFromString('content.xml',$doc->saveXML());$zip->close();$opened=false;return file_get_contents($path);
  }finally{if($opened)$zip->close();@unlink($path);}
 }
 
-/** Monthly amounts in (000); an empty new month must not negate prior cumulative data. */
+/** Monthly amounts in (000); each input sheet contains that month alone. */
 function distrMonthlyValues(?string $bytes,int $year): array {
     if($bytes===null)return [];
     $path=tempnam(sys_get_temp_dir(),'distr-values-');$zip=new ZipArchive();$opened=false;
     try{file_put_contents($path,$bytes);if($zip->open($path)!==true)throw new RuntimeException('Data UPB DISTR tersimpan tidak dapat dibaca.');$opened=true;
-        $tables=upbBjTables(upbBjXml($zip->getFromName('content.xml')));$monthly=[];
-        $customSummary=!empty(distrReadFormulaState($zip)['rules']);$summary=$customSummary&&isset($tables['KESIMPULAN'])?upbBjCells($tables['KESIMPULAN']):[];
+        $tables=upbBjTables(upbBjXml(readOdsUploadContent($path)));$monthly=[];
+        $state=distrReadFormulaState($zip);$customSummary=($state['input_basis']??null)==='monthly'&&!empty($state['rules']);$summary=$customSummary&&isset($tables['KESIMPULAN'])?upbBjCells($tables['KESIMPULAN']):[];
         foreach(DISTR_MONTHS as $i=>$name){if(!isset($tables[$name]))continue;
             $valid=false;foreach(upbBjCells($tables[$name]) as $row)foreach($row as $cell)if(trim($cell->textContent)==='DATABASE JAN SD '.DISTR_SHORT[$i].' '.$year)$valid=true;
             if($valid)$monthly[$i+1]=distrMonthInfo($tables[$name]);
         }
-        $result=[];foreach(range(1,12) as $month){$current=$monthly[$month]??[];$prior=$monthly[$month-1]??[];
-            $available=array_sum(array_column($current,'count'))>0&&($month===1||array_sum(array_column($prior,'count'))>0);
-            foreach(DISTR_GROUPS as $i=>$group){$value=$available?(($current[$group]['value']??0)-($month===1?0:($prior[$group]['value']??0)))/1000:null;
+        $result=[];foreach(range(1,12) as $month){$current=$monthly[$month]??[];
+            $available=array_sum(array_column($current,'count'))>0;
+            foreach(DISTR_GROUPS as $i=>$group){$value=$available?($current[$group]['value']??0)/1000:null;
                 $cell=$summary[$i+5][$month+4]??null;if($available&&$cell&&$cell->hasAttributeNS(UPB_O,'value'))$value=(float)$cell->getAttributeNS(UPB_O,'value');$result[$group][$month]=$value;
             }
             foreach(['_GB_1_6'=>4,'_TOTAL'=>13] as $key=>$row){$groups=$row===4?array_slice(DISTR_GROUPS,0,6):DISTR_GROUPS;$value=0;foreach($groups as $group)$value+=$result[$group][$month]??0;

@@ -25,8 +25,8 @@ function distrReadOds(string $bytes): DOMDocument {
     if(strlen($bytes)>50*1024*1024)throw new InvalidArgumentException('File maksimal 50 MB.');
     $path=tempnam(sys_get_temp_dir(),'distr-read-');$zip=new ZipArchive();$opened=false;
     try{file_put_contents($path,$bytes);if($zip->open($path)!==true)throw new InvalidArgumentException('Gunakan template ODS UPB DISTR atau DATA PARETO UPB.');$opened=true;
-        $info=$zip->statName('content.xml');if(!$info||$info['size']>64*1024*1024)throw new InvalidArgumentException('Isi ODS tidak valid atau terlalu besar.');
-        return upbBjXml($zip->getFromName('content.xml'));
+        $info=$zip->statName('content.xml');if(!$info||$info['size']>ODS_UPLOAD_XML_LIMIT)throw new InvalidArgumentException('Isi ODS tidak valid atau terlalu besar.');
+        return loadOdsUploadDocument($path);
     }finally{if($opened)$zip->close();@unlink($path);}
 }
 function distrHeadingPeriod(string $label,string $prefix): ?array {
@@ -34,7 +34,10 @@ function distrHeadingPeriod(string $label,string $prefix): ?array {
     $month=array_search($m[1],DISTR_SHORT,true);return $month===false?null:[(int)$m[2],$month+1];
 }
 function validateUpbDistrInput(string $bytes,string $period,string $section): void {
-    [$year,$last]=distrPeriod($period);distrStoreTable($section);$tables=upbBjTables(distrReadOds($bytes));
+    validateUpbDistrDocument(distrReadOds($bytes),$period,$section);
+}
+function validateUpbDistrDocument(DOMDocument $doc,string $period,string $section): void {
+    [$year,$last]=distrPeriod($period);distrStoreTable($section);$tables=upbBjTables($doc);
     if($section==='DATA PARETO UPB'){
         $table=$tables['DATA PARETO UPB']??null;if(!$table)throw new InvalidArgumentException('Sheet DATA PARETO UPB tidak ditemukan.');
         $labels=[];$periods=[];foreach(upbBjCells($table) as $row)foreach($row as $cell){$label=strtoupper(trim(preg_replace('/\s+/',' ',$cell->textContent)));$labels[]=$label;$p=distrHeadingPeriod($label,'PERIODE');if($p)$periods[implode('-',$p)]=$p;}
@@ -46,7 +49,8 @@ function validateUpbDistrInput(string $bytes,string $period,string $section): vo
         $table=$tables[DISTR_MONTHS[$month-1]]??null;
         if($month>$last){if($table)throw new InvalidArgumentException('Sheet bulanan melebihi Periode Laporan.');continue;}
         if(!$table)throw new InvalidArgumentException('Sheet Januari sampai bulan pilihan harus lengkap.');
-        $periods=[];foreach(upbBjCells($table) as $row)foreach($row as $cell){$p=distrHeadingPeriod($cell->textContent,'DATABASE');if($p)$periods[implode('-',$p)]=$p;}
+        $periods=[];$xpath=new DOMXPath($doc);$xpath->registerNamespace('distrtext',UPB_X);
+        foreach($xpath->query(".//distrtext:p[starts-with(translate(normalize-space(.),'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),'DATABASE JAN SD ')]",$table) as $text){$p=distrHeadingPeriod($text->textContent,'DATABASE');if($p)$periods[implode('-',$p)]=$p;}
         if(array_values($periods)!==[[$year,$month]])throw new InvalidArgumentException('Tahun atau bulan judul DATABASE tidak sesuai dengan sheet dan Periode Laporan.');
         $info=distrMonthInfo($table);if(count($info)!==count(DISTR_GROUPS)||array_diff(DISTR_GROUPS,array_keys($info)))throw new InvalidArgumentException('Pertahankan judul, header Nama Produk, dan SUB TOTAL untuk GB 1–6, ETHICAL, serta NON KONIMEX.');
     }

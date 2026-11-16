@@ -15,23 +15,24 @@ function distrTestRow($table,$position){$r=1;
 }
 function distrFixture($year){
  $bytes=buildUpbDistrInputTemplateOds($year.'-03');
- return distrEdit($bytes,function($doc){$tables=upbBjTables($doc);
+ $bytes=distrEdit($bytes,function($doc){$state=[];foreach([1,2] as $month)distrExpandEmptyMonths($doc,$state,$month);$tables=upbBjTables($doc);
   foreach([1=>1000,2=>2500] as $month=>$amount){$table=$tables[DISTR_MONTHS[$month-1]];$parts=distrMonthInfo($table);
    foreach(DISTR_GROUPS as $i=>$group){$part=$parts[$group];distrText(upbBjColumnCell(distrTestRow($table,$part['start']),1),'TEST GROUP '.($i+1));$cell=upbBjColumnCell(distrTestRow($table,$part['start']),5);distrNumber($cell,'1',$amount*($i+1));$cell->removeAttributeNS(UPB_T,'formula');
     distrNumber(upbBjColumnCell(distrTestRow($table,$part['row']),5),'SUM([.E'.$part['start'].':.E'.$part['last'].'])',$amount*($i+1));
    }
   }
  });
+ $path=tempnam(sys_get_temp_dir(),'distr-fixture-');file_put_contents($path,$bytes);$zip=new ZipArchive();$zip->open($path);$doc=upbBjXml($zip->getFromName('content.xml'));$state=distrCaptureFormulaState($doc,['input_basis'=>'monthly'],$year.'-03');distrWriteFormulaState($zip,$state);$zip->close();$bytes=file_get_contents($path);unlink($path);return $bytes;
 }
 $blank=buildUpbDistrInputTemplateOds('2026-03');validateUpbDistrInput($blank,'2026-03','UPB DISTR');
 $tables=upbBjTables(distrReadOds($blank));distrCheck(array_keys($tables)===['JANUARI','FEBRUARI','MARET','KESIMPULAN'],'Monthly tabs through selected period');
-foreach(DISTR_MONTHS as $i=>$name)if($i<3){$parts=distrMonthInfo($tables[$name]);distrCheck(array_keys($parts)===DISTR_GROUPS,'Eight separate group tables');foreach($parts as $part)distrCheck($part['last']-$part['start']+1===2500,'2500 product rows per group');}
+foreach(DISTR_MONTHS as $i=>$name)if($i<3){$parts=distrMonthInfo($tables[$name]);distrCheck(array_keys($parts)===DISTR_GROUPS,'Eight separate group tables');foreach($parts as $part)distrCheck($part['last']-$part['start']+1===($i===2?2500:1),'Selected month has 2500 rows; historical blanks compact');}
 
 $fixture=distrFixture('2026');$rebuilt=buildUpbDistrInputTemplateOds('2026-03',$fixture);$tables=upbBjTables(distrReadOds($rebuilt));$summary=upbBjCells($tables['KESIMPULAN']);
 $value=static fn($row,$col)=>(float)$summary[$row][$col]->getAttributeNS(UPB_O,'value');
-distrCheck($value(5,5)===1.0&&$value(5,6)===1.5,'Cumulative converted to individual months and scaled /1000');
+distrCheck($value(5,5)===1.0&&$value(5,6)===2.5,'Monthly input directly scaled /1000');
 distrCheck(!$summary[5][7]->hasAttributeNS(UPB_O,'value'),'New empty month does not negate cumulative history');
-distrCheck($value(13,2)===90.0&&$value(4,2)===52.5,'YTD totals do not count GB children twice');
+distrCheck($value(13,2)===126.0&&$value(4,2)===73.5,'YTD totals do not count GB children twice');
 distrCheck(abs($value(4,3)-21/36)<0.00000001,'YTD contribution');
 foreach($summary as $row)foreach($row as $cell)if($cell->hasAttributeNS(UPB_T,'formula'))distrCheck(!preg_match('/COUNTA|COUNT\(|AND\(/',$cell->getAttributeNS(UPB_T,'formula')),'Conclusion uses short subtotal references');
 distrCheck(str_contains($summary[5][2]->getAttributeNS(UPB_T,'formula'),'E5:.G5'),'Selected-month SUM YTD');
@@ -50,7 +51,7 @@ foreach([1,-1] as $change){
   $part=distrMonthInfo($table)['GB 1'];foreach([3,5] as $column){$cell=upbBjColumnCell(distrTestRow($table,$part['row']),$column);$cache=(float)$cell->getAttributeNS(UPB_O,'value');distrNumber($cell,'SUM([.'.chr(64+$column).$part['start'].':.'.chr(64+$column).$part['last'].'])',$cache);}
  });
  $resized=buildUpbDistrInputTemplateOds('2026-03',$resized);$tabs=upbBjTables(distrReadOds($resized));$part=distrMonthInfo($tabs['FEBRUARI'])['GB 1'];$cells=upbBjCells($tabs['FEBRUARI']);
- distrCheck($part['last']-$part['start']+1===2500+$change,'Rows can be added/deleted');
+ distrCheck($part['last']-$part['start']+1<=3,'Edited historical tables compact unused rows');
  distrCheck($cells[$part['row']][5]->getAttributeNS(UPB_T,'formula')==='of:=SUM([.E'.$part['start'].':.E'.$part['last'].'])','Ordinary subtotal range follows edited row count');
  $summary=upbBjCells($tabs['KESIMPULAN']);distrCheck(str_contains($summary[5][6]->getAttributeNS(UPB_T,'formula'),"'FEBRUARI'.E".$part['row'].']'),'Conclusion follows moved subtotal');
 }
@@ -59,6 +60,6 @@ $pareto=buildDataParetoUpbTemplateOds('2026-03');validateUpbDistrInput($pareto,'
 $pareto=distrEdit($pareto,function($doc){$rows=iterator_to_array(upbBjTables($doc)['DATA PARETO UPB']->getElementsByTagNameNS(UPB_T,'table-row'));distrText(upbBjColumnCell($rows[7],2),'TEST PARETO');});
 $savedTable=upbBjTables(distrReadOds($pareto))['DATA PARETO UPB'];$outTable=upbBjTables(distrReadOds(buildDataParetoUpbTemplateOds('2026-03',$pareto)))['DATA PARETO UPB'];distrCheck($savedTable->C14N()===$outTable->C14N(),'Direct Pareto sheet copy');
 foreach([[$blank,'2026-02','UPB DISTR'],[$blank,'2025-03','UPB DISTR'],[$blank,'2026-03','DATA PARETO UPB'],[$pareto,'2026-02','DATA PARETO UPB']] as $args){$rejected=false;try{validateUpbDistrInput(...$args);}catch(InvalidArgumentException $e){$rejected=true;}distrCheck($rejected,'Wrong period/section rejected');}
-$report=buildUpbDistrReportOds('2026-03',$fixture,distrFixture('2025'));$cells=upbBjCells(upbBjTables(distrReadOds($report))['UPB DISTR']);distrCheck((float)$cells[5][5]->getAttributeNS(UPB_O,'value')===1.0&&(float)$cells[5][6]->getAttributeNS(UPB_O,'value')===1.5,'Report monthly data');distrCheck((float)$cells[20][2]->getAttributeNS(UPB_O,'value')===90.0,'Prior-year report YTD');
+$report=buildUpbDistrReportOds('2026-03',$fixture,distrFixture('2025'));$cells=upbBjCells(upbBjTables(distrReadOds($report))['UPB DISTR']);distrCheck((float)$cells[5][5]->getAttributeNS(UPB_O,'value')===1.0&&(float)$cells[5][6]->getAttributeNS(UPB_O,'value')===2.5,'Report monthly data');distrCheck((float)$cells[20][2]->getAttributeNS(UPB_O,'value')===126.0,'Prior-year report YTD');
 file_put_contents('/tmp/distr-input-test.ods',$rebuilt);file_put_contents('/tmp/distr-input-extended-test.ods',$extended);file_put_contents('/tmp/pareto-input-test.ods',$pareto);file_put_contents('/tmp/distr-data-report-test.ods',$report);
-echo "PASS: distributor monthly tables, cumulative differences, scaling, YTD/contribution, empty new month, history/custom formulas, shifted rows, period validation, native Pareto copy and report data.\n";
+echo "PASS: distributor monthly tables, direct monthly totals, scaling, YTD/contribution, empty new month, history/custom formulas, shifted rows, period validation, native Pareto copy and report data.\n";

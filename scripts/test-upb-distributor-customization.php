@@ -12,7 +12,7 @@ $jan=distrMonthInfo($tabs['JANUARI'])['GB 1'];$feb=distrMonthInfo($tabs['FEBRUAR
 distrCheck(!str_contains($j[$jan['row']][5]->getAttributeNS(UPB_T,'formula'),'*2'),'January retains original calculation');
 distrCheck(str_ends_with($f[$feb['row']][5]->getAttributeNS(UPB_T,'formula'),'*2'),'February retains custom subtotal');
 distrCheck((float)customValue($tabs['KESIMPULAN'],5,5)===1.0,'January summary unchanged');
-distrCheck((float)customValue($tabs['KESIMPULAN'],5,6)===40.0,'February custom summary calculated');
+distrCheck((float)customValue($tabs['KESIMPULAN'],5,6)===50.0,'February custom summary calculated');
 $next=buildUpbDistrInputTemplateOds('2026-04',$compact);$doc=distrReadOds($next);$tabs=upbBjTables($doc);$summary=upbBjCells($tabs['KESIMPULAN']);
 distrCheck(str_contains($summary[5][7]->getAttributeNS(UPB_T,'formula'),'/100)'),'March inherits February summary rule');
 distrCheck(str_contains($summary[5][8]->getAttributeNS(UPB_T,'formula'),'/100)'),'April inherits February summary rule');
@@ -26,15 +26,24 @@ $toFeb=distrEdit($source,function($doc){$tables=upbBjTables($doc);$tables['MARET
 $toFeb=prepareUpbDistrInputOds($toFeb,'2026-02');$march=buildUpbDistrInputTemplateOds('2026-03',$toFeb);$tabs=upbBjTables(distrReadOds($march));$m=distrMonthInfo($tabs['MARET'])['GB 1'];$mc=upbBjCells($tabs['MARET']);
 distrCheck(str_ends_with($mc[$m['row']][5]->getAttributeNS(UPB_T,'formula'),'*2'),'New March raw table inherits February custom formula');
 $march=distrEdit($march,function($doc){$table=upbBjTables($doc)['MARET'];$part=distrMonthInfo($table)['GB 1'];$row=distrTestRow($table,$part['start']);distrText(upbBjColumnCell($row,1),'TEST NEW MONTH');$cell=upbBjColumnCell($row,5);distrNumber($cell,'1',4000);$cell->removeAttributeNS(UPB_T,'formula');distrNumber(upbBjColumnCell(distrTestRow($table,$part['row']),5),'SUM([.E'.$part['start'].':.E'.$part['last'].'])*2',8000);});
-$march=prepareUpbDistrInputOds($march,'2026-03');$tabs=upbBjTables(distrReadOds($march));distrCheck((float)customValue($tabs['KESIMPULAN'],5,7)===30.0,'Inherited summary uses March/February anchors and calculates accurately');
+$march=prepareUpbDistrInputOds($march,'2026-03');$tabs=upbBjTables(distrReadOds($march));distrCheck((float)customValue($tabs['KESIMPULAN'],5,7)===80.0,'Inherited summary uses March/February anchors and calculates accurately');
 // Reverting a later month to its default formula starts a new rule, without changing February.
 $reset=distrEdit($march,function($doc){$tables=upbBjTables($doc);$expected=distrConclusion($doc,$tables['KESIMPULAN'],distrSnapshotInfo($doc),'2026-03');$e=upbBjCells($expected);$a=upbBjCells($tables['KESIMPULAN']);distrNumber($a[5][7],substr($e[5][7]->getAttributeNS(UPB_T,'formula'),4),3);});
 $reset=prepareUpbDistrInputOds($reset,'2026-03');$reset=buildUpbDistrInputTemplateOds('2026-04',$reset);$tabs=upbBjTables(distrReadOds($reset));$s=upbBjCells($tabs['KESIMPULAN']);distrCheck(str_contains($s[5][6]->getAttributeNS(UPB_T,'formula'),'/100)'),'February rule retained after March reset');distrCheck(str_contains($s[5][8]->getAttributeNS(UPB_T,'formula'),'/1000)'),'March reset carries into April');
 // Meaningful zero values, direct references to blank cells, and formula rows must survive cleanup.
-$protected=distrEdit(distrFixture('2026'),function($doc){$tabs=upbBjTables($doc);$table=$tabs['FEBRUARI'];$part=distrMonthInfo($table)['GB 1'];$row=distrTestRow($table,$part['start']+10);distrNumber(upbBjColumnCell($row,5),'1',0);upbBjColumnCell($row,5)->removeAttributeNS(UPB_T,'formula');$row=distrTestRow($table,$part['start']+20);distrNumber(upbBjColumnCell($row,5),'[.E'.($part['start']+30).']+7',7);});
+$protected=distrEdit(distrFixture('2026'),function($doc){$tabs=upbBjTables($doc);$table=$tabs['FEBRUARI'];$part=distrMonthInfo($table)['GB 1'];$row=distrTestRow($table,$part['start']+10);distrText(upbBjColumnCell($row,1),'TEST ZERO PRODUCT');distrNumber(upbBjColumnCell($row,5),'1',0);upbBjColumnCell($row,5)->removeAttributeNS(UPB_T,'formula');$row=distrTestRow($table,$part['start']+20);distrNumber(upbBjColumnCell($row,5),'[.E'.($part['start']+30).']+7',7);});
 $protected=prepareUpbDistrInputOds($protected,'2026-03');$tabs=upbBjTables(distrReadOds($protected));$part=distrMonthInfo($tabs['FEBRUARI'])['GB 1'];distrCheck($part['last']-$part['start']+1===4,'Data, explicit zeros, formula rows and directly referenced blank cells retained');
 
-$report=buildUpbDistrReportOds('2026-03',$march);$rt=upbBjTables(distrReadOds($report))['UPB DISTR'];distrCheck((float)customValue($rt,5,6)===40.0&&(float)customValue($rt,5,7)===30.0,'Final distributor report follows customized monthly conclusion');
+// Unnamed zero-only quantity/value/year rows are unused; named zero products survive.
+$zeroOnly=distrEdit(distrFixture('2026'),function($doc){$table=upbBjTables($doc)['FEBRUARI'];$part=distrMonthInfo($table)['GB 1'];
+ foreach([10,11,12] as $offset){$row=distrTestRow($table,$part['start']+$offset);foreach([3,5,7] as $c){$cell=upbBjColumnCell($row,$c);distrNumber($cell,'0',0);$cell->removeAttributeNS(UPB_T,'formula');}}
+ $row=distrTestRow($table,$part['start']+13);distrText(upbBjColumnCell($row,1),'TEST ZERO PRODUCT');$cell=upbBjColumnCell($row,5);distrNumber($cell,'0',0);$cell->removeAttributeNS(UPB_T,'formula');
+});
+$zeroOnly=buildUpbDistrInputTemplateOds('2026-04',$zeroOnly);$zeroTabs=upbBjTables(distrReadOds($zeroOnly));$zeroPart=distrMonthInfo($zeroTabs['FEBRUARI'])['GB 1'];
+distrCheck($zeroPart['last']-$zeroPart['start']+1===2,'Unnamed zero-only rows removed; named zero product retained');
+foreach(distrMonthInfo($zeroTabs['APRIL']) as $part)distrCheck($part['last']-$part['start']+1===2500,'Selected April retains full capacity after zero cleanup');
+
+$report=buildUpbDistrReportOds('2026-03',$march);$rt=upbBjTables(distrReadOds($report))['UPB DISTR'];distrCheck((float)customValue($rt,5,6)===50.0&&(float)customValue($rt,5,7)===80.0,'Final distributor report follows customized monthly conclusion');
 file_put_contents('/tmp/distr-customization-april-test.ods',$next);
 file_put_contents('/tmp/distr-customization-test.ods',$march);
 echo "PASS: compact upload, reference remapping, January isolation, custom raw/summary inheritance, later reset, accurate custom caches and preservation of zeros/dependencies.\n";

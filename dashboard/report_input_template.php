@@ -28,7 +28,6 @@ try {
         $conn=openReportConnection();
         try{$record=findUpbDistrInput($conn,$period,$section);}finally{$conn->close();}
         $saved=$record?base64_decode($record['base64'],true):null;
-        if($section==='UPB DISTR'&&$saved)$saved=prepareUpbDistrInputOds($saved,$record['report_period']);
         $bytes=$section==='UPB DISTR'?buildUpbDistrInputTemplateOds($period,$saved?:null):buildDataParetoUpbTemplateOds($period,$saved?:null);
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_'.$section.'_'.$period.'.ods"');

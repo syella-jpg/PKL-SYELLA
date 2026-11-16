@@ -24,6 +24,10 @@ function storage() { const data = new Map(); return {get length(){return data.si
  assert.equal(localStorage.getItem('konimex_report_revision'),revision,'lock router must not invalidate report data');
  await fetch('http://localhost/dashboard/analysis_locks_api.php',{method:'POST'});
  assert.equal(localStorage.getItem('konimex_report_revision'),revision,'direct lock status must not invalidate report data');
+ await fetch('http://localhost/api/report.php?endpoint=upload_file_detection_api',{method:'POST'});
+ assert.equal(localStorage.getItem('konimex_report_revision'),revision,'file recognition must not invalidate report data');
+ await fetch('http://localhost/dashboard/upload_file_detection_api.php',{method:'POST'});
+ assert.equal(localStorage.getItem('konimex_report_revision'),revision,'direct file recognition remains read-only');
  const beforeRead=calls;await fetch(url);assert.equal(calls,beforeRead,'lock activity keeps existing chart data cached');
  await fetch('http://localhost/api/report.php?endpoint=bod_kx_sell_in_api',{method:'POST'});
  assert.notEqual(localStorage.getItem('konimex_report_revision'),revision,'real report uploads still invalidate data');

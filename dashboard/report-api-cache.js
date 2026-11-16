@@ -39,7 +39,8 @@
       // makes embedded chart builders trigger one another indefinitely.
       const isAnalysisLock = url.searchParams.get('endpoint') === 'analysis_locks_api'
         || /\/analysis_locks_api(?:\.php)?$/.test(url.pathname);
-      if (response.ok && !isAnalysisLock) invalidate();
+      const isFileDetection = url.searchParams.get('endpoint') === 'upload_file_detection_api' || /\/upload_file_detection_api(?:\.php)?$/.test(url.pathname);
+      if (response.ok && !isAnalysisLock && !isFileDetection) invalidate();
       return response;
     }
     if (!isReport) return nativeFetch(input, options);
