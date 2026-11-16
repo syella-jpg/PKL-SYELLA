@@ -2232,6 +2232,78 @@
     sheet["!ref"]=X.encode_range({s:range.s,e:{r:first+6,c:Math.max(range.e.c,11)}});
   };
 
+  global.fillUpbMnjActuals = function(workbook,period){
+    const X=global.XLSX.utils,report=workbook.Sheets.LAPORAN,source=workbook.Sheets["UPB DISTR"];
+    if(!report?.["!ref"]||!source?.["!ref"])return;
+    const norm=v=>String(v??"").trim().toUpperCase().replace(/[–—]/g,"-").replace(/\s+/g," ");
+    const grid=sheet=>X.sheet_to_json(sheet,{header:1,defval:"",raw:true,range:X.encode_range({s:{r:0,c:0},e:X.decode_range(sheet["!ref"]).e})});
+    const target=grid(report),data=grid(source),year=Number(period.slice(0,4));
+    const first=target.findIndex(row=>norm(row[0])==="UPB (000) MNJ");if(first<0)return;
+    const section=y=>{
+      const top=data.findIndex(row=>row.some(v=>new RegExp("^UPB DISTRIBUTOR TH\\.?\\s*"+y+"(?: |$)").test(norm(v))));
+      if(top<0)return null;
+      let end=data.length;for(let r=top+1;r<data.length;r++)if(data[r].some(v=>/^UPB DISTRIBUTOR TH/.test(norm(v)))){end=r;break;}
+      let total=-1;for(let r=top;r<Math.min(top+3,end);r++){const c=data[r].findIndex(v=>/^TOTAL(?: \(000\))?$/.test(norm(v)));if(c>=0){total=c;break;}}
+      const rows={};for(let r=top+1;r<end;r++){
+        const label=norm(data[r][0]);if(/^GB 1\s*(?:-|S\/D)\s*GB 6$/.test(label))rows.gb=r;
+        else if(label==="ETHICAL")rows.ethical=r;else if(label==="NON KONIMEX")rows.non=r;else if(label==="TOTAL")rows.total=r;
+      }return {rows,total};
+    };
+    const prior=section(year-1),current=section(year),numeric=v=>typeof v==="number"&&Number.isFinite(v);
+    const put=(r,c,value,formula,percent=false)=>{
+      const address=X.encode_cell({r,c}),valid=numeric(value),cell={...(report[address]||{}),t:valid?"n":"s",v:valid?value:"",z:percent?"0.00%":"#,##0"};
+      delete cell.f;delete cell.F;delete cell.w;if(valid)cell.f=formula;report[address]=cell;
+    };
+    for(let r=first+3;r<target.length;r++){
+      if(norm(target[r][0])&&!/^\d+$/.test(norm(target[r][0])))break;
+      const label=norm(target[r][1]),key=label==="UPB (000) MNJ"?"total":/^GB 1\s*(?:-|S\/D)\s*GB 6$/.test(label)?"gb":label==="ETHICAL"?"ethical":label==="NON KONIMEX"?"non":null;
+      if(!key)continue;
+      for(const [col,part,sourceCol] of [[2,prior,prior?.total],[3,prior,1],[4,current,1]]){
+        const row=part?.rows[key],address=row!==undefined&&sourceCol>=0?X.encode_cell({r:row,c:sourceCol}):null;
+        put(r,col,address?source[address]?.v:null,address?"'UPB DISTR'!"+address:"");
+      }
+      const a=report[X.encode_cell({r,c:4})]?.v,b=report[X.encode_cell({r,c:3})]?.v;
+      put(r,5,numeric(a)&&numeric(b)&&b!==0?a/b-1:null,"E"+(r+1)+"/D"+(r+1)+"-1",true);
+    }
+  };
+
+  global.fillUpbMnjRatios = function(workbook,period){
+    const X=global.XLSX.utils,sheet=workbook.Sheets.LAPORAN;if(!sheet?.["!ref"])return;
+    const norm=v=>String(v??"").trim().toUpperCase().replace(/[–—]/g,"-").replace(/\s+/g," ");
+    const grid=X.sheet_to_json(sheet,{header:1,defval:"",raw:true,range:X.encode_range({s:{r:0,c:0},e:X.decode_range(sheet["!ref"]).e})});
+    const first=grid.findIndex(row=>norm(row[0])==="UPB (000) MNJ");if(first<0)return;
+    const year=Number(period.slice(0,4)),source=grid.findIndex(row=>row.some(v=>/^REVENUE KONIMEX \(SELLING OUT\).*RP\.?\s*\(000\)$/.test(norm(v))));
+    let denominator=null;
+    if(source>=0){
+      let header=-1,corporate=-1,column=-1;
+      for(let r=source+1;r<grid.length;r++){
+        if(grid[r].some(v=>/^(?:UPB \(000\)|REVENUE KONIMEX|MCM KONIMEX|SALES MNJ|ACHIEVEMENT & GROWTH)/.test(norm(v))))break;
+        if(header<0&&grid[r].some(v=>norm(v)==="PARAMETER")){
+          header=r;const start=grid[r].findIndex(v=>norm(v)==="ACH LAST YEAR ("+(year-1)+")");
+          if(start>=0){let end=start+1;while(end<grid[r].length&&!norm(grid[r][end]))end++;
+            for(let c=start;c<end;c++)if(["FULL YEAR","FY"].includes(norm(grid[r+1]?.[c]))){column=c;break;}
+          }
+        }
+        if(header>=0&&norm(grid[r][grid[header].findIndex(v=>norm(v)==="PARAMETER")])==="CORPORATE"){corporate=r;break;}
+      }
+      if(corporate>=0&&column>=0)denominator=X.encode_cell({r:corporate,c:column}).replace(/^([A-Z]+)(\d+)$/,"$$$1$$$2");
+    }
+    const numeric=v=>typeof v==="number"&&Number.isFinite(v);
+    const divide=(r,c,a,b,minus=false)=>{
+      const av=sheet[a]?.v,bv=b?sheet[b.replace(/\$/g,"")]?.v:null,valid=numeric(av)&&numeric(bv)&&bv!==0;
+      const address=X.encode_cell({r,c}),cell={...(sheet[address]||{}),t:valid?"n":"s",v:valid?av/bv-(minus?1:0):"",z:"0.00%"};
+      delete cell.f;delete cell.F;delete cell.w;if(b)cell.f=a+'/'+b+(minus?'-1':'');sheet[address]=cell;
+    };
+    for(let r=first+3;r<grid.length;r++){
+      if(norm(grid[r][0])&&!/^\d+$/.test(norm(grid[r][0])))break;
+      const label=norm(grid[r][1]);if(!["UPB (000) MNJ","GB 1 S/D GB 6","ETHICAL","NON KONIMEX"].includes(label))continue;
+      for(let i=0;i<3;i++)divide(r,6+i,X.encode_cell({r,c:2+i}),denominator);
+      divide(r,9,"I"+(r+1),"H"+(r+1),true);
+      // K is an editable manual target; retain it if this function runs again.
+      divide(r,11,"I"+(r+1),"K"+(r+1));
+    }
+  };
+
   function fillUpbKonimexFinishedGoods(workbook, period, currentYear) {
     const X=global.XLSX.utils,report=workbook.Sheets.LAPORAN;if(!report)return;
     const norm=v=>String(v??"").trim().toUpperCase().replace(/\s+/g," ");
