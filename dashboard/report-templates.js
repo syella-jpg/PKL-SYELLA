@@ -90,15 +90,36 @@
     if(styles)X.CFB.utils.cfb_add(zip,"styles.xml",new TextEncoder().encode(namespaces(styles)));
     return zip;
   };
+  function preserveOnTimeFormulationStyles(workbook,zip){
+    const block=workbook.onTimeFormulationRange;if(!block)return;
+    const X=global.XLSX,entry=X.CFB.find(zip,"content.xml");let xml=new TextDecoder().decode(entry.content);const styles=new Map();
+    xml=xml.replace(/<table:table\b[^>]*>[\s\S]*?<\/table:table>/g,table=>{
+      if(!/\btable:name="LAPORAN"/.test(table.slice(0,table.indexOf(">")+1)))return table;
+      let r=0;return table.replace(/<table:table-row\b[^>]*?(?:\/>|>[\s\S]*?<\/table:table-row>)/g,row=>{
+        const n=Number(row.match(/table:number-rows-repeated="(\d+)"/)?.[1]||1);let c=0;
+        const out=row.replace(/<table:(table-cell|covered-table-cell)\b[^>]*?(?:\/>|>[\s\S]*?<\/table:\1>)/g,cell=>{
+          const tag=cell.match(/^<[^>]*>/)[0],col=c;c+=Number(tag.match(/table:number-columns-repeated="(\d+)"/)?.[1]||1);
+          if(r<block.first||r>block.last||col>7)return cell;
+          const s=workbook.Sheets.LAPORAN[X.utils.encode_cell({r,c:col})]?.s;if(!s)return cell;
+          const parent=tag.match(/table:style-name="([^"]+)"/)?.[1]||"Default",fill=s.fill?.fgColor?.rgb||"FFFFFF",bold=!!s.font?.bold,indent=s.alignment?.indent||0;
+          const key=JSON.stringify([parent,fill,bold,indent,!!s.border]);if(!styles.has(key))styles.set(key,{name:"OTFStyle"+styles.size,parent,fill,bold,indent,border:!!s.border});const style=styles.get(key);
+          const opening=/table:style-name=/.test(tag)?tag.replace(/table:style-name="[^"]*"/,'table:style-name="'+style.name+'"'):tag.replace(/(\/?>)$/,' table:style-name="'+style.name+'"$1');return cell.replace(tag,opening);
+        });r+=n;return out;
+      });
+    });
+    const defs=Array.from(styles.values(),s=>'<style:style style:name="'+s.name+'" style:family="table-cell" style:parent-style-name="'+s.parent+'"><style:table-cell-properties fo:background-color="#'+s.fill+'"'+(s.border?' fo:border="0.5pt solid #000000"':'')+'/><style:paragraph-properties'+(s.indent?' fo:margin-left="0.4cm"':'')+'/><style:text-properties fo:font-weight="'+(s.bold?'bold':'normal')+'"/></style:style>').join("");
+    xml=xml.replace('</office:automatic-styles>',defs+'</office:automatic-styles>');X.CFB.utils.cfb_add(zip,'content.xml',new TextEncoder().encode(xml));
+  }
   global.writeMtmOds=function(workbook){
     const X=global.XLSX;
     let buffer=writeReportOdsBeforeUpb?writeReportOdsBeforeUpb(workbook):X.write(workbook,{type:"array",bookType:"ods",cellStyles:true});
-    if(!workbook.Sheets["UPB BJ kx"]&&!workbook.upbNonBjNativeOds&&!workbook.upbDistrNativeOds&&!workbook.dataParetoUpbNativeOds)return buffer;
+    if(!workbook.onTimeFormulationRange&&!workbook.Sheets["UPB BJ kx"]&&!workbook.upbNonBjNativeOds&&!workbook.upbDistrNativeOds&&!workbook.dataParetoUpbNativeOds)return buffer;
     const zip=X.CFB.read(new Uint8Array(buffer),{type:"array"});
     preserveNativeUpbOds(workbook,zip,workbook.upbBjNativeOds||UPB_BJ_KX_BASE64,"UPB BJ kx","UPBBJKX_");
     if(workbook.upbNonBjNativeOds)preserveNativeUpbOds(workbook,zip,workbook.upbNonBjNativeOds,"UPB non BJ","UPBNONBJ_");
     if(workbook.upbDistrNativeOds)preserveNativeUpbOds(workbook,zip,workbook.upbDistrNativeOds,"UPB DISTR","UPBDISTR_");
     if(workbook.dataParetoUpbNativeOds)preserveNativeUpbOds(workbook,zip,workbook.dataParetoUpbNativeOds,"DATA PARETO UPB","DATAPARETOUPB_");
+    preserveOnTimeFormulationStyles(workbook,zip);
     return Uint8Array.from(X.CFB.write(zip,{type:"array",fileType:"zip",compression:true})).buffer;
   };
   global.replaceUpbNonBjSheet=async function(workbook,period,pending){
@@ -2230,6 +2251,34 @@
     merges.push({s:{r:first+1,c:2},e:{r:first+1,c:3}},{s:{r:first+1,c:6},e:{r:first+1,c:11}});
     [title,"GB 1 S/D GB 6","Ethical","Non Konimex"].forEach((label,i)=>{put(first+3+i,[i||"",label]);if(!i)sheet[X.encode_cell({r:first+3,c:1})].s.font.bold=true;});
     sheet["!ref"]=X.encode_range({s:range.s,e:{r:first+6,c:Math.max(range.e.c,11)}});
+  };
+
+  global.appendOnTimeFormulationReportTable = function(workbook,period){
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;if(!sheet)throw new Error("Sheet LAPORAN tidak ditemukan.");
+    const title="ON TIME FORMULATION";if(Object.entries(sheet).some(([a,c])=>/^A\d+$/.test(a)&&c?.v===title))return;
+    const range=X.decode_range(sheet["!ref"]||"A1:H1"),first=range.e.r+3,year=Number(period.slice(0,4));
+    const months=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"],ytd="YTD "+months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(["top","bottom","left","right"].map(side=>[side,{style:"thin",color:{rgb:"000000"}}]));
+    const merges=sheet["!merges"]||(sheet["!merges"]=[]),rows=sheet["!rows"]||(sheet["!rows"]=[]);
+    const put=(r,values,header=false)=>{for(let c=0;c<8;c++)sheet[X.encode_cell({r,c})]={t:"s",v:values[c]??"",s:{font:{name:"Arial",sz:10,bold:header},fill:{fgColor:{rgb:header?"8FC9F4":"FFFFFF"}},border,alignment:{horizontal:header||c===0?"center":"left",vertical:"center",wrapText:true}}};rows[r]={hpt:header?28:19};};
+    sheet[X.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:12,bold:true}}};merges.push({s:{r:first,c:0},e:{r:first,c:7}});rows[first]={hpt:23};
+    put(first+1,["No","Parameter","Actual – Last Year ("+(year-1)+")","Actual "+year,"Target","","% Achievement",""],true);
+    put(first+2,["","","Full Year",ytd,ytd,String(year),ytd,String(year)],true);
+    for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
+    merges.push({s:{r:first+1,c:4},e:{r:first+1,c:5}},{s:{r:first+1,c:6},e:{r:first+1,c:7}});
+    // Actual has one heading spanning both header rows, with its YTD line.
+    sheet[X.encode_cell({r:first+1,c:3})].v="Actual "+year+"\n"+ytd;
+    merges.push({s:{r:first+1,c:3},e:{r:first+2,c:3}});sheet[X.encode_cell({r:first+2,c:3})].v="";
+    const labels=[title,"jumlah produk didaftarkan","Farmasi","Candy","Biskuit","ketepatan pendaftaran","Farmasi","Candy","Biskuit","","PRODUCT LAUNCH","jumlah produk dilaunch","Farmasi","Candy","Biskuit","ketepatan waktu launch","Farmasi","Candy","Biskuit"];
+    labels.forEach((label,i)=>{
+      const r=first+3+i;put(r,["",label]);
+      const parameter=sheet[X.encode_cell({r,c:1})];if([0,1,5,10,11,15].includes(i))parameter.s.font.bold=true;
+      if([2,3,4,6,7,8,12,13,14,16,17,18].includes(i))parameter.s.alignment.indent=1;
+      if([4,8,14,18].includes(i))for(const c of [6,7])sheet[X.encode_cell({r,c})].s.fill.fgColor.rgb="D9D9D9";
+      if([9,10].includes(i))sheet[X.encode_cell({r,c:6})].s.fill.fgColor.rgb="D9D9D9";
+    });
+    sheet["!ref"]=X.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,7)}});
+    workbook.onTimeFormulationRange={first,last:first+2+labels.length};
   };
 
   global.fillUpbMnjActuals = function(workbook,period){
