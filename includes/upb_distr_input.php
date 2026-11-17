@@ -150,13 +150,43 @@ function buildDataParetoUpbTemplateOds(string $period,?string $saved=null): stri
  }finally{if($opened)$zip->close();@unlink($path);}
 }
 
+/** Read the saved conclusion without loading hundreds of thousands of product cells. */
+function distrSavedMonthlySummary(string $path,int $year): ?array {
+ $reader=new XMLReader();if(!@$reader->open('zip://'.$path.'#content.xml',null,LIBXML_NONET))return null;
+ try{
+  while($reader->read()){
+   if($reader->nodeType===XMLReader::DOC_TYPE)throw new InvalidArgumentException('DTD tidak diizinkan dalam ODS.');
+   if($reader->nodeType!==XMLReader::ELEMENT||$reader->namespaceURI!==UPB_T||$reader->localName!=='table')continue;
+   if($reader->getAttributeNs('name',UPB_T)!=='KESIMPULAN'){
+    // next() skips raw detail nodes in native XML code rather than creating PHP objects.
+    while($reader->next()){
+     if($reader->nodeType!==XMLReader::ELEMENT||$reader->namespaceURI!==UPB_T||$reader->localName!=='table')continue;
+     if($reader->getAttributeNs('name',UPB_T)==='KESIMPULAN')break;
+    }
+   }
+   if($reader->nodeType!==XMLReader::ELEMENT||$reader->localName!=='table'||$reader->getAttributeNs('name',UPB_T)!=='KESIMPULAN')continue;
+   $doc=upbBjXml($reader->readOuterXml());$cells=upbBjCells($doc->documentElement);
+   if(!preg_match('/UPB DISTRIBUTOR TH\.?\s*'.$year.'(?: |$)/i',$cells[2][1]->textContent??''))return null;
+   $result=[];
+   foreach(range(1,12) as $month){$available=false;foreach(range(5,12) as $row)if(isset($cells[$row][$month+4])&&$cells[$row][$month+4]->hasAttributeNS(UPB_O,'value')){$available=true;break;}
+    foreach(DISTR_GROUPS as $i=>$group){$cell=$cells[$i+5][$month+4]??null;$result[$group][$month]=$available&&$cell&&$cell->hasAttributeNS(UPB_O,'value')?(float)$cell->getAttributeNS(UPB_O,'value'):null;}
+    foreach(['_GB_1_6'=>4,'_TOTAL'=>13] as $key=>$row){$cell=$cells[$row][$month+4]??null;$result[$key][$month]=$available&&$cell&&$cell->hasAttributeNS(UPB_O,'value')?(float)$cell->getAttributeNS(UPB_O,'value'):null;}
+   }return $result;
+  }return null;
+ }finally{$reader->close();}
+}
+
 /** Monthly amounts in (000); each input sheet contains that month alone. */
 function distrMonthlyValues(?string $bytes,int $year): array {
     if($bytes===null)return [];
     $path=tempnam(sys_get_temp_dir(),'distr-values-');$zip=new ZipArchive();$opened=false;
     try{file_put_contents($path,$bytes);if($zip->open($path)!==true)throw new RuntimeException('Data UPB DISTR tersimpan tidak dapat dibaca.');$opened=true;
-        $tables=upbBjTables(upbBjXml(readOdsUploadContent($path)));$monthly=[];
-        $state=distrReadFormulaState($zip);$customSummary=($state['input_basis']??null)==='monthly'&&!empty($state['rules']);$summary=$customSummary&&isset($tables['KESIMPULAN'])?upbBjCells($tables['KESIMPULAN']):[];
+        $state=distrReadFormulaState($zip);
+        if(($state['input_basis']??null)==='monthly'&&!empty($state['baseline'])){
+            $saved=distrSavedMonthlySummary($path,$year);if($saved!==null)return $saved;
+        }
+        $tables=upbBjTables(loadOdsUploadDocument($path));$monthly=[];
+$customSummary=($state['input_basis']??null)==='monthly'&&!empty($state['rules']);$summary=$customSummary&&isset($tables['KESIMPULAN'])?upbBjCells($tables['KESIMPULAN']):[];
         foreach(DISTR_MONTHS as $i=>$name){if(!isset($tables[$name]))continue;
             $valid=false;foreach(upbBjCells($tables[$name]) as $row)foreach($row as $cell)if(trim($cell->textContent)==='DATABASE JAN SD '.DISTR_SHORT[$i].' '.$year)$valid=true;
             if($valid)$monthly[$i+1]=distrMonthInfo($tables[$name]);

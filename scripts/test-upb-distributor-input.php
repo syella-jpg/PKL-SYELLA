@@ -22,7 +22,7 @@ function distrFixture($year){
    }
   }
  });
- $path=tempnam(sys_get_temp_dir(),'distr-fixture-');file_put_contents($path,$bytes);$zip=new ZipArchive();$zip->open($path);$doc=upbBjXml($zip->getFromName('content.xml'));$state=distrCaptureFormulaState($doc,['input_basis'=>'monthly'],$year.'-03');distrWriteFormulaState($zip,$state);$zip->close();$bytes=file_get_contents($path);unlink($path);return $bytes;
+ $path=tempnam(sys_get_temp_dir(),'distr-fixture-');file_put_contents($path,$bytes);$zip=new ZipArchive();$zip->open($path);$doc=upbBjXml($zip->getFromName('content.xml'));$tables=upbBjTables($doc);foreach(DISTR_MONTHS as $name)if(isset($tables[$name]))distrMonthTotal($tables[$name],distrMonthInfo($tables[$name]));$summary=distrConclusion($doc,$tables['KESIMPULAN'],distrSnapshotInfo($doc),$year.'-03');$tables['KESIMPULAN']->parentNode->replaceChild($summary,$tables['KESIMPULAN']);$zip->addFromString('content.xml',$doc->saveXML());$state=distrCaptureFormulaState($doc,['input_basis'=>'monthly'],$year.'-03');distrWriteFormulaState($zip,$state);$zip->close();$bytes=file_get_contents($path);unlink($path);return $bytes;
 }
 $blank=buildUpbDistrInputTemplateOds('2026-03');validateUpbDistrInput($blank,'2026-03','UPB DISTR');
 $tables=upbBjTables(distrReadOds($blank));distrCheck(array_keys($tables)===['JANUARI','FEBRUARI','MARET','KESIMPULAN'],'Monthly tabs through selected period');
