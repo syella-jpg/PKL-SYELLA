@@ -22,6 +22,25 @@ try {
     $section = is_string($_GET['section'] ?? null) ? $_GET['section'] : '';
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
     reportInputTemplateSpec($section, $period);
+    if($section==='DAFTAR'){
+        require_once __DIR__.'/../includes/daftar_input_template.php';
+        $bytes=buildDaftarInputTemplateOds($period);
+        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
+        header('Content-Disposition: attachment; filename="Template_DAFTAR_'.$period.'.ods"');
+        header('Cache-Control: no-store');echo $bytes;return;
+    }
+    if(in_array($section,['BOD BI.Opr & BOD BI.SDM'],true)){
+        require_once __DIR__.'/../includes/bod_bi_input_store.php';
+        require_once __DIR__.'/../includes/database.php';
+        $conn=openReportConnection();try{$record=findBodBiInput($conn,$period);$prior=findBodBiInput($conn,((int)substr($period,0,4)-1).'-12');}finally{$conn->close();}
+        $bytes=buildBodBiStoredInputTemplateOds($period,$record?base64_decode($record['base64'],true):null);
+        require_once __DIR__.'/../includes/bod_bi_prior_year.php';
+        $bytes=bodBiAddPriorYear($bytes,$period,$prior?base64_decode($prior['base64'],true):null);
+        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
+        header('Content-Disposition: attachment; filename="Template_'.$section.'_'.$period.'.ods"');
+        header('Cache-Control: no-store');echo $bytes;return;
+    }
+
     if (in_array($section,['UPB DISTR','DATA PARETO UPB'],true)) {
         require_once __DIR__.'/../includes/upb_distr_input_store.php';
         require_once __DIR__.'/../includes/database.php';

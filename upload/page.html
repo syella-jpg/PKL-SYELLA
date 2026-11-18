@@ -154,7 +154,7 @@
         <option value="BOD KX Sell In"></option>
         <option value="BOD MNJ"></option>
         <option value="BOD JML SDM"></option>
-        <option value="BOD BI. Opr"></option>
+        <option value="BOD BI.Opr &amp; BOD BI.SDM"></option>
         <option value="RATIO UPB"></option>
         <option value="UPB BJ kx"></option>
         <option value="UPB non BJ"></option>
@@ -231,7 +231,7 @@
   </form>
 </main>
 
-<script src="file-detection.js?v=upb-distributor-detection-20261113"></script>
+<script src="file-detection.js?v=bod-bi-auto-detect-20261117-2"></script>
 <script src="workbook-detection-reader.js?v=ods-preview-20261116"></script>
 <script src="bod-upload-type.js?v=20261109"></script>
 <script src="../dashboard/report-api-cache.js?v=read-only-detection-20261116"></script>
@@ -330,9 +330,9 @@
 
   function updateTemplateDownload() {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    const visible = ["UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
+    const visible = ["DAFTAR", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
     const validPeriod = /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
-    $("downloadTemplate").textContent = ["UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? "Unduh Template ODS" : "Unduh Template Excel";
+    $("downloadTemplate").textContent = ["DAFTAR", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? "Unduh Template ODS" : "Unduh Template Excel";
     $("templateHelp").hidden = !visible;
     $("downloadTemplate").disabled = busy || !validPeriod;
     if (!visible) return;
@@ -342,7 +342,11 @@
       return;
     }
     $("templateTitle").textContent = "Template " + section + " · " + period;
-    $("templateDescription").textContent = section === "UPB DISTR"
+    $("templateDescription").textContent = section === "DAFTAR"
+      ? "Tabel mengikuti file sumber. Kolom JT menyediakan pilihan ✓ (tepat waktu) dan ✗ (terlambat), atau dibiarkan kosong. Ringkasan menghitung otomatis."
+      : ["BOD BI.Opr & BOD BI.SDM"].includes(section)
+      ? "Template ODS sesuai draft, dengan sheet Januari sampai bulan pilihan. Baris rincian boleh ditambah/dikurangi; pertahankan label subtotal dan total. Isi kumulatif dalam ribuan Rupiah. Dilengkapi sheet BOD BI.Opr dan BOD BI.SDM; tahun serta YTD mengikuti periode unduhan. Upload menyimpan data ke database; unduhan berikutnya melanjutkan data tahun yang sama, dengan bulan baru kosong mengikuti kerangka dan rumus bulan sebelumnya."
+      : section === "UPB DISTR"
       ? "Sheet Januari sampai bulan pilihan, masing-masing dengan tabel GB 1–6, Ethical, dan Non Konimex; template awal menyediakan 2.500 baris per kelompok. Isi data masing-masing bulan dalam Rupiah, bukan kumulatif. KESIMPULAN mengambil total bulan tersebut /1000, lalu menghitung YTD dan kontribusi. Data tersimpan diteruskan; bulan baru mengikuti kerangka dan rumus bulan sebelumnya dengan isian kosong. Perubahan rumus tabel bulanan dan kolom bulan di KESIMPULAN menjadi acuan bulan berikutnya setelah upload. Baris input kosong dirapikan; data, rumus, dan sel yang dirujuk rumus dipertahankan. Baris produk boleh ditambah/dihapus; pertahankan judul, header, dan subtotal."
       : section === "DATA PARETO UPB"
       ? "Dua tabel sesuai sheet sumber: berdasarkan unit produk dan Rupiah produk. Isi atau tempel data pada template ini, lalu upload. Sheet beserta formatnya masuk langsung ke DATA PARETO UPB pada laporan untuk periode yang sama."
@@ -372,7 +376,7 @@
   window.addEventListener("pageshow", updateIbRateField);
   $("downloadTemplate").addEventListener("click", async () => {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    if (!["UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
+    if (!["DAFTAR", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
     const button = $("downloadTemplate");
     button.disabled = true;
     try {
@@ -383,7 +387,7 @@
         throw new Error(result.message || "Template gagal diunduh.");
       }
       const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
-      link.href = url; link.download = "Template_" + section + "_" + period + (["UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? ".ods" : ".xlsx");
+      link.href = url; link.download = "Template_" + section + "_" + period + (["DAFTAR", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? ".ods" : ".xlsx");
       link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { setMsg(error.message || "Template gagal diunduh.", "error"); }
     finally { button.disabled = false; }
@@ -957,6 +961,13 @@
         setMsg(saved.source === "monthly" ? "Laporan penjualan " + periodSelect.value + " berhasil disimpan ke database dan template. Klik Unduh Template Excel untuk melihat hasilnya." : saved.source === "rod" ? "ROD tahun " + saved.year + " berhasil disimpan. Harga Beli dan unit per produk terisi pada sheet ROD di template; Nilai ROD dihitung dari Unit × Harga Beli. Klik Unduh Template Excel untuk melihat hasilnya." : saved.kind === "combined" ? "BOD KX SELL IN tahun " + saved.year + " berhasil disimpan di database: penjualan bulanan serta target ROD dalam unit dan rupiah. Rincian produk tersedia kembali saat mengunduh template." : saved.kind === "target" ? "Target SELL IN tahun " + saved.year + " berhasil disimpan dari nilai ROD per GB untuk Januari–Desember." : "BOD KX SELL IN berhasil disimpan untuk " + periodSelect.value + ".", "ok");
         clearFile(); updateIbRateField();
         return;
+      }
+      if(sectionSelect.value === "BOD BI.Opr & BOD BI.SDM"){
+        const body=new FormData();body.append("file",chosen);body.append("period",periodSelect.value);
+        const endpoint=LOCAL_FILE_MODE?"http://127.0.0.1:8000/api/report.php?endpoint=bod_bi_input_api":"../api/report.php?endpoint=bod_bi_input_api";
+        const response=await fetch(endpoint,{method:"POST",body}),result=await response.json().catch(()=>null);
+        if(!response.ok||!result?.success)throw new Error(result?.message||"Upload BOD belum selesai. Periksa terminal server.");
+        barFill.style.width="100%";setMsg("BOD BI.Opr & BOD BI.SDM tersimpan di database untuk "+result.period+". Unduhan template berikutnya mengambil data tersimpan.","ok");clearFile();return;
       }
       if (["UPB DISTR", "DATA PARETO UPB"].includes(sectionSelect.value)) {
         const body=new FormData();body.append("file",chosen);body.append("period",periodSelect.value);body.append("section",sectionSelect.value);

@@ -15,6 +15,16 @@
     const file = normalize(filename);
     const distrMonths=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
     const distrShort=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const bodBiSignature=names.includes('BOD BI.OPR')&&names.includes('BOD BI.SDM')&&labels.includes('MATA ANGGARAN')&&labels.includes('REALISASI');
+    const bodBiPeriods=labels.map(label=>label.match(/^BOD BI\.OPR\s*&\s*BOD BI\.SDM.*PERIODE\s*:\s*S\/D\s+([A-Z]+)\s+(20\d{2})$/)).filter(Boolean);
+    if(bodBiSignature||bodBiPeriods.length){
+      const relevant=bodBiPeriods.length?bodBiPeriods:labels.map(label=>label.match(/PERIODE\s*:\s*S\/D\s+([A-Z]+)\s+(20\d{2})$/)).filter(Boolean);
+      const years=[...new Set(relevant.map(m=>Number(m[2])))],months=relevant.map(m=>distrMonths.indexOf(m[1])+1);
+      const filenamePeriod=file.match(/(?:^|[^0-9])(20\d{2})-(0[1-9]|1[0-2])(?:[^0-9]|$)/);
+      const year=years.length===1?years[0]:!years.length&&filenamePeriod?Number(filenamePeriod[1]):null;
+      const month=years.length===1&&months.length&&months.every(Boolean)?Math.max(...months):!years.length&&filenamePeriod?Number(filenamePeriod[2]):null;
+      return {choices:[{section:'BOD BI.Opr & BOD BI.SDM',label:'BOD BI.Opr & BOD BI.SDM'}],year,month};
+    }
     const databaseSignature=['NAMA PRODUK','GB','QTY','SAT','NILAI','BULAN','TAHUN'].every(label=>labels.includes(label))&&labels.some(label=>/^DATABASE JAN SD /.test(label));
     const paretoSignature=names.includes('DATA PARETO UPB')&&['DATA PARETO UPB','BERDASARKAN UNIT PRODUK','BERDASARKAN RUPIAH PRODUK'].every(label=>labels.includes(label));
     if(databaseSignature||paretoSignature){

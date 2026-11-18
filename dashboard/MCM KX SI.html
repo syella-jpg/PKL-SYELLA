@@ -207,7 +207,7 @@
 
 <script src="report-api-cache.js?v=storage-loop-20261113"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="report-templates.js?v=on-time-formulation-restored-20261116"></script>
+<script src="report-templates.js?v=daftar-jt-checklist-20261118"></script>
 <script src="shared-report-download.js?v=reuse-builder-20261113"></script>
 <script src="mcm-chart-data.js"></script>
 <script src="mcm-chart-interaction.js"></script>
@@ -537,8 +537,11 @@
     const workbook = XLSX.utils.book_new();
     const reportRows = [["Kategori"].concat(c.series.map((s) => s.name))];
     c.labels.forEach((lb, i) => reportRows.push([lb].concat(c.series.map((s) => s.values[i]))));
-    const names = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    const names = ["LAPORAN", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
     names.forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(name === "BOD KX Sell In" ? reportRows : []), name));
+    replaceDaftarTemplateSheet(workbook,st.period);
+    try { await replaceBodBiReportSheets(workbook,st.period); }
+    catch(error) { toast(error.message || "Data laporan BOD gagal dimuat."); return; }
     try { await replaceEdpTemplateSheet(workbook, st.period); } catch (error) { console.warn(error); }
     try {
       const reportYear = Number(st.period.slice(0, 4));

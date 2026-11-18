@@ -270,7 +270,7 @@ foreach (array_unique([$periodYear, $periodYear - 1]) as $targetYear) {
 
 $output = new Spreadsheet();
 $output->getActiveSheet()->setTitle('LAPORAN');
-$workbookSheetNames = ['LAPORAN', 'IB', 'ETHICAL', 'MNJ', 'MTM', 'UNIT', 'REVENUE EDP MNJ', 'BIAYA', 'TARGET REVENUE', 'DAFTAR', 'LAUNCH', 'BOD KX Sell In', 'BOD MNJ', 'BOD JML SDM', 'BOD BI.Opr', 'RATIO UPB', 'UP BJ kx', 'UPB non BJ', 'UPB DISTR', 'PARETO UPB DISTR AGT 26', 'complaint - Accident', 'NEAR ED TW 3', 'TOP 10 NEAR ED TW 3'];
+$workbookSheetNames = ['LAPORAN', 'IB', 'ETHICAL', 'MNJ', 'MTM', 'UNIT', 'REVENUE EDP MNJ', 'BIAYA', 'TARGET REVENUE', 'DAFTAR', 'LAUNCH', 'BOD KX Sell In', 'BOD MNJ', 'BOD JML SDM', 'BOD BI.SDM', 'BOD BI.Opr', 'RATIO UPB', 'UP BJ kx', 'UPB non BJ', 'UPB DISTR', 'PARETO UPB DISTR AGT 26', 'complaint - Accident', 'NEAR ED TW 3', 'TOP 10 NEAR ED TW 3'];
 $edpTemplateSource = file_get_contents(__DIR__ . '/report-templates.js');
 if ($edpTemplateSource === false || !preg_match('/const TEMPLATE_BASE64 = "([A-Za-z0-9+\/=]+)";/', $edpTemplateSource, $edpTemplateMatch)) {
     throw new RuntimeException('Template REVENUE EDP MNJ tertanam tidak ditemukan.');
@@ -288,6 +288,25 @@ try {
 }
 foreach ($workbookSheetNames as $sheetName) {
     if ($sheetName === 'LAPORAN') continue;
+    if ($sheetName === 'DAFTAR') {
+        require_once __DIR__.'/../includes/daftar_input_template.php';
+        $daftarPath=tempnam(sys_get_temp_dir(),'daftar-report-');
+        try { file_put_contents($daftarPath,buildDaftarInputTemplateOds($period));$daftarBook=IOFactory::load($daftarPath); }
+        finally { @unlink($daftarPath); }
+        applyDaftarJtValidation($daftarBook->getSheetByName('DAFTAR'));
+        $output->addExternalSheet($daftarBook->getSheetByName('DAFTAR'));
+        continue;
+    }
+    if (in_array($sheetName,['BOD BI.SDM','BOD BI.Opr'],true)) {
+        if (!isset($bodReportWorkbook)) {
+            require_once __DIR__.'/../includes/bod_bi_report.php';
+            $bodReportPath=tempnam(sys_get_temp_dir(),'bod-full-report-');
+            try { file_put_contents($bodReportPath,loadBodBiReportOds($conn,$period));$bodReportWorkbook=IOFactory::load($bodReportPath); }
+            finally { @unlink($bodReportPath); }
+        }
+        $output->addExternalSheet($bodReportWorkbook->getSheetByName($sheetName));
+        continue;
+    }
     if ($sheetName === 'MTM') {
         $templatePath = tempnam(sys_get_temp_dir(), 'mtm-template-');
         if ($templatePath === false || file_put_contents($templatePath, base64_decode(MTM_TEMPLATE_BASE64, true)) === false) {
