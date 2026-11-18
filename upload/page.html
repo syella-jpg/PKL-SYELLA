@@ -231,7 +231,7 @@
   </form>
 </main>
 
-<script src="file-detection.js?v=bod-bi-auto-detect-20261117-2"></script>
+<script src="file-detection.js?v=daftar-auto-select-20261118-2"></script>
 <script src="workbook-detection-reader.js?v=ods-preview-20261116"></script>
 <script src="bod-upload-type.js?v=20261109"></script>
 <script src="../dashboard/report-api-cache.js?v=read-only-detection-20261116"></script>
@@ -343,7 +343,7 @@
     }
     $("templateTitle").textContent = "Template " + section + " · " + period;
     $("templateDescription").textContent = section === "DAFTAR"
-      ? "Tabel mengikuti file sumber. Kolom JT menyediakan pilihan ✓ (tepat waktu) dan ✗ (terlambat), atau dibiarkan kosong. Ringkasan menghitung otomatis."
+      ? "Tabel mengikuti file sumber. Isi kolom JT dengan V atau X biasa; bagian yang belum ada datanya boleh kosong. Ringkasan menghitung V sebagai tepat waktu, sedangkan V dan X dihitung sebagai isian. Upload disimpan ke database per periode. Unduhan mengambil isian periode tersebut, atau data terakhir pada tahun yang sama. Baris dan rumus yang diubah tetap disimpan. File diunduh tanpa dibuka otomatis."
       : ["BOD BI.Opr & BOD BI.SDM"].includes(section)
       ? "Template ODS sesuai draft, dengan sheet Januari sampai bulan pilihan. Baris rincian boleh ditambah/dikurangi; pertahankan label subtotal dan total. Isi kumulatif dalam ribuan Rupiah. Dilengkapi sheet BOD BI.Opr dan BOD BI.SDM; tahun serta YTD mengikuti periode unduhan. Upload menyimpan data ke database; unduhan berikutnya melanjutkan data tahun yang sama, dengan bulan baru kosong mengikuti kerangka dan rumus bulan sebelumnya."
       : section === "UPB DISTR"
@@ -722,12 +722,16 @@
       if (id !== detectionId) return;
       if (result.year && result.month) {
         const value = result.year + "-" + String(result.month).padStart(2, "0");
-        if (!Array.from(periodSelect.options).some(o => o.value === value)) {
-          periodSelect.add(new Option(monthNames[result.month - 1] + " " + result.year, value));
+        let option = Array.from(periodSelect.options).find(o => o.value === value);
+        if (!option) {
+          option = new Option(monthNames[result.month - 1] + " " + result.year, value);
+          periodSelect.add(option);
         }
+        option.selected = true;
         periodSelect.value = value;
+        periodSelect.dispatchEvent(new Event("change", { bubbles: true }));
       }
-      const periodHint = periodSelect.value ? " Periksa periode sebelum upload." : result.year ? " Tahun file: " + result.year + ". Pilih bulan periode di bawah." : " Pilih periode laporan di bawah.";
+      const periodHint = periodSelect.value ? " Periode: " + periodSelect.options[periodSelect.selectedIndex].textContent + ". Periksa sebelum upload." : result.year ? " Tahun file: " + result.year + ". Pilih bulan periode di bawah." : " Pilih periode laporan di bawah.";
       if (result.choices.length === 1) {
         sectionSelect.value = result.choices[0].section;
         updateIbRateField();
@@ -961,6 +965,13 @@
         setMsg(saved.source === "monthly" ? "Laporan penjualan " + periodSelect.value + " berhasil disimpan ke database dan template. Klik Unduh Template Excel untuk melihat hasilnya." : saved.source === "rod" ? "ROD tahun " + saved.year + " berhasil disimpan. Harga Beli dan unit per produk terisi pada sheet ROD di template; Nilai ROD dihitung dari Unit × Harga Beli. Klik Unduh Template Excel untuk melihat hasilnya." : saved.kind === "combined" ? "BOD KX SELL IN tahun " + saved.year + " berhasil disimpan di database: penjualan bulanan serta target ROD dalam unit dan rupiah. Rincian produk tersedia kembali saat mengunduh template." : saved.kind === "target" ? "Target SELL IN tahun " + saved.year + " berhasil disimpan dari nilai ROD per GB untuk Januari–Desember." : "BOD KX SELL IN berhasil disimpan untuk " + periodSelect.value + ".", "ok");
         clearFile(); updateIbRateField();
         return;
+      }
+      if (sectionSelect.value === "DAFTAR") {
+        const body=new FormData(); body.append("file",chosen); body.append("period",periodSelect.value);
+        const endpoint=LOCAL_FILE_MODE?"http://127.0.0.1:8000/api/report.php?endpoint=daftar_input_api":"../api/report.php?endpoint=daftar_input_api";
+        const response=await fetch(endpoint,{method:"POST",body}), result=await response.json().catch(()=>null);
+        if(!response.ok||!result?.success)throw new Error(result?.message||"Upload DAFTAR gagal. Periksa terminal server.");
+        barFill.style.width="100%"; setMsg("DAFTAR tersimpan di database untuk "+result.period+". Isian, rumus, dan susunan baris tersedia kembali pada unduhan template serta laporan.","ok"); clearFile(); return;
       }
       if(sectionSelect.value === "BOD BI.Opr & BOD BI.SDM"){
         const body=new FormData();body.append("file",chosen);body.append("period",periodSelect.value);

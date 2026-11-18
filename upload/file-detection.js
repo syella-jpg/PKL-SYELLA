@@ -15,6 +15,16 @@
     const file = normalize(filename);
     const distrMonths=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
     const distrShort=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    // LibreOffice may prepend author/timestamp metadata to the JT header cell.
+    // Match the visible legend marker anywhere in that cell, including its final line.
+    if(names.includes('DAFTAR') && labels.some(label=>/(?:^|\s)JT(?:\s|$)/.test(label))) {
+      const periods=labels.map(label=>label.match(/^YTD\s+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+(20\d{2})$/)).filter(Boolean);
+      const unique=[...new Map(periods.map(m=>[m[1]+m[2],m])).values()];
+      const filenamePeriod=file.match(/(?:^|[^0-9])(20\d{2})-(0[1-9]|1[0-2])(?:[^0-9]|$)/);
+      const year=unique.length===1?Number(unique[0][2]):!unique.length&&filenamePeriod?Number(filenamePeriod[1]):null;
+      const month=unique.length===1?distrShort.indexOf(unique[0][1])+1:!unique.length&&filenamePeriod?Number(filenamePeriod[2]):null;
+      return {choices:[{section:'DAFTAR',label:'DAFTAR'}],year,month};
+    }
     const bodBiSignature=names.includes('BOD BI.OPR')&&names.includes('BOD BI.SDM')&&labels.includes('MATA ANGGARAN')&&labels.includes('REALISASI');
     const bodBiPeriods=labels.map(label=>label.match(/^BOD BI\.OPR\s*&\s*BOD BI\.SDM.*PERIODE\s*:\s*S\/D\s+([A-Z]+)\s+(20\d{2})$/)).filter(Boolean);
     if(bodBiSignature||bodBiPeriods.length){

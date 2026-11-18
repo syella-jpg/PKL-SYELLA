@@ -289,11 +289,10 @@ try {
 foreach ($workbookSheetNames as $sheetName) {
     if ($sheetName === 'LAPORAN') continue;
     if ($sheetName === 'DAFTAR') {
-        require_once __DIR__.'/../includes/daftar_input_template.php';
+        require_once __DIR__.'/../includes/daftar_input_store.php';
         $daftarPath=tempnam(sys_get_temp_dir(),'daftar-report-');
-        try { file_put_contents($daftarPath,buildDaftarInputTemplateOds($period));$daftarBook=IOFactory::load($daftarPath); }
+        try { file_put_contents($daftarPath,loadDaftarInputTemplateOds($conn,$period));$daftarBook=IOFactory::load($daftarPath); }
         finally { @unlink($daftarPath); }
-        applyDaftarJtValidation($daftarBook->getSheetByName('DAFTAR'));
         $output->addExternalSheet($daftarBook->getSheetByName('DAFTAR'));
         continue;
     }

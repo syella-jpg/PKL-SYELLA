@@ -9,9 +9,3 @@ function buildDaftarInputTemplateOds(string $period): string {
   $zip->addFromString('content.xml',$doc->saveXML());$zip->close();$opened=false;return file_get_contents($path);
  }finally{if($opened)$zip->close();@unlink($path);}
 }
-/** The ODS reader omits validation rules; restore them for the PHP/XLSX export. */
-function applyDaftarJtValidation(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet): void {
- foreach([[7,16],[18,19],[21,22],[24,36],[40,43]] as [$first,$last])foreach(range($first,$last) as $r){
-  $v=$sheet->getCell('M'.$r)->getDataValidation();$v->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)->setAllowBlank(true)->setShowDropDown(true)->setShowInputMessage(true)->setPromptTitle('JT')->setPrompt('✓ = tepat waktu; ✗ = terlambat; boleh kosong.')->setFormula1('"✓,✗"');
- }
-}

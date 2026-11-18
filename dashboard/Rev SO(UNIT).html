@@ -175,7 +175,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
 <script src="unit-target-layout.js?v=20261102"></script>
-<script src="report-templates.js?v=daftar-jt-checklist-20261118"></script>
+<script src="report-templates.js?v=daftar-database-20261118"></script>
 <script src="analysis-store.js"></script>
 <script src="analysis-to-tm-bod.js"></script>
 <script src="analysis-lock.js"></script>
@@ -929,7 +929,7 @@
     unitSourceSheet["!cols"] = [{ wch: 13 }, { wch: 17 }, { wch: 36 }];
     XLSX.utils.book_append_sheet(workbook, unitSourceSheet, "UNIT");
     workbookSheetNames.filter((name) => !["LAPORAN", "UNIT"].includes(name)).forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), name));
-    replaceDaftarTemplateSheet(workbook,selectedPeriod);
+    await replaceDaftarTemplateSheet(workbook,selectedPeriod);
     try { await replaceBodBiReportSheets(workbook,selectedPeriod); }
     catch(error) { toast(error.message || "Data laporan BOD gagal dimuat."); return; }
     try { await replaceIBTemplateSheet(workbook, selectedPeriod); }

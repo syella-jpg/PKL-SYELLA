@@ -23,8 +23,10 @@ try {
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
     reportInputTemplateSpec($section, $period);
     if($section==='DAFTAR'){
-        require_once __DIR__.'/../includes/daftar_input_template.php';
-        $bytes=buildDaftarInputTemplateOds($period);
+        require_once __DIR__.'/../includes/daftar_input_store.php';
+        require_once __DIR__.'/../includes/database.php';
+        $conn=openReportConnection();
+        try{$bytes=loadDaftarInputTemplateOds($conn,$period);}finally{$conn->close();}
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_DAFTAR_'.$period.'.ods"');
         header('Cache-Control: no-store');echo $bytes;return;
