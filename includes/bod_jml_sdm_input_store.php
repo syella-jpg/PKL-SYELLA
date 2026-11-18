@@ -1,5 +1,44 @@
 <?php
 use PhpOffice\PhpSpreadsheet\IOFactory;
+require_once __DIR__.'/upb_bj_template_history.php';
+
+/** Apply the revised difference to native ODS, including previously uploaded files. */
+function reviseBodJmlSdmDifference(string $bytes): string {
+    $path=tempnam(sys_get_temp_dir(),'sdm-difference-');$zip=new ZipArchive();$opened=false;
+    try{
+        file_put_contents($path,$bytes);
+        if($zip->open($path)!==true)throw new InvalidArgumentException('File ODS BOD JML SDM tidak valid.');
+        $opened=true;$doc=upbBjXml($zip->getFromName('content.xml'));
+        $tables=upbBjTables($doc);$table=$tables['BOD JML SDM']??reset($tables);
+        if(!$table)throw new InvalidArgumentException('Tabel BOD JML SDM tidak ditemukan.');
+        $rows=upbBjCells($table);$columns=[];
+        foreach($rows as $row)foreach($row as $c=>$cell){
+            $label=strtoupper(trim(preg_replace('/\s+/u',' ',$cell->textContent)));
+            foreach(['PLAN S/D BULAN INI'=>'plan','REAL S/D BULAN INI'=>'real','SELISIH'=>'difference'] as $text=>$key)if($label===$text)$columns[$key]=$c;
+        }
+        if(count($columns)!==3)throw new InvalidArgumentException('Header PLAN, REAL, atau SELISIH tidak ditemukan.');
+        $plan=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columns['plan']);
+        $real=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columns['real']);
+        $changed=false;
+        foreach($rows as $r=>$row){
+            $cell=$row[$columns['difference']]??null;if(!$cell)continue;
+            if(preg_match('/^a\s*[-–−]\s*b$/iu',trim($cell->textContent))){
+                foreach($cell->getElementsByTagNameNS(UPB_X,'p') as $p){while($p->firstChild)$p->removeChild($p->firstChild);$p->appendChild($doc->createTextNode('b – a'));}
+            }
+            $formula=$cell->getAttributeNS(UPB_T,'formula');
+            $old='of:=[.'.$plan.$r.']-[.'.$real.$r.']';
+            if($formula===$old){
+                $value=(float)($row[$columns['real']]??$cell)->getAttributeNS(UPB_O,'value')-(float)($row[$columns['plan']]??$cell)->getAttributeNS(UPB_O,'value');
+                upbBjSetFormula($cell,'[.'.$real.$r.']-[.'.$plan.$r.']',$value);$changed=true;
+            }
+        }
+        if($changed)foreach($rows as $row){
+            $cell=$row[$columns['difference']]??null;
+            if($cell&&str_starts_with(strtoupper($cell->getAttributeNS(UPB_T,'formula')),'OF:=SUM('))upbBjSetFormula($cell,substr($cell->getAttributeNS(UPB_T,'formula'),4),-(float)$cell->getAttributeNS(UPB_O,'value'));
+        }
+        $zip->addFromString('content.xml',$doc->saveXML());$zip->close();$opened=false;return file_get_contents($path);
+    }finally{if($opened)$zip->close();@unlink($path);}
+}
 
 function bodJmlSdmInputPeriod(string $period): void {
     if (!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D', $period)) throw new InvalidArgumentException('Periode BOD JML SDM tidak valid.');
@@ -27,14 +66,82 @@ function validateBodJmlSdmInputBytes(string $bytes): void {
     finally{if($opened)$zip->close();@unlink($path);}
 }
 function saveBodJmlSdmInput(mysqli $conn,string $period,string $bytes,string $filename): void {
-    bodJmlSdmInputPeriod($period);validateBodJmlSdmInputBytes($bytes);ensureBodJmlSdmInputStore($conn);
+    bodJmlSdmInputPeriod($period);validateBodJmlSdmInputBytes($bytes);$bytes=reviseBodJmlSdmDifference($bytes);ensureBodJmlSdmInputStore($conn);
     $filename=mb_substr(basename($filename),0,255);$base64=base64_encode($bytes);
     $q=$conn->prepare('INSERT INTO `bod_jml_sdm_input` (report_period,filename,base64) VALUES (?,?,?) ON DUPLICATE KEY UPDATE filename=VALUES(filename),base64=VALUES(base64)');
     $q->bind_param('sss',$period,$filename,$base64);$q->execute();$q->close();
 }
+/** Match prior-year values by KETERANGAN, retaining the current native layout. */
+function bodJmlSdmFillPriorReal(string $bytes,string $priorBytes): string {
+    $path=tempnam(sys_get_temp_dir(),'sdm-prior-');$zip=new ZipArchive();$opened=false;
+    $read=static function(string $raw)use($path):DOMDocument{
+        file_put_contents($path,$raw);$archive=new ZipArchive();
+        if($archive->open($path)!==true)throw new RuntimeException('File BOD JML SDM tidak valid.');
+        try{return upbBjXml($archive->getFromName('content.xml'));}finally{$archive->close();}
+    };
+    $norm=static fn($v)=>strtoupper(trim(preg_replace('/\s+/u',' ',(string)$v)));
+    $layout=static function(DOMDocument $doc)use($norm):array{
+        $tables=upbBjTables($doc);$table=$tables['BOD JML SDM']??reset($tables);$rows=upbBjCells($table);$cols=[];$header=0;$total=PHP_INT_MAX;
+        foreach($rows as $r=>$row)foreach($row as $c=>$cell){
+            $text=$norm($cell->textContent);
+            if($text==='KETERANGAN'){$cols['label']=$c;$header=$r;}
+            if($text==='REAL 2025')$cols['prior']=$c;
+            if($text==='REAL S/D BULAN INI')$cols['real']=$c;
+        }
+        if(count($cols)!==3)throw new RuntimeException('Header BOD JML SDM tidak lengkap.');
+        foreach($rows as $r=>$row)if($r>$header&&$norm(($row[$cols['label']]??null)?->textContent)==='TOTAL'){$total=$r;break;}
+        return compact('table','rows','cols','header','total');
+    };
+    try{
+        $previous=$layout($read($priorBytes));$doc=$read($bytes);$current=$layout($doc);$byLabel=[];$details=[];
+        foreach($previous['rows'] as $r=>$row)if($r>$previous['header']+1&&$r<$previous['total']){
+            $label=$norm(($row[$previous['cols']['label']]??null)?->textContent);
+            $value=($row[$previous['cols']['real']]??null)?->getAttributeNS(UPB_O,'value');
+            $entry=['label'=>$label,'name'=>($row[$previous['cols']['label']]??null)?->textContent??'','value'=>$value];
+            $details[]=$entry;if($label!=='')$byLabel[$label][]=$entry;
+        }
+        $r=1;$index=0;$sum=0;
+        foreach($current['table']->childNodes as $node){
+            if(!$node instanceof DOMElement||$node->localName!=='table-row')continue;
+            $repeat=max(1,(int)$node->getAttributeNS(UPB_T,'number-rows-repeated'));
+            if($r>$current['header']+1&&$r<$current['total']&&$repeat===1){
+                $label=$norm(($current['rows'][$r][$current['cols']['label']]??null)?->textContent);
+                $entry=$label!==''?(!empty($byLabel[$label])?array_shift($byLabel[$label]):null):($details[$index]??null);$index++;
+                $cell=upbBjColumnCell($node,$current['cols']['prior']);
+                $cell->removeAttributeNS(UPB_T,'formula');foreach(['value','value-type','string-value'] as $attr)$cell->removeAttributeNS(UPB_O,$attr);while($cell->firstChild)$cell->removeChild($cell->firstChild);
+                if($entry&&$entry['value']!==null&&$entry['value']!==''&&is_numeric($entry['value'])){
+                    $value=(float)$entry['value'];$sum+=$value;$cell->setAttributeNS(UPB_O,'office:value-type','float');$cell->setAttributeNS(UPB_O,'office:value',(string)$value);$cell->appendChild($doc->createElementNS(UPB_X,'text:p',(string)$value));
+                }
+                if($label===''&&$entry&&$entry['name']!==''){
+                    $name=upbBjColumnCell($node,$current['cols']['label']);while($name->firstChild)$name->removeChild($name->firstChild);$name->setAttributeNS(UPB_O,'office:value-type','string');$p=$doc->createElementNS(UPB_X,'text:p');$p->appendChild($doc->createTextNode($entry['name']));$name->appendChild($p);
+                }
+            }
+            if($r===$current['total']){
+                $cell=upbBjColumnCell($node,$current['cols']['prior']);$f=$cell->getAttributeNS(UPB_T,'formula');if(str_starts_with(strtoupper($f),'OF:=SUM('))upbBjSetFormula($cell,substr($f,4),$sum);
+            }
+            $r+=$repeat;
+        }
+        file_put_contents($path,$bytes);if($zip->open($path)!==true)throw new RuntimeException('File BOD JML SDM tidak valid.');$opened=true;
+        $zip->addFromString('content.xml',$doc->saveXML());$zip->close();$opened=false;return file_get_contents($path);
+    }finally{if($opened)$zip->close();@unlink($path);}
+}
 function loadBodJmlSdmInputOds(mysqli $conn,string $period): string {
     bodJmlSdmInputPeriod($period);$record=findBodJmlSdmInput($conn,$period);
-    if($record){$bytes=base64_decode($record['base64'],true);if($bytes===false)throw new RuntimeException('File BOD JML SDM tersimpan tidak valid.');return $bytes;}
-    $path=__DIR__.'/../dashboard/assets/input-templates/bod-jml-sdm.ods';$bytes=file_get_contents($path);
-    if($bytes===false)throw new RuntimeException('Template BOD JML SDM tidak ditemukan.');return $bytes;
+    if($record){
+        $bytes=base64_decode($record['base64'],true);if($bytes===false)throw new RuntimeException('File BOD JML SDM tersimpan tidak valid.');
+    }else{
+        $path=__DIR__.'/../dashboard/assets/input-templates/bod-jml-sdm.ods';$bytes=file_get_contents($path);
+        if($bytes===false)throw new RuntimeException('Template BOD JML SDM tidak ditemukan.');
+    }
+    $bytes=reviseBodJmlSdmDifference($bytes);
+    // REAL 2025 is the full prior year, fixed to December for every 2026 period.
+    if(substr($period,0,4)==='2026'){
+        $prior=findBodJmlSdmInput($conn,'2025-12');
+        if($prior){
+            $priorBytes=base64_decode($prior['base64'],true);
+            if($priorBytes===false)throw new RuntimeException('File BOD JML SDM Desember 2025 tersimpan tidak valid.');
+            $bytes=bodJmlSdmFillPriorReal($bytes,$priorBytes);
+        }
+    }
+    return $bytes;
 }

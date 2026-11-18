@@ -2440,9 +2440,63 @@
         const out={...(report[address]||{}),t:"n",v:typeof value==="number"&&Number.isFinite(value)?value:0,f:"'DAFTAR'!"+ref,z:percent?"0.00%":"#,##0"};
         delete out.w;delete out.F;report[address]=out;
       };
-      put(3,section==="JUMLAH PRODUK DIDAFTARKAN"?actualRow:accuracyRow,sourceColumn(ytd),section==="KETEPATAN PENDAFTARAN");
+      put(3,section==="JUMLAH PRODUK DIDAFTARKAN"?actualRow:accuracyRow,sourceColumn(ytd));
       put(4,targetRow,sourceColumn(ytd));
       put(5,annual.r+1,sourceColumn(annual));
+    }
+  };
+
+  global.fillOnTimeFormulationRegistrationTotals = function(workbook){
+    const X=global.XLSX.utils,sheet=workbook.Sheets.LAPORAN;
+    const rows=Object.entries(sheet).filter(([a])=>/^B\d+$/.test(a)).map(([a,cell])=>({r:X.decode_cell(a).r,label:String(cell.v??'').trim().toUpperCase()})).sort((a,b)=>a.r-b.r);
+    const top=rows.findIndex(row=>row.label==='ON TIME FORMULATION');if(top<0)return;
+    const groups=new Set(['FARMASI','CANDY','BISKUIT']);
+    for(let i=top+1;i<rows.length;i++){
+      const parent=rows[i];if(parent.label==='PRODUCT LAUNCH')break;
+      if(!['JUMLAH PRODUK DIDAFTARKAN','KETEPATAN PENDAFTARAN'].includes(parent.label))continue;
+      const children=[];for(let j=i+1;j<rows.length&&groups.has(rows[j].label);j++)children.push(rows[j].r);
+      if(children.length!==3)throw new Error('Rincian Farmasi, Candy, dan Biskuit tidak lengkap.');
+      const columns=[2,3,4,5];
+      for(const c of columns){
+        const refs=children.map(r=>X.encode_cell({r,c})),values=refs.map(a=>sheet[a]?.v),hasValue=values.some(v=>typeof v==='number'&&Number.isFinite(v));
+        const a=X.encode_cell({r:parent.r,c}),out={...(sheet[a]||{}),t:hasValue?'n':'s',v:hasValue?values.reduce((s,v)=>s+(typeof v==='number'&&Number.isFinite(v)?v:0),0):'',f:'SUM('+refs[0]+':'+refs[2]+')',z:'#,##0'};
+        delete out.w;delete out.F;sheet[a]=out;
+      }
+    }
+  };
+
+  global.fillOnTimeFormulationPriorActuals = async function(workbook,period){
+    const year=Number(period.slice(0,4))-1;
+    const response=await fetchReportApi(apiBase+"daftar_input_api.php?"+new URLSearchParams({period:year+"-12",exact:"1"}),{cache:"no-store"});
+    const result=await response.json();
+    if(!response.ok||!result.success)throw new Error(result.message||"Data DAFTAR Desember "+year+" gagal dimuat.");
+    // Missing prior-year uploads remain empty, never substitute a different month.
+    if(!result.base64)return;
+    const X=global.XLSX,zip=X.CFB.read(result.base64,{type:"base64"}),styles=X.CFB.find(zip,"styles.xml");
+    if(styles)X.CFB.utils.cfb_add(zip,"styles.xml",new TextEncoder().encode(new TextDecoder().decode(new Uint8Array(styles.content)).replace(/<style:map\b[^>]*\/>/g,"")));
+    const source=X.read(X.CFB.write(zip,{type:"array",fileType:"zip",compression:true}),{type:"array",cellFormula:true});
+    const sheet=source.Sheets.DAFTAR;
+    if(!sheet)throw new Error("Sheet DAFTAR Desember "+year+" tidak ditemukan.");
+    const norm=v=>String(v??"").trim().toUpperCase().replace(/\s+/g," ");
+    const cells=s=>Object.entries(s).filter(([a])=>/^[A-Z]+\d+$/.test(a)).map(([a,cell])=>({...X.utils.decode_cell(a),cell,text:norm(cell.v)})).sort((a,b)=>a.r-b.r||a.c-b.c);
+    const data=cells(sheet),report=workbook.Sheets.LAPORAN,target=cells(report);
+    const ytd=data.find(c=>new RegExp("^YTD (?:DEC|DES|DESEMBER|DECEMBER) "+year+"$").test(c.text));
+    if(!ytd)throw new Error("Ringkasan YTD Desember "+year+" pada DAFTAR tidak ditemukan.");
+    const end=data.find(c=>c.r>ytd.r&&/^(?:YTD |TARGET TOTAL TAHUN )/.test(c.text))?.r??Infinity;
+    const top=target.find(c=>c.c===0&&c.text==="ON TIME FORMULATION");
+    if(!top)throw new Error("Tabel ON TIME FORMULATION tidak ditemukan.");
+    const groups={FARMASI:"FM",CANDY:"CDY",BISKUIT:"SBC"};let section="";
+    for(const c of target.filter(c=>c.c===1&&c.r>top.r)){
+      if(c.text==="PRODUCT LAUNCH")break;
+      if(c.text==="JUMLAH PRODUK DIDAFTARKAN"||c.text==="KETEPATAN PENDAFTARAN"){section=c.text;continue;}
+      if(!section||!groups[c.text])continue;
+      const row=data.find(item=>item.r>ytd.r&&item.r<end&&item.c===ytd.c&&item.text===(section==="JUMLAH PRODUK DIDAFTARKAN"?"JML PRODUK DIDAFTARKAN":"KETEPATAN PENDAFTARAN"));
+      const column=data.find(item=>item.r===ytd.r&&item.text===groups[c.text]);
+      if(!row||!column)throw new Error("Ringkasan DAFTAR Desember "+year+" tidak lengkap untuk "+groups[c.text]+".");
+      const v=sheet[X.utils.encode_cell({r:row.r,c:column.c})]?.v;
+      const address=X.utils.encode_cell({r:c.r,c:2}),valid=typeof v==="number"&&Number.isFinite(v);
+      const cell={...(report[address]||{}),t:valid?"n":"s",v:valid?v:"",z:"#,##0"};
+      delete cell.f;delete cell.F;delete cell.w;report[address]=cell;
     }
   };
 

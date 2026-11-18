@@ -17,7 +17,13 @@ try {
         $conn=openReportConnection(); saveDaftarInput($conn,$period,$bytes,$file['name']);
         echo json_encode(['success'=>true,'section'=>'DAFTAR','period'=>$period]);
     }else{
-        $conn=openReportConnection(); $bytes=loadDaftarInputTemplateOds($conn,$period);
+        $conn=openReportConnection();
+        if(($_GET['exact']??'')==='1'){
+            $record=findDaftarInput($conn,$period);
+            if(!$record||$record['report_period']!==$period){echo json_encode(['success'=>true,'base64'=>null]);return;}
+            $bytes=base64_decode($record['base64'],true);
+            if($bytes===false)throw new RuntimeException('File DAFTAR tersimpan tidak valid.');
+        }else $bytes=loadDaftarInputTemplateOds($conn,$period);
         echo json_encode(['success'=>true,'base64'=>base64_encode($bytes)]);
     }
 }catch(InvalidArgumentException $e){http_response_code(400);echo json_encode(['success'=>false,'message'=>$e->getMessage()]);}
