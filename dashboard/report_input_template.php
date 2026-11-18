@@ -21,6 +21,14 @@ if (in_array($origin, ['null', 'http://127.0.0.1:8000', 'http://localhost:8000']
 try {
     $section = is_string($_GET['section'] ?? null) ? $_GET['section'] : '';
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
+    if($section==='BOD JML SDM'){
+        require_once __DIR__.'/../includes/bod_jml_sdm_input_store.php';
+        require_once __DIR__.'/../includes/database.php';
+        $conn=openReportConnection();try{$bytes=loadBodJmlSdmInputOds($conn,$period);}finally{$conn->close();}
+        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
+        header('Content-Disposition: attachment; filename="Template_BOD JML SDM_'.$period.'.ods"');
+        header('Cache-Control: no-store');echo $bytes;return;
+    }
     reportInputTemplateSpec($section, $period);
     if($section==='DAFTAR'){
         require_once __DIR__.'/../includes/daftar_input_store.php';
@@ -29,6 +37,14 @@ try {
         try{$bytes=loadDaftarInputTemplateOds($conn,$period);}finally{$conn->close();}
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_DAFTAR_'.$period.'.ods"');
+        header('Cache-Control: no-store');echo $bytes;return;
+    }
+    if($section==='LAUNCH'){
+        require_once __DIR__.'/../includes/launch_input_store.php';
+        require_once __DIR__.'/../includes/database.php';
+        $conn=openReportConnection();try{$bytes=loadLaunchInputOds($conn,$period);}finally{$conn->close();}
+        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
+        header('Content-Disposition: attachment; filename="Template_LAUNCH_'.$period.'.ods"');
         header('Cache-Control: no-store');echo $bytes;return;
     }
     if(in_array($section,['BOD BI.Opr & BOD BI.SDM'],true)){

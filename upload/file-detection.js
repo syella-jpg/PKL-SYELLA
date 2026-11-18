@@ -15,6 +15,15 @@
     const file = normalize(filename);
     const distrMonths=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
     const distrShort=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    if(labels.includes('NAMA PRODUK')&&labels.includes('RENCANA LAUNCH')&&labels.includes('REALISASI LAUNCH')){
+      const period=file.match(/(?:^|[^0-9])(20\d{2})-(0[1-9]|1[0-2])(?:[^0-9]|$)/);
+      return {choices:[{section:'LAUNCH',label:'LAUNCH'}],year:period?Number(period[1]):null,month:period?Number(period[2]):null};
+    }
+    const bodJmlSdmHeaders=['KETERANGAN','REAL 2025','PLAN 2026','PLAN S/D BULAN INI','REAL S/D BULAN INI','SELISIH'];
+    if(bodJmlSdmHeaders.every(header=>labels.includes(header))){
+      const period=file.match(/(?:^|[^0-9])(20\d{2})-(0[1-9]|1[0-2])(?:[^0-9]|$)/);
+      return {choices:[{section:'BOD JML SDM',label:'BOD JML SDM'}],year:period?Number(period[1]):null,month:period?Number(period[2]):null};
+    }
     // LibreOffice may prepend author/timestamp metadata to the JT header cell.
     // Match the visible legend marker anywhere in that cell, including its final line.
     if(names.includes('DAFTAR') && labels.some(label=>/(?:^|\s)JT(?:\s|$)/.test(label))) {

@@ -296,6 +296,25 @@ foreach ($workbookSheetNames as $sheetName) {
         $output->addExternalSheet($daftarBook->getSheetByName('DAFTAR'));
         continue;
     }
+    if ($sheetName === 'LAUNCH') {
+        require_once __DIR__.'/../includes/launch_input_store.php';
+        $launchPath=tempnam(sys_get_temp_dir(),'launch-report-');
+        try { file_put_contents($launchPath,loadLaunchInputOds($conn,$period));$launchBook=IOFactory::load($launchPath); }
+        finally { @unlink($launchPath); }
+        $launchSheet=$launchBook->getSheetByName('LAUNCH')??$launchBook->getSheet(0);
+        $launchSheet->setTitle('LAUNCH');
+        $output->addExternalSheet($launchSheet);
+        continue;
+    }
+    if ($sheetName === 'BOD JML SDM') {
+        require_once __DIR__.'/../includes/bod_jml_sdm_input_store.php';
+        $bodJmlSdmPath=tempnam(sys_get_temp_dir(),'bod-jml-sdm-report-');
+        try { file_put_contents($bodJmlSdmPath,loadBodJmlSdmInputOds($conn,$period));$bodJmlSdmBook=IOFactory::load($bodJmlSdmPath); }
+        finally { @unlink($bodJmlSdmPath); }
+        $bodJmlSdmSheet=$bodJmlSdmBook->getSheetByName('BOD JML SDM')??$bodJmlSdmBook->getSheet(0);
+        $bodJmlSdmSheet->setTitle('BOD JML SDM');$output->addExternalSheet($bodJmlSdmSheet);
+        continue;
+    }
     if (in_array($sheetName,['BOD BI.SDM','BOD BI.Opr'],true)) {
         if (!isset($bodReportWorkbook)) {
             require_once __DIR__.'/../includes/bod_bi_report.php';

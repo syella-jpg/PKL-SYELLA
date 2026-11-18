@@ -128,7 +128,7 @@
   global.writeMtmOds=function(workbook){
     const X=global.XLSX;
     let buffer=writeReportOdsBeforeUpb?writeReportOdsBeforeUpb(workbook):X.write(workbook,{type:"array",bookType:"ods",cellStyles:true});
-    if(!workbook.daftarNativeOds&&!workbook.bodBiSdmNativeOds&&!workbook.bodBiOprNativeOds&&!workbook.onTimeFormulationRange&&!workbook.Sheets["UPB BJ kx"]&&!workbook.upbNonBjNativeOds&&!workbook.upbDistrNativeOds&&!workbook.dataParetoUpbNativeOds)return buffer;
+    if(!workbook.daftarNativeOds&&!workbook.launchNativeOds&&!workbook.bodJmlSdmNativeOds&&!workbook.bodBiSdmNativeOds&&!workbook.bodBiOprNativeOds&&!workbook.onTimeFormulationRange&&!workbook.Sheets["UPB BJ kx"]&&!workbook.upbNonBjNativeOds&&!workbook.upbDistrNativeOds&&!workbook.dataParetoUpbNativeOds)return buffer;
     const zip=X.CFB.read(new Uint8Array(buffer),{type:"array"});
     preserveNativeUpbOds(workbook,zip,workbook.upbBjNativeOds||UPB_BJ_KX_BASE64,"UPB BJ kx","UPBBJKX_");
     if(workbook.upbNonBjNativeOds)preserveNativeUpbOds(workbook,zip,workbook.upbNonBjNativeOds,"UPB non BJ","UPBNONBJ_");
@@ -137,6 +137,8 @@
     if(workbook.bodBiSdmNativeOds)preserveNativeUpbOds(workbook,zip,workbook.bodBiSdmNativeOds,"BOD BI.SDM","BODBISDM_");
     if(workbook.bodBiOprNativeOds)preserveNativeUpbOds(workbook,zip,workbook.bodBiOprNativeOds,"BOD BI.Opr","BODBIOPR_");
     if(workbook.daftarNativeOds)preserveNativeUpbOds(workbook,zip,workbook.daftarNativeOds,"DAFTAR","DAFTAR_");
+    if(workbook.launchNativeOds)preserveNativeUpbOds(workbook,zip,workbook.launchNativeOds,"LAUNCH","LAUNCH_");
+    if(workbook.bodJmlSdmNativeOds)preserveNativeUpbOds(workbook,zip,workbook.bodJmlSdmNativeOds,"BOD JML SDM","BODJMLSDM_");
     preserveOnTimeFormulationStyles(workbook,zip);
     return Uint8Array.from(X.CFB.write(zip,{type:"array",fileType:"zip",compression:true})).buffer;
   };
@@ -220,6 +222,26 @@
     const styles=X.CFB.find(zip,"styles.xml");if(styles)X.CFB.utils.cfb_add(zip,"styles.xml",new TextEncoder().encode(new TextDecoder().decode(styles.content).replace(/<style:map\b[^>]*\/>/g,"")));
     const source=X.read(X.CFB.write(zip,{type:"array",fileType:"zip",compression:true}),{type:"array",cellStyles:true,cellNF:true,cellFormula:true});
     workbook.Sheets.DAFTAR=source.Sheets.DAFTAR;if(!workbook.SheetNames.includes("DAFTAR"))workbook.SheetNames.push("DAFTAR");workbook.daftarNativeOds=native;
+  };
+  global.replaceLaunchTemplateSheet=async function(workbook,period,nativeBase64){
+    if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period))throw new Error("Periode LAUNCH tidak valid.");
+    const native=nativeBase64||await loadUpbReportData("launch_input_api.php",period);
+    const X=global.XLSX,zip=X.CFB.read(native,{type:"base64"}),styles=X.CFB.find(zip,"styles.xml");
+    if(styles)X.CFB.utils.cfb_add(zip,"styles.xml",new TextEncoder().encode(new TextDecoder().decode(styles.content).replace(/<style:map\b[^>]*\/>/g,"")));
+    const source=X.read(X.CFB.write(zip,{type:"array",fileType:"zip",compression:true}),{type:"array",cellStyles:true,cellNF:true,cellFormula:true});
+    const sheet=source.Sheets.LAUNCH||source.Sheets[source.SheetNames[0]];
+    if(!sheet)throw new Error("Sheet LAUNCH tidak ditemukan pada file yang diunggah.");
+    workbook.Sheets.LAUNCH=sheet;if(!workbook.SheetNames.includes("LAUNCH"))workbook.SheetNames.push("LAUNCH");workbook.launchNativeOds=native;
+  };
+  global.replaceBodJmlSdmTemplateSheet=async function(workbook,period,nativeBase64){
+    if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period))throw new Error("Periode BOD JML SDM tidak valid.");
+    const native=nativeBase64||await loadUpbReportData("bod_jml_sdm_input_api.php",period);
+    const X=global.XLSX,zip=X.CFB.read(native,{type:"base64"}),styles=X.CFB.find(zip,"styles.xml");
+    if(styles)X.CFB.utils.cfb_add(zip,"styles.xml",new TextEncoder().encode(new TextDecoder().decode(styles.content).replace(/<style:map\b[^>]*\/>/g,"")));
+    const source=X.read(X.CFB.write(zip,{type:"array",fileType:"zip",compression:true}),{type:"array",cellStyles:true,cellNF:true,cellFormula:true});
+    const sheet=source.Sheets["BOD JML SDM"]||source.Sheets[source.SheetNames[0]];
+    if(!sheet)throw new Error("Sheet BOD JML SDM tidak ditemukan pada template.");
+    workbook.Sheets["BOD JML SDM"]=sheet;if(!workbook.SheetNames.includes("BOD JML SDM"))workbook.SheetNames.push("BOD JML SDM");workbook.bodJmlSdmNativeOds=native;
   };
   global.replaceBodBiReportSheets=async function(workbook,period){
     const native=await loadUpbReportData("bod_bi_report_api.php",period);
@@ -2389,6 +2411,39 @@
     });
     sheet["!ref"]=X.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,7)}});
     workbook.onTimeFormulationRange={first,last:first+2+labels.length};
+  };
+
+  global.fillOnTimeFormulationRegistration = function(workbook,period){
+    const X=global.XLSX.utils,report=workbook.Sheets.LAPORAN,source=workbook.Sheets.DAFTAR;
+    if(!report||!source)throw new Error("Sheet LAPORAN atau DAFTAR belum dimuat.");
+    const norm=v=>String(v??"").trim().toUpperCase().replace(/\s+/g," ");
+    const cells=sheet=>Object.entries(sheet).filter(([a])=>/^[A-Z]+\d+$/.test(a)).map(([a,cell])=>({a,...X.decode_cell(a),text:norm(cell.v)})).sort((a,b)=>a.r-b.r||a.c-b.c);
+    const data=cells(source),target=cells(report),year=Number(period.slice(0,4));
+    const annual=data.find(cell=>cell.text==="TARGET TOTAL TAHUN "+year);
+    const ytd=data.find(cell=>new RegExp("^YTD [A-Z]+ "+year+"$").test(cell.text));
+    if(!annual||!ytd)throw new Error("Ringkasan TARGET TOTAL TAHUN dan YTD "+year+" pada DAFTAR tidak ditemukan.");
+    const nextTitle=data.find(cell=>cell.r>ytd.r&&/^YTD |^TARGET TOTAL TAHUN /.test(cell.text));
+    const summary=data.filter(cell=>cell.r>ytd.r&&cell.r<(nextTitle?.r??Infinity)&&cell.c===ytd.c);
+    const rowFor=label=>{const row=summary.find(cell=>cell.text===label);if(!row)throw new Error("Baris "+label+" pada ringkasan DAFTAR tidak ditemukan.");return row.r;};
+    const actualRow=rowFor("JML PRODUK DIDAFTARKAN"),accuracyRow=rowFor("KETEPATAN PENDAFTARAN"),targetRow=rowFor("TARGET");
+    const top=target.find(cell=>cell.c===0&&cell.text==="ON TIME FORMULATION");
+    if(!top)throw new Error("Tabel ON TIME FORMULATION tidak ditemukan.");
+    let section="";
+    const group={FARMASI:"FM",CANDY:"CDY",BISKUIT:"SBC"};
+    for(const cell of target.filter(cell=>cell.c===1&&cell.r>top.r)){
+      if(cell.text==="PRODUCT LAUNCH")break;
+      if(cell.text==="JUMLAH PRODUK DIDAFTARKAN"||cell.text==="KETEPATAN PENDAFTARAN"){section=cell.text;continue;}
+      if(!section||!group[cell.text])continue;
+      const sourceColumn=anchor=>{const header=data.find(h=>h.r===anchor.r&&h.text===group[cell.text]);if(!header)throw new Error("Kolom "+group[cell.text]+" pada ringkasan DAFTAR tidak ditemukan.");return header.c;};
+      const put=(column,row,sourceCol,percent=false)=>{
+        const ref=X.encode_cell({r:row,c:sourceCol}),address=X.encode_cell({r:cell.r,c:column}),value=source[ref]?.v;
+        const out={...(report[address]||{}),t:"n",v:typeof value==="number"&&Number.isFinite(value)?value:0,f:"'DAFTAR'!"+ref,z:percent?"0.00%":"#,##0"};
+        delete out.w;delete out.F;report[address]=out;
+      };
+      put(3,section==="JUMLAH PRODUK DIDAFTARKAN"?actualRow:accuracyRow,sourceColumn(ytd),section==="KETEPATAN PENDAFTARAN");
+      put(4,targetRow,sourceColumn(ytd));
+      put(5,annual.r+1,sourceColumn(annual));
+    }
   };
 
   global.fillUpbMnjActuals = function(workbook,period){
