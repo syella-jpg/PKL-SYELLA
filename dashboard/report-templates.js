@@ -115,14 +115,20 @@
         const out=row.replace(/<table:(table-cell|covered-table-cell)\b[^>]*?(?:\/>|>[\s\S]*?<\/table:\1>)/g,cell=>{
           const tag=cell.match(/^<[^>]*>/)[0],col=c;c+=Number(tag.match(/table:number-columns-repeated="(\d+)"/)?.[1]||1);
           if(r<block.first||r>block.last||col>7)return cell;
-          const s=workbook.Sheets.LAPORAN[X.utils.encode_cell({r,c:col})]?.s;if(!s)return cell;
+          const reportCell=workbook.Sheets.LAPORAN[X.utils.encode_cell({r,c:col})],s=reportCell?.s;if(!s)return cell;
           const parent=tag.match(/table:style-name="([^"]+)"/)?.[1]||"Default",fill=s.fill?.fgColor?.rgb||"FFFFFF",bold=!!s.font?.bold,indent=s.alignment?.indent||0;
-          const key=JSON.stringify([parent,fill,bold,indent,!!s.border]);if(!styles.has(key))styles.set(key,{name:"OTFStyle"+styles.size,parent,fill,bold,indent,border:!!s.border});const style=styles.get(key);
-          const opening=/table:style-name=/.test(tag)?tag.replace(/table:style-name="[^"]*"/,'table:style-name="'+style.name+'"'):tag.replace(/(\/?>)$/,' table:style-name="'+style.name+'"$1');return cell.replace(tag,opening);
+          const percent=reportCell.z==='0.00%';
+          const key=JSON.stringify([parent,fill,bold,indent,!!s.border,percent]);if(!styles.has(key))styles.set(key,{name:"OTFStyle"+styles.size,parent,fill,bold,indent,border:!!s.border,percent});const style=styles.get(key);
+          let opening=/table:style-name=/.test(tag)?tag.replace(/table:style-name="[^"]*"/,'table:style-name="'+style.name+'"'):tag.replace(/(\/?>)$/,' table:style-name="'+style.name+'"$1');
+          if(percent&&typeof reportCell.v==='number')opening=opening.replace(/office:value-type="[^"]*"/,'office:value-type="percentage"');
+          let output=cell.replace(tag,opening);
+          if(percent&&typeof reportCell.v==='number')output=output.replace(/<text:p\b[^>]*>[\s\S]*?<\/text:p>/,'<text:p>'+(reportCell.v*100).toFixed(2)+'%</text:p>');
+          return output;
         });r+=n;return out;
       });
     });
-    const defs=Array.from(styles.values(),s=>'<style:style style:name="'+s.name+'" style:family="table-cell" style:parent-style-name="'+s.parent+'"><style:table-cell-properties fo:background-color="#'+s.fill+'"'+(s.border?' fo:border="0.5pt solid #000000"':'')+'/><style:paragraph-properties'+(s.indent?' fo:margin-left="0.4cm"':'')+'/><style:text-properties fo:font-weight="'+(s.bold?'bold':'normal')+'"/></style:style>').join("");
+    const percentStyle='<number:percentage-style style:name="OTFPercent2"><number:number number:decimal-places="2" number:min-decimal-places="2" number:min-integer-digits="1"/><number:text>%</number:text></number:percentage-style>';
+    const defs=percentStyle+Array.from(styles.values(),s=>'<style:style style:name="'+s.name+'" style:family="table-cell" style:parent-style-name="'+s.parent+'"'+(s.percent?' style:data-style-name="OTFPercent2"':'')+'><style:table-cell-properties fo:background-color="#'+s.fill+'"'+(s.border?' fo:border="0.5pt solid #000000"':'')+'/><style:paragraph-properties'+(s.indent?' fo:margin-left="0.4cm"':'')+'/><style:text-properties fo:font-weight="'+(s.bold?'bold':'normal')+'"/></style:style>').join("");
     xml=xml.replace('</office:automatic-styles>',defs+'</office:automatic-styles>');X.CFB.utils.cfb_add(zip,'content.xml',new TextEncoder().encode(xml));
   }
   global.writeMtmOds=function(workbook){
@@ -2461,6 +2467,25 @@
         const refs=children.map(r=>X.encode_cell({r,c})),values=refs.map(a=>sheet[a]?.v),hasValue=values.some(v=>typeof v==='number'&&Number.isFinite(v));
         const a=X.encode_cell({r:parent.r,c}),out={...(sheet[a]||{}),t:hasValue?'n':'s',v:hasValue?values.reduce((s,v)=>s+(typeof v==='number'&&Number.isFinite(v)?v:0),0):'',f:'SUM('+refs[0]+':'+refs[2]+')',z:'#,##0'};
         delete out.w;delete out.F;sheet[a]=out;
+      }
+    }
+  };
+
+  global.fillOnTimeFormulationRegistrationAchievement = function(workbook){
+    const X=global.XLSX.utils,sheet=workbook.Sheets.LAPORAN;
+    const rows=Object.entries(sheet).filter(([a])=>/^B\d+$/.test(a)).map(([a,cell])=>({r:X.decode_cell(a).r,label:String(cell.v??'').trim().toUpperCase()})).sort((a,b)=>a.r-b.r);
+    const top=rows.findIndex(row=>row.label==='ON TIME FORMULATION');if(top<0)return;
+    const labels=new Set(['JUMLAH PRODUK DIDAFTARKAN','KETEPATAN PENDAFTARAN','FARMASI','CANDY','BISKUIT']);
+    for(const row of rows.slice(top+1)){
+      if(row.label==='PRODUCT LAUNCH')break;
+      if(!labels.has(row.label))continue;
+      const r=row.r+1,actual=sheet['D'+r]?.v;
+      for(const [output,denominator] of [['G','E'],['H','F']]){
+        const target=sheet[denominator+r]?.v,valid=typeof actual==='number'&&Number.isFinite(actual)&&typeof target==='number'&&Number.isFinite(target)&&target!==0;
+        const address=output+r,cell={...(sheet[address]||{}),t:valid?'n':'s',v:valid?actual/target:'',z:'0.00%'};
+        delete cell.f;delete cell.F;delete cell.w;
+        if(valid)cell.f='D'+r+'/'+denominator+r;
+        sheet[address]=cell;
       }
     }
   };

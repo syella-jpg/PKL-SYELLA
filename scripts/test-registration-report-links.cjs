@@ -38,7 +38,33 @@ for(const offset of [0,7]){
  assert.equal(report['F'+(r+4)].v,600);
  assert.equal(report['D'+(r+4)].v,360);
  assert.equal(report['D'+(r+4)].f,'SUM(D'+(r+5)+':D'+(r+7)+')');
+ context.window.fillOnTimeFormulationRegistrationAchievement(book);
+ for(let i=0;i<8;i++){
+  const row=r+i;
+  for(const [output,denominator] of [['G','E'],['H','F']]){
+   assert.equal(report[output+row].v,report['D'+row].v/report[denominator+row].v);
+   assert.equal(report[output+row].f,'D'+row+'/'+denominator+row);
+   assert.equal(report[output+row].z,'0.00%');
+  }
+ }
+ const launchBefore=JSON.stringify(Object.fromEntries(Object.entries(report).filter(([a])=>/^[G-H]\d+$/.test(a)&&X.utils.decode_cell(a).r>=launch)));
+ report['E'+(r+1)]={t:'n',v:0};report['D'+(r+2)]={t:'n',v:0};
+ context.window.fillOnTimeFormulationRegistrationAchievement(book);
+ assert.equal(report['G'+(r+1)].v,'');assert(!report['G'+(r+1)].f);
+ assert.equal(report['G'+(r+2)].v,0);
+ assert.equal(JSON.stringify(Object.fromEntries(Object.entries(report).filter(([a])=>/^[G-H]\d+$/.test(a)&&X.utils.decode_cell(a).r>=launch))),launchBefore);
  const bytes=X.write(book,{type:'buffer',bookType:'ods'}),roundtrip=X.read(bytes,{type:'buffer',cellFormula:true});
  assert.equal(roundtrip.Sheets.LAPORAN['D'+(r+1)].f,report['D'+(r+1)].f);
+ assert.equal(roundtrip.Sheets.LAPORAN['H'+r].f,'D'+r+'/F'+r);
+ const nativeBytes=context.window.writeMtmOds(book),zip=X.CFB.read(new Uint8Array(nativeBytes),{type:'array'});
+ const xml=new TextDecoder().decode(new Uint8Array(X.CFB.find(zip,'content.xml').content));
+ assert(xml.includes('<number:percentage-style style:name="OTFPercent2">'));
+ assert(xml.includes('style:data-style-name="OTFPercent2"'));
+ assert(xml.includes('office:value-type="percentage"'));
+ assert(xml.includes('<text:p>70.00%</text:p>'));
+ const nativeRoundtrip=X.read(nativeBytes,{type:'array',cellNF:true,cellStyles:true,cellFormula:true});
+ assert.equal(nativeRoundtrip.Sheets.LAPORAN['H'+r].v,.7);
+ assert(nativeRoundtrip.Sheets.LAPORAN['H'+r].z.includes('%'));
+ assert.equal(nativeRoundtrip.Sheets.LAPORAN['H'+r].f,'D'+r+'/F'+r);
 }
 console.log('PASS: Actual, YTD/year targets, percentages, shifted source rows/columns, untouched cells, and ODS formula roundtrip.');
