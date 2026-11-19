@@ -2471,13 +2471,14 @@
     }
   };
 
-  global.fillOnTimeFormulationRegistrationAchievement = function(workbook){
+  global.fillOnTimeFormulationRegistrationAchievement = function(workbook,sectionTitle='ON TIME FORMULATION'){
     const X=global.XLSX.utils,sheet=workbook.Sheets.LAPORAN;
     const rows=Object.entries(sheet).filter(([a])=>/^B\d+$/.test(a)).map(([a,cell])=>({r:X.decode_cell(a).r,label:String(cell.v??'').trim().toUpperCase()})).sort((a,b)=>a.r-b.r);
-    const top=rows.findIndex(row=>row.label==='ON TIME FORMULATION');if(top<0)return;
-    const labels=new Set(['JUMLAH PRODUK DIDAFTARKAN','KETEPATAN PENDAFTARAN','FARMASI','CANDY','BISKUIT']);
+    const top=rows.findIndex(row=>row.label===sectionTitle);if(top<0)return;
+    const labels=new Set([...(sectionTitle==='PRODUCT LAUNCH'?['JUMLAH PRODUK DILAUNCH','KETEPATAN WAKTU LAUNCH']:['JUMLAH PRODUK DIDAFTARKAN','KETEPATAN PENDAFTARAN']),'FARMASI','CANDY','BISKUIT']);
     for(const row of rows.slice(top+1)){
       if(row.label==='PRODUCT LAUNCH')break;
+      if(row.r>(workbook.onTimeFormulationRange?.last??Infinity))break;
       if(!labels.has(row.label))continue;
       const r=row.r+1,actual=sheet['D'+r]?.v;
       for(const [output,denominator] of [['G','E'],['H','F']]){
@@ -2488,6 +2489,9 @@
         sheet[address]=cell;
       }
     }
+  };
+  global.fillProductLaunchAchievement = function(workbook){
+    global.fillOnTimeFormulationRegistrationAchievement(workbook,'PRODUCT LAUNCH');
   };
 
   global.fillOnTimeFormulationPriorActuals = async function(workbook,period){
@@ -2523,6 +2527,65 @@
       const cell={...(report[address]||{}),t:valid?"n":"s",v:valid?v:"",z:"#,##0"};
       delete cell.f;delete cell.F;delete cell.w;report[address]=cell;
     }
+  };
+
+  global.fillProductLaunchActuals = async function(workbook,period){
+    const X=global.XLSX,report=workbook.Sheets.LAPORAN,year=Number(period.slice(0,4));
+    const norm=v=>String(v??'').trim().toUpperCase().replace(/\s+/g,' ');
+    const cells=sheet=>Object.entries(sheet).filter(([a])=>/^[A-Z]+\d+$/.test(a)).map(([a,cell])=>({...X.utils.decode_cell(a),text:norm(cell.v)})).sort((a,b)=>a.r-b.r||a.c-b.c);
+    const rows=cells(report).filter(c=>c.c===1),top=rows.findIndex(c=>c.text==='PRODUCT LAUNCH');
+    if(top<0)throw new Error('Bagian PRODUCT LAUNCH pada LAPORAN tidak ditemukan.');
+    const groups={FARMASI:'FM',CANDY:'CDY',BISKUIT:'SBC'};
+    const sections=[['JUMLAH PRODUK DILAUNCH','JML PRODUK DI-LAUNCH'],['KETEPATAN WAKTU LAUNCH','KETEPATAN LAUNCH']].map(([label,sourceLabel])=>{
+      const heading=rows.slice(top+1).find(c=>c.text===label);
+      if(!heading)throw new Error('Baris '+label+' pada LAPORAN tidak ditemukan.');
+      const children=[];for(const row of rows.filter(c=>c.r>heading.r)){if(!groups[row.text])break;children.push(row);}
+      if(children.length!==3)throw new Error('Rincian Farmasi, Candy, dan Biskuit PRODUCT LAUNCH tidak lengkap.');
+      return {heading,children,sourceLabel};
+    });
+    const fill=(source,sourceYear,column)=>{
+      if(!source)throw new Error('Sheet LAUNCH '+sourceYear+' tidak ditemukan.');
+      const data=cells(source);
+      // Upload period identifies the year. Older templates can retain a stale
+      // year in the sole summary heading, so identify its group headers too.
+      const summaries=data.filter(c=>/^YTD\b/.test(c.text)&&['FM','CDY','SBC'].every(group=>data.some(h=>h.r===c.r&&h.text===group)));
+      const matching=summaries.filter(c=>new RegExp('\\b'+sourceYear+'\\b').test(c.text));
+      const ytd=matching.length===1?matching[0]:summaries.length===1?summaries[0]:null;
+      if(!ytd)throw new Error('Ringkasan YTD '+sourceYear+' pada LAUNCH tidak ditemukan.');
+      const annual=column===5?data.find(c=>c.text==='TARGET TOTAL TAHUN '+sourceYear):null;
+      if(column===5&&!annual)throw new Error('TARGET TOTAL TAHUN '+sourceYear+' pada LAUNCH tidak ditemukan.');
+      const anchor=annual||ytd;
+      const end=data.find(c=>c.r>ytd.r&&/^(?:YTD |TARGET TOTAL TAHUN )/.test(c.text))?.r??Infinity;
+      for(const {heading,children,sourceLabel} of sections){
+      const label=column===4?'TARGET':sourceLabel;
+      const summary=annual?{r:annual.r+1}:data.find(c=>c.r>ytd.r&&c.r<end&&c.c===ytd.c&&c.text===label);
+      if(!summary)throw new Error('Baris '+label+' pada LAUNCH '+sourceYear+' tidak ditemukan.');
+      let sum=0,hasValue=false;
+      for(const row of children){
+        const header=data.find(c=>c.r===anchor.r&&c.text===groups[row.text]);
+        if(!header)throw new Error('Kolom '+groups[row.text]+' pada LAUNCH '+sourceYear+' tidak ditemukan.');
+        const ref=X.utils.encode_cell({r:summary.r,c:header.c}),v=source[ref]?.v,valid=typeof v==='number'&&Number.isFinite(v);
+        const address=X.utils.encode_cell({r:row.r,c:column}),out={...(report[address]||{}),t:valid?'n':'s',v:valid?v:'',z:'#,##0'};
+        delete out.f;delete out.F;delete out.w;
+        if(column!==2)out.f="'LAUNCH'!"+ref;
+        report[address]=out;if(valid){sum+=v;hasValue=true;}
+      }
+      const address=X.utils.encode_cell({r:heading.r,c:column}),refs=children.map(row=>X.utils.encode_cell({r:row.r,c:column}));
+      const out={...(report[address]||{}),t:hasValue?'n':'s',v:hasValue?sum:'',f:'SUM('+refs[0]+':'+refs[2]+')',z:'#,##0'};
+      delete out.F;delete out.w;report[address]=out;
+      }
+    };
+    fill(workbook.Sheets.LAUNCH,year,3);
+    fill(workbook.Sheets.LAUNCH,year,4);
+    fill(workbook.Sheets.LAUNCH,year,5);
+    const response=await fetchReportApi(apiBase+'launch_input_api.php?'+new URLSearchParams({period:(year-1)+'-12',exact:'1'}),{cache:'no-store'});
+    const result=await response.json();
+    if(!response.ok||!result.success)throw new Error(result.message||'Data LAUNCH Desember '+(year-1)+' gagal dimuat.');
+    if(!result.base64)return;
+    const zip=X.CFB.read(result.base64,{type:'base64'}),styles=X.CFB.find(zip,'styles.xml');
+    if(styles)X.CFB.utils.cfb_add(zip,'styles.xml',new TextEncoder().encode(new TextDecoder().decode(new Uint8Array(styles.content)).replace(/<style:map\b[^>]*\/>/g,'')));
+    const prior=X.read(X.CFB.write(zip,{type:'array',fileType:'zip',compression:true}),{type:'array',cellFormula:true});
+    fill(prior.Sheets.LAUNCH||prior.Sheets[prior.SheetNames[0]],year-1,2);
   };
 
   global.fillUpbMnjActuals = function(workbook,period){

@@ -11,7 +11,15 @@ try{
     $source=$method==='POST'?$_POST:$_GET;$period=$source['period']??'';if(!is_string($period))throw new InvalidArgumentException('Periode LAUNCH tidak valid.');launchInputPeriod($period);
     $conn=openReportConnection();
     if($method==='POST'){$file=$_FILES['file']??null;if(!$file||$file['error']!==UPLOAD_ERR_OK)throw new InvalidArgumentException('Pilih file ODS LAUNCH.');$bytes=file_get_contents($file['tmp_name']);if($bytes===false)throw new InvalidArgumentException('File LAUNCH tidak dapat dibaca.');saveLaunchInput($conn,$period,$bytes,$file['name']);echo json_encode(['success'=>true,'section'=>'LAUNCH','period'=>$period]);}
-    else{$bytes=loadLaunchInputOds($conn,$period);echo json_encode(['success'=>true,'base64'=>base64_encode($bytes)]);}
+    else{
+        if(($_GET['exact']??'')==='1'){
+            $record=findLaunchInput($conn,$period);
+            if(!$record){echo json_encode(['success'=>true,'base64'=>null]);return;}
+            $bytes=base64_decode($record['base64'],true);
+            if($bytes===false)throw new RuntimeException('File LAUNCH tersimpan tidak valid.');
+        }else $bytes=loadLaunchInputOds($conn,$period);
+        echo json_encode(['success'=>true,'base64'=>base64_encode($bytes)]);
+    }
 }catch(InvalidArgumentException $e){http_response_code(400);echo json_encode(['success'=>false,'message'=>$e->getMessage()]);}
 catch(Throwable $e){error_log('LAUNCH input: '.$e->getMessage());http_response_code(500);echo json_encode(['success'=>false,'message'=>'File LAUNCH gagal diproses. Periksa koneksi database.']);}
 finally{if($conn)$conn->close();}
