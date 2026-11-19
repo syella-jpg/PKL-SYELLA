@@ -5,6 +5,8 @@
     }
   },
   "rewrites": [
+    {"source":"/dashboard/daftar_input_api","destination":"/api/report.php?endpoint=daftar_input_api"},
+    {"source":"/dashboard/daftar_input_api.php","destination":"/api/report.php?endpoint=daftar_input_api"},
     {"source":"/dashboard/biaya_api.php","destination":"/api/report.php?endpoint=biaya_api"},
     {"source":"/dashboard/biaya_api","destination":"/api/report.php?endpoint=biaya_api"},
     {
