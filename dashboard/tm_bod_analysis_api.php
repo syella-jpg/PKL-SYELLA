@@ -38,10 +38,11 @@ try {
  }
  $data=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);
  if(($data['action']??'')==='login') {
-  if(($data['username']??'')!=='admin 1'||($data['password']??'')!=='admin 1'){http_response_code(401);throw new InvalidArgumentException('Username atau password salah.');}
+  $username=$data['username']??'';
+  if(!in_array($username,['admin 1','direksi'],true)||($data['password']??'')!==$username){http_response_code(401);throw new InvalidArgumentException('Username atau password salah.');}
   $token=bin2hex(random_bytes(32));$hash=hash('sha256',$token);
   $conn->query('DELETE FROM tm_bod_transfer_sessions WHERE expires_at<=NOW()');
-  $q=$conn->prepare("INSERT INTO tm_bod_transfer_sessions (token_hash,username,expires_at) VALUES (?,'admin 1',DATE_ADD(NOW(),INTERVAL 1 DAY))");$q->bind_param('s',$hash);$q->execute();$q->close();echo json_encode(['success'=>true,'token'=>$token]);exit;
+  $q=$conn->prepare("INSERT INTO tm_bod_transfer_sessions (token_hash,username,expires_at) VALUES (?,?,DATE_ADD(NOW(),INTERVAL 1 DAY))");$q->bind_param('ss',$hash,$username);$q->execute();$q->close();echo json_encode(['success'=>true,'token'=>$token]);exit;
  }
  $authorization=$_SERVER['HTTP_AUTHORIZATION']??'';$token=preg_match('/^Bearer ([a-f0-9]{64})$/',$authorization,$match)?$match[1]:'';$hash=hash('sha256',$token);
  $q=$conn->prepare("SELECT username FROM tm_bod_transfer_sessions WHERE token_hash=? AND expires_at>NOW() AND username='admin 1'");$q->bind_param('s',$hash);$q->execute();$user=$q->get_result()->fetch_assoc();$q->close();

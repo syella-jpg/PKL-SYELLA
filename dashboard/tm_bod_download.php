@@ -1,4 +1,11 @@
 <?php
+// Support the local file:// login and viewer using the PHP API server.
+$origin=$_SERVER['HTTP_ORIGIN']??'';
+if(in_array($origin,['null','http://127.0.0.1:8000','http://localhost:8000'],true)){
+    header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');
+    header('Access-Control-Allow-Headers: Content-Type');header('Access-Control-Allow-Methods: POST, OPTIONS');
+}
+if(($_SERVER['REQUEST_METHOD']??'')==='OPTIONS'){http_response_code(204);exit;}
 // One analysis per slide; retain the corporate master, logo, and background.
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);

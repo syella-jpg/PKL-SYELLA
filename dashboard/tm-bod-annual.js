@@ -39,12 +39,12 @@
   anchor.remove();status.textContent='Template aktif '+year+' · '+config.slides.filter(s=>s.enabled).length+' bagian.';
  }
  function editor(){
-  const launch=document.createElement('button');launch.type='button';launch.textContent='Kelola template tahunan';launch.className='btn cancel';launch.style.marginRight='10px';$('toggle-ppt-preview').before(launch);
+  const launch=document.createElement('button');launch.type='button';launch.textContent='Ubah Template PPT';launch.id='change-ppt-template';launch.setAttribute('aria-haspopup','dialog');launch.className='btn cancel';launch.style.marginRight='10px';$('toggle-ppt-preview').before(launch);
   launch.onclick=async()=>{
    if(Array.from(document.querySelectorAll('.section-save-status')).some(node=>node.textContent.includes('Ada perubahan'))){status.textContent='Simpan perubahan analisis terlebih dahulu sebelum mengelola template.';return;}
    const dialog=document.createElement('dialog');dialog.className='tm-annual-dialog';
-   dialog.setAttribute('aria-label','Kelola template TM BOD per tahun');
-   dialog.innerHTML='<div class="tm-annual-head"><div><h2>Template TM BOD</h2><p>Siapkan susunan baru sebagai draf. Pengguna lain tetap memakai template aktif.</p></div><button type="button" data-close aria-label="Tutup">×</button></div><div class="tm-annual-controls"><label>Tahun tujuan <input data-year type="number" min="2026" max="2100"></label><label>Salin dari tahun <input data-from type="number" min="2026" max="2100"></label><button type="button" data-load>Muat draf / salin</button></div><p data-status role="status"></p><div data-editor></div><div class="tm-annual-actions"><button type="button" data-save>Simpan Draf</button><button type="button" data-activate>Aktifkan Template</button><button type="button" data-apply hidden>Muat template aktif</button></div>';
+   dialog.setAttribute('aria-label','Ubah Template PPT Tinjauan Manajemen BOD');
+   dialog.innerHTML='<div class="tm-annual-head"><div><h2>Ubah Template PPT</h2><p>Pilih tahun, upload PPT/PPTX, lalu pilih desain cover dan analisis. Klik Simpan Draf, Aktifkan Template, kemudian Muat template aktif.</p></div><button type="button" data-close aria-label="Tutup">×</button></div><div class="tm-annual-controls"><label>Tahun tujuan <input data-year type="number" min="2026" max="2100"></label><label>Salin dari tahun <input data-from type="number" min="2026" max="2100"></label><button type="button" data-load>Muat draf / salin</button></div><p data-status role="status"></p><div data-editor></div><div class="tm-annual-actions"><button type="button" data-save>Simpan Draf</button><button type="button" data-activate>Aktifkan Template</button><button type="button" data-apply hidden>Muat template aktif</button></div>';
    const get=s=>dialog.querySelector(s),target=get('[data-year]'),from=get('[data-from]'),message=get('[data-status]'),area=get('[data-editor]');target.value=year;from.value=Math.max(2026,Number(year)-1);
    let config=null,version=0,loadedYear=null,dirty=false,busy=false,designPages=[];
    const controls=()=>Array.from(dialog.querySelectorAll('button,input,select'));
@@ -58,6 +58,7 @@
     const upload=document.createElement('input');upload.type='file';upload.accept='.ppt,.pptx';upload.setAttribute('aria-label','Upload Template PowerPoint');
     upload.onchange=async()=>{
      const file=upload.files[0];if(!file||busy)return;
+     if(!/\.pptx?$/i.test(file.name)||file.size>30*1024*1024){message.textContent='Pilih file PPT/PPTX maksimal 30 MB.';upload.value='';return;}
      if(target.value!==loadedYear){message.textContent='Muat draf tahun tujuan terlebih dahulu.';return;}
      lock(true);message.textContent='Memproses desain PowerPoint. Desain aktif belum berubah…';
      try{
@@ -67,7 +68,7 @@
       designPages=result.pages;config.design={uploadId:result.id,sourceYear:Number(loadedYear),cover:0,analysis:Math.min(1,designPages.length-1),coverColor:'#ffffff',analysisColor:'#111111'};changed();draw();message.textContent='Desain siap ditinjau. Pilih slide, simpan draf, lalu aktifkan template.';
      }catch(error){message.textContent=error.message;}finally{lock(false);}
     };
-    const uploadButton=document.createElement('button');uploadButton.type='button';uploadButton.textContent='Upload Template PowerPoint';uploadButton.onclick=()=>upload.click();upload.hidden=true;
+    const uploadButton=document.createElement('button');uploadButton.type='button';uploadButton.textContent='Pilih file PPT/PPTX baru';uploadButton.onclick=()=>upload.click();upload.hidden=true;
     designBox.append(designTitle,hint,uploadButton,upload);
     if(config.design && designPages.length){
      for(const [key,label,colorKey]of [['cover','Background cover','coverColor'],['analysis','Background analisis','analysisColor']]){

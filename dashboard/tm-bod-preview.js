@@ -3,7 +3,8 @@
   const $ = id => document.getElementById(id);
   const panel = $('ppt-preview');
   const previewToggle = $('toggle-ppt-preview');
-  let previewVisible = false;
+  const director=!!window.TmBodDirector;
+  let previewVisible = director;
   function applyPreviewVisibility() {
     panel.hidden = !previewVisible;
     $('report-workspace').classList.toggle('with-preview', previewVisible);
@@ -39,6 +40,7 @@
   } catch (_) {}
   let loadingContent = false, loadGeneration = 0;
   async function persistDraft(next, q, action = 'save') {
+    if(director)throw new Error('Akun direksi memberi catatan melalui Catatan Direksi.');
     if (!window.TmBodContentStore) throw new Error('Modul database belum dimuat. Muat ulang halaman.');
     await window.TmBodContentStore.save($('cover-year').value, q, next, action);
     drafts = next;
@@ -48,6 +50,7 @@
     previewVersion++;
     const requestedQuarter=$('quarter').value,requestedYear=$('cover-year').value;
     const generation = ++loadGeneration;
+    if(director){drafts={};$('download').disabled=true;}
     loadingContent = true;
     disableSaving(true);
     let loadWarning = '';
@@ -56,7 +59,10 @@
       const content = await window.TmBodContentStore.load(requestedYear, requestedQuarter);
       if (generation !== loadGeneration) return;
       if (content) Object.assign(drafts, content);
-    } catch (error) { loadWarning = error.message; }
+    } catch (error) {
+      if(director){if(generation===loadGeneration){loadingContent=false;slides=[];$('preview-slide').textContent='Presentasi belum dapat dimuat.';$('preview-status').textContent=error.message;$('preview-download').disabled=true;$('download').disabled=true;}return;}
+      loadWarning = error.message;
+    }
     if (generation !== loadGeneration) return;
     try { await window.TmBodIncoming?.load(requestedYear,requestedQuarter); }
     catch(error) { $('preview-status').textContent=error.message; }
@@ -94,11 +100,11 @@
     const q = $('quarter').value;
     const customs = savedCustom(q);
     const ordered = allSections();
-    await showPreviousQuarter(ordered, requestedYear, requestedQuarter);
+    if(!director)await showPreviousQuarter(ordered, requestedYear, requestedQuarter);
     if(generation !== loadGeneration || requestedQuarter!==$('quarter').value || requestedYear!==$('cover-year').value)return;
     loadingContent = false; disableSaving(false);
     const firstSaved = ordered.findIndex(section => hasSavedValue(savedValue(section, q, Array.isArray(values) ? values : [], customs)));
-    if (firstSaved >= 0) await openPreview(snapshotSections(ordered, q, Array.isArray(values) ? values : [], customs), q, firstSaved);
+    if (director || firstSaved >= 0) await openPreview(snapshotSections(ordered, q, Array.isArray(values) ? values : [], customs), q, director?-1:firstSaved);
   }
   let previewVersion = 0;
   let slides = [], position = 0, quarter = '', busy = false;
@@ -215,6 +221,7 @@
       const tooLong = slides.some(slide => slide.layout.some(item => item.overflow) || slide.fields.some(value => new TextEncoder().encode(value).length > 12000));
       $('preview-status').textContent = tooLong ? 'Ada analisis terlalu panjang untuk satu slide. Ringkas isinya lalu simpan kembali sebelum mengunduh.' : '';
       $('preview-download').disabled = tooLong;
+      if(director)$('download').disabled=tooLong;
     } catch (error) { if (version === previewVersion) $('preview-status').textContent = error.message; }
   }
   // Base values keep their original indices; inserted slides use stable IDs.
@@ -461,10 +468,7 @@
     $('quarter').disabled = true;
     $('preview-status').textContent = 'Menyiapkan unduhan…';
     try {
-      if (location.protocol === 'file:') {
-        throw new Error('Untuk mengunduh presentasi, buka halaman melalui server aplikasi (PHP). Simpan dan preview tetap dapat digunakan dari file lokal.');
-      }
-      const endpoint = new URL('../api/report.php?endpoint=tm_bod_download', location.href);
+      const endpoint = location.protocol==='file:'?'http://127.0.0.1:8000/api/report.php?endpoint=tm_bod_download':new URL('../api/report.php?endpoint=tm_bod_download', location.href).href;
       const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year:Number($('cover-year').value), designId:window.TmBodAnnual?.backgrounds?.uploadId||null, slides: slides.map(({ type, fields, fontSizes, bodyImage }) => ({ type, fields, fontSizes, bodyImage })) }) });
       if (!response.ok) {
         let message = `Unduhan gagal (HTTP ${response.status}).`;

@@ -2,6 +2,8 @@
 (() => {
   const button = document.getElementById('dl') || document.getElementById('download');
   if (!button) return;
+  // Directors use the presentation download rather than the spreadsheet export.
+  if (window.TmBodDirector) return;
   const builderUrl = new URL('Revenue%20SO(RP).html', document.currentScript.src);
   let busy = false;
   function selectedPeriod() {

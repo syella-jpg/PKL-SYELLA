@@ -25,6 +25,11 @@
 
   /* ===== Kartu ===== */
   main { padding: 38px 16px 48px; }
+  .upload-nav { max-width: 616px; margin: 0 auto 16px; }
+  .back-menu { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 600; text-decoration: none; }
+  .back-menu svg { width: 16px; height: 16px; }
+  .back-menu:hover { border-color: var(--red); color: var(--red-dark); }
+  .back-menu:focus-visible { outline: 3px solid rgba(227,30,36,.25); outline-offset: 2px; }
   .card { max-width: 616px; margin: 0 auto; background: #fff; border-radius: 24px; padding: 32px 32px 36px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
   h1 { font-size: 21px; line-height: 1.35; font-weight: 700; letter-spacing: -.45px; }
   .sub { margin-top: 6px; font-size: 12px; line-height: 1.65; color: var(--muted); }
@@ -131,6 +136,12 @@
 </header>
 
 <main>
+  <nav class="upload-nav" aria-label="Navigasi halaman upload">
+    <a class="back-menu" href="../menu/page.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7M5 12h14"/></svg>
+      Kembali ke Menu
+    </a>
+  </nav>
   <form class="card" id="form" novalidate>
     <h1>Upload File Laporan</h1>
     <p class="sub">Pilih file terlebih dahulu. Bagian laporan dan periode akan dibantu dikenali otomatis.</p>
