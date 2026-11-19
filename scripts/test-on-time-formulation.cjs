@@ -9,9 +9,17 @@ for(const period of ['2026-10','2027-01']){
  assert.equal(s['E'+(first+3)].v,'YTD '+(period.endsWith('10')?'OKT':'JAN'));
  for(const [a,cell]of Object.entries(before))if(!a.startsWith('!'))assert.deepEqual(s[a],cell);
  for(let r=first+3;r<=last;r++)for(let col=2;col<8;col++){const cell=s[X.utils.encode_cell({r,c:col})];assert.equal(cell.v,'');assert(!cell.f);}
+ const cost=b.humanResourcesCostRange;
+ assert.equal(cost.first,last+3);
+ assert.equal(s['B'+(cost.first+3)].v,'BIDANG SUMBER DAYA MANUSIA');
+ assert.equal(s['J'+(cost.first+2)].v,'YTD '+period.slice(0,4));
+ assert.equal(s['C'+(cost.first+1)].v,'Actual – Last Year ('+(Number(period.slice(0,4))-1)+')');
+ for(let r=cost.first+2;r<=cost.last;r++)for(let col=2;col<10;col++){
+   const cell=s[X.utils.encode_cell({r,c:col})];assert.equal(cell.v,'');assert(!cell.f);
+ }
  const once=JSON.stringify(s);c.window.appendOnTimeFormulationReportTable(b,period);assert.equal(JSON.stringify(s),once);
  const out=c.window.writeMtmOds(b),zip=X.CFB.read(new Uint8Array(out),{type:'array'}),xml=new TextDecoder().decode(X.CFB.find(zip,'content.xml').content);
  assert(xml.includes('#8FC9F4'));assert(xml.includes('#D9D9D9'));assert(xml.includes('fo:margin-left="0.4cm"'));
- const read=X.read(out,{type:'array',cellStyles:true});assert.equal(read.Sheets.LAPORAN.A1.v,'LOCKED');assert.equal(read.Sheets.LAPORAN['B'+(first+14)].v,'PRODUCT LAUNCH');
+ const read=X.read(out,{type:'array',cellStyles:true});assert.equal(read.Sheets.LAPORAN.A1.v,'LOCKED');assert.equal(read.Sheets.LAPORAN['B'+(cost.last+1)].v,'Realisasi Anggaran Biaya Operasional (Rp. 000)');assert.equal(read.Sheets.LAPORAN['B'+(first+14)].v,'PRODUCT LAUNCH');
 }
 console.log('PASS: ON TIME FORMULATION below UPB MNJ, dynamic year/YTD, correct subsections and merges, blank body, preserved existing tables, blue/gray ODS styling and indentation.');

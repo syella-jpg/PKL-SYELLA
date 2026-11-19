@@ -16,6 +16,8 @@ $temp = null;
 $designConnection = null;
 try {
     $input = json_decode(file_get_contents('php://input'), true, 32, JSON_THROW_ON_ERROR);
+    $format=$input['format']??'odp';
+    if(!in_array($format,['odp','pdf'],true))throw new InvalidArgumentException('Pilih format ODP atau PDF.');
     $slides = $input['slides'] ?? null;
     if (!is_array($slides) || !array_is_list($slides) || count($slides) < 1 || count($slides) > 200) throw new InvalidArgumentException('Diperlukan 1 sampai 200 slide analisis.');
     $backgrounds=null;$annualDesign=null;
@@ -170,10 +172,17 @@ try {
     $zip->addFromString('content.xml', $doc->saveXML());
     $zip->addFromString('META-INF/manifest.xml', $manifest->saveXML());
     $zip->close();
+    if($format==='pdf'){
+        require_once __DIR__.'/../includes/tm_bod_pdf.php';
+        $pdf=tmBodPresentationPdf($temp);
+        header('Content-Type: application/pdf');header('Content-Disposition: attachment; filename="TM-BOD.pdf"');header('Cache-Control: no-store');
+        echo $pdf;
+    }else{
     header('Content-Type: application/vnd.oasis.opendocument.presentation');
     header('Content-Disposition: attachment; filename="TM-BOD.odp"');
     header('Cache-Control: no-store');
     readfile($temp);
+    }
 } catch (Throwable $e) {
     http_response_code($e instanceof InvalidArgumentException || $e instanceof JsonException ? 400 : 500);
     header('Content-Type: application/json; charset=utf-8');

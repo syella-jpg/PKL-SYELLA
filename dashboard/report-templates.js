@@ -114,27 +114,31 @@
         const n=Number(row.match(/table:number-rows-repeated="(\d+)"/)?.[1]||1);let c=0;
         const out=row.replace(/<table:(table-cell|covered-table-cell)\b[^>]*?(?:\/>|>[\s\S]*?<\/table:\1>)/g,cell=>{
           const tag=cell.match(/^<[^>]*>/)[0],col=c;c+=Number(tag.match(/table:number-columns-repeated="(\d+)"/)?.[1]||1);
-          if(r<block.first||r>block.last||col>7)return cell;
+          const costBlock=workbook.humanResourcesCostRange;
+          const inCost=costBlock&&r>=costBlock.first&&r<=costBlock.last&&col<=9;
+          if(!inCost&&(r<block.first||r>block.last||col>7))return cell;
           const reportCell=workbook.Sheets.LAPORAN[X.utils.encode_cell({r,c:col})],s=reportCell?.s;if(!s)return cell;
           const parent=tag.match(/table:style-name="([^"]+)"/)?.[1]||"Default",fill=s.fill?.fgColor?.rgb||"FFFFFF",bold=!!s.font?.bold,indent=s.alignment?.indent||0;
-          const percent=reportCell.z==='0.00%';
-          const key=JSON.stringify([parent,fill,bold,indent,!!s.border,percent]);if(!styles.has(key))styles.set(key,{name:"OTFStyle"+styles.size,parent,fill,bold,indent,border:!!s.border,percent});const style=styles.get(key);
+          const percent=reportCell.z==='0.00%',integer=reportCell.z==='#,##0';
+          const key=JSON.stringify([parent,fill,bold,indent,!!s.border,percent,integer]);if(!styles.has(key))styles.set(key,{name:"OTFStyle"+styles.size,parent,fill,bold,indent,border:!!s.border,percent,integer});const style=styles.get(key);
           let opening=/table:style-name=/.test(tag)?tag.replace(/table:style-name="[^"]*"/,'table:style-name="'+style.name+'"'):tag.replace(/(\/?>)$/,' table:style-name="'+style.name+'"$1');
           if(percent&&typeof reportCell.v==='number')opening=opening.replace(/office:value-type="[^"]*"/,'office:value-type="percentage"');
           let output=cell.replace(tag,opening);
           if(percent&&typeof reportCell.v==='number')output=output.replace(/<text:p\b[^>]*>[\s\S]*?<\/text:p>/,'<text:p>'+(reportCell.v*100).toFixed(2)+'%</text:p>');
+          if(integer&&typeof reportCell.v==='number')output=output.replace(/<text:p\b[^>]*>[\s\S]*?<\/text:p>/,'<text:p>'+reportCell.v.toLocaleString('en-US',{maximumFractionDigits:0})+'</text:p>');
           return output;
         });r+=n;return out;
       });
     });
     const percentStyle='<number:percentage-style style:name="OTFPercent2"><number:number number:decimal-places="2" number:min-decimal-places="2" number:min-integer-digits="1"/><number:text>%</number:text></number:percentage-style>';
-    const defs=percentStyle+Array.from(styles.values(),s=>'<style:style style:name="'+s.name+'" style:family="table-cell" style:parent-style-name="'+s.parent+'"'+(s.percent?' style:data-style-name="OTFPercent2"':'')+'><style:table-cell-properties fo:background-color="#'+s.fill+'"'+(s.border?' fo:border="0.5pt solid #000000"':'')+'/><style:paragraph-properties'+(s.indent?' fo:margin-left="0.4cm"':'')+'/><style:text-properties fo:font-weight="'+(s.bold?'bold':'normal')+'"/></style:style>').join("");
+    const integerStyle='<number:number-style style:name="OTFInteger" number:language="en" number:country="US"><number:number number:decimal-places="0" number:min-integer-digits="1" number:grouping="true"/></number:number-style>';
+    const defs=percentStyle+integerStyle+Array.from(styles.values(),s=>'<style:style style:name="'+s.name+'" style:family="table-cell" style:parent-style-name="'+s.parent+'"'+(s.percent?' style:data-style-name="OTFPercent2"':s.integer?' style:data-style-name="OTFInteger"':'')+'><style:table-cell-properties fo:background-color="#'+s.fill+'"'+(s.border?' fo:border="0.5pt solid #000000"':'')+'/><style:paragraph-properties'+(s.indent?' fo:margin-left="0.4cm"':'')+'/><style:text-properties fo:font-weight="'+(s.bold?'bold':'normal')+'"/></style:style>').join("");
     xml=xml.replace('</office:automatic-styles>',defs+'</office:automatic-styles>');X.CFB.utils.cfb_add(zip,'content.xml',new TextEncoder().encode(xml));
   }
   global.writeMtmOds=function(workbook){
     const X=global.XLSX;
     let buffer=writeReportOdsBeforeUpb?writeReportOdsBeforeUpb(workbook):X.write(workbook,{type:"array",bookType:"ods",cellStyles:true});
-    if(!workbook.daftarNativeOds&&!workbook.launchNativeOds&&!workbook.bodJmlSdmNativeOds&&!workbook.bodBiSdmNativeOds&&!workbook.bodBiOprNativeOds&&!workbook.onTimeFormulationRange&&!workbook.Sheets["UPB BJ kx"]&&!workbook.upbNonBjNativeOds&&!workbook.upbDistrNativeOds&&!workbook.dataParetoUpbNativeOds)return buffer;
+    if(!workbook.serviceLevelNativeOds&&!workbook.daftarNativeOds&&!workbook.launchNativeOds&&!workbook.bodJmlSdmNativeOds&&!workbook.bodBiSdmNativeOds&&!workbook.bodBiOprNativeOds&&!workbook.onTimeFormulationRange&&!workbook.Sheets["UPB BJ kx"]&&!workbook.upbNonBjNativeOds&&!workbook.upbDistrNativeOds&&!workbook.dataParetoUpbNativeOds)return buffer;
     const zip=X.CFB.read(new Uint8Array(buffer),{type:"array"});
     preserveNativeUpbOds(workbook,zip,workbook.upbBjNativeOds||UPB_BJ_KX_BASE64,"UPB BJ kx","UPBBJKX_");
     if(workbook.upbNonBjNativeOds)preserveNativeUpbOds(workbook,zip,workbook.upbNonBjNativeOds,"UPB non BJ","UPBNONBJ_");
@@ -144,6 +148,7 @@
     if(workbook.bodBiOprNativeOds)preserveNativeUpbOds(workbook,zip,workbook.bodBiOprNativeOds,"BOD BI.Opr","BODBIOPR_");
     if(workbook.daftarNativeOds)preserveNativeUpbOds(workbook,zip,workbook.daftarNativeOds,"DAFTAR","DAFTAR_");
     if(workbook.launchNativeOds)preserveNativeUpbOds(workbook,zip,workbook.launchNativeOds,"LAUNCH","LAUNCH_");
+    if(workbook.serviceLevelNativeOds)preserveNativeUpbOds(workbook,zip,workbook.serviceLevelNativeOds,"SERVICE LEVEL","SERVICELEVEL_");
     if(workbook.bodJmlSdmNativeOds)preserveNativeUpbOds(workbook,zip,workbook.bodJmlSdmNativeOds,"BOD JML SDM","BODJMLSDM_");
     preserveOnTimeFormulationStyles(workbook,zip);
     return Uint8Array.from(X.CFB.write(zip,{type:"array",fileType:"zip",compression:true})).buffer;
@@ -228,6 +233,15 @@
     const styles=X.CFB.find(zip,"styles.xml");if(styles)X.CFB.utils.cfb_add(zip,"styles.xml",new TextEncoder().encode(new TextDecoder().decode(styles.content).replace(/<style:map\b[^>]*\/>/g,"")));
     const source=X.read(X.CFB.write(zip,{type:"array",fileType:"zip",compression:true}),{type:"array",cellStyles:true,cellNF:true,cellFormula:true});
     workbook.Sheets.DAFTAR=source.Sheets.DAFTAR;if(!workbook.SheetNames.includes("DAFTAR"))workbook.SheetNames.push("DAFTAR");workbook.daftarNativeOds=native;
+  };
+  global.replaceServiceLevelSheet=async function(workbook,period,nativeBase64){
+    const native=nativeBase64||await loadUpbReportData('service_level_input_api.php',period);
+    const X=global.XLSX,zip=X.CFB.read(native,{type:'base64'}),styles=X.CFB.find(zip,'styles.xml');
+    if(styles)X.CFB.utils.cfb_add(zip,'styles.xml',new TextEncoder().encode(new TextDecoder().decode(new Uint8Array(styles.content)).replace(/<style:map\b[^>]*\/>/g,'')));
+    const source=X.read(X.CFB.write(zip,{type:'array',fileType:'zip',compression:true}),{type:'array',cellFormula:true,cellStyles:true,cellNF:true});
+    const sheet=source.Sheets['SERVICE LEVEL']||source.Sheets[source.SheetNames[0]];
+    if(!sheet)throw new Error('Sheet SERVICE LEVEL tidak ditemukan.');
+    workbook.Sheets['SERVICE LEVEL']=sheet;workbook.SheetNames=workbook.SheetNames.filter(name=>name!=='SERVICE LEVEL');workbook.SheetNames.splice(Math.max(0,workbook.SheetNames.indexOf('LAPORAN')+1),0,'SERVICE LEVEL');workbook.serviceLevelNativeOds=native;
   };
   global.replaceLaunchTemplateSheet=async function(workbook,period,nativeBase64){
     if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period))throw new Error("Periode LAUNCH tidak valid.");
@@ -2417,6 +2431,153 @@
     });
     sheet["!ref"]=X.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,7)}});
     workbook.onTimeFormulationRange={first,last:first+2+labels.length};
+    global.appendHumanResourcesCostReportTable(workbook,period);
+  };
+
+  global.appendHumanResourcesCostReportTable = function(workbook,period){
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;
+    if(workbook.humanResourcesCostRange)return;
+    const range=X.decode_range(sheet['!ref']),first=range.e.r+3,year=Number(period.slice(0,4));
+    const months=['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGS','SEP','OKT','NOV','DES'];
+    const ytd='YTD '+months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{style:'thin',color:{rgb:'000000'}}]));
+    const merges=sheet['!merges']||(sheet['!merges']=[]),rows=sheet['!rows']||(sheet['!rows']=[]);
+    const put=(r,values,header=false)=>{
+      for(let c=0;c<10;c++)sheet[X.encode_cell({r,c})]={t:'s',v:values[c]??'',s:{
+        font:{name:'Arial',sz:10,bold:header},fill:{fgColor:{rgb:header?'8FC9F4':'FFFFFF'}},
+        border,alignment:{horizontal:header?'center':'left',vertical:'center',wrapText:true}}};
+      rows[r]={hpt:header?35:19};
+    };
+    put(first,['No','Parameter','Actual – Last Year ('+(year-1)+')','','Actual '+year,
+      'Anggaran atau Rencana\n'+year,'% Realisasi','Growth','BIAYA vs SELL IN KORPORATE',''],true);
+    put(first+1,['','','Full Year',ytd,ytd,'','vs FY '+year,ytd,'YTD '+(year-1),'YTD '+year],true);
+    for(const c of [0,1,5])merges.push({s:{r:first,c},e:{r:first+1,c}});
+    for(const [a,b] of [[2,3],[8,9]])merges.push({s:{r:first,c:a},e:{r:first,c:b}});
+    const labels=['BIDANG SUMBER DAYA MANUSIA','Biaya SDM (Rp. 000)','Gaji, upah, dll','Recruitment','Jumlah SDM',
+      'KX – excluded Ethical & Export','KX – Ethical','KX – Export','','BIDANG BIAYA','Biaya Promosi (Rp. 000)',
+      'Realisasi Anggaran Biaya Operasional (Rp. 000)'];
+    labels.forEach((label,i)=>{
+      const r=first+2+i;put(r,['',label]);
+      if([0,1,4,9,10,11].includes(i))sheet[X.encode_cell({r,c:1})].s.font.bold=true;
+    });
+    const last=first+1+labels.length;
+    sheet['!ref']=X.encode_range({s:range.s,e:{r:last,c:Math.max(range.e.c,9)}});
+    workbook.humanResourcesCostRange={first,last};
+  };
+
+  global.fillHumanResourcesOperationalActuals = function(workbook,period){
+    const source=workbook.Sheets['BOD BI.Opr'],report=workbook.Sheets.LAPORAN,X=global.XLSX.utils;
+    if(!source||!report||!workbook.humanResourcesCostRange)throw new Error('Sheet BOD BI.Opr atau tabel Biaya Operasional belum tersedia.');
+    const norm=v=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const cells=Object.entries(source).filter(([a])=>/^[A-Z]+[0-9]+$/.test(a)).map(([a,cell])=>({a,...X.decode_cell(a),text:norm(cell.v)}));
+    const year=Number(period.slice(0,4));
+    const column=y=>{
+      const heading=cells.find(c=>c.text==='TH'+y);
+      if(!heading)throw new Error('Kolom TH. '+y+' BOD BI.Opr tidak ditemukan.');
+      const rp=cells.find(c=>c.c===heading.c&&c.r>heading.r&&c.text==='RP');
+      if(!rp)throw new Error('Kolom RP BOD BI.Opr '+y+' tidak ditemukan.');
+      return rp.c;
+    };
+    const fy=cells.find(c=>c.text==='TOTALFY'),ytd=cells.find(c=>/^KUMULATIFSD.*YTD$/.test(c.text));
+    if(!fy||!ytd)throw new Error('Baris TOTAL (FY) atau KUMULATIF S/D bulan (YTD) BOD BI.Opr tidak ditemukan.');
+    const previousColumn=column(year-1),currentColumn=column(year);
+    const r=workbook.humanResourcesCostRange.first+13;
+    for(const [col,sourceRow,sourceCol] of [[2,fy.r,previousColumn],[3,ytd.r,previousColumn],[4,ytd.r,currentColumn]]){
+      const address=X.encode_cell({r:sourceRow,c:sourceCol}),target=report[X.encode_cell({r,c:col})],value=source[address]?.v;
+      target.t='n';target.v=typeof value==='number'&&Number.isFinite(value)?value:0;
+      target.f="'BOD BI.Opr'!"+address;target.z='#,##0';delete target.w;
+    }
+  };
+
+  global.fillHumanResourcesPromotionActuals = function(workbook,period){
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;
+    if(!sheet||!workbook.humanResourcesCostRange)throw new Error('Tabel Biaya Promosi belum tersedia.');
+    const norm=v=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const cells=Object.entries(sheet).filter(([a])=>/^[A-Z]+[0-9]+$/.test(a)).map(([a,cell])=>({a,...X.decode_cell(a),cell,text:norm(cell.v)})).sort((a,b)=>a.r-b.r||a.c-b.c);
+    const heading=cells.find(c=>c.text==='RATIOBIAYABIAYAVSSELLINGIN');
+    if(!heading)throw new Error('Tabel RATIO BIAYA tidak ditemukan.');
+    const end=cells.find(c=>c.r>heading.r&&c.c===heading.c&&c.text&&c.text!=='NO'&&!/^\d+$/.test(c.text))?.r??Infinity;
+    const block=cells.filter(c=>c.r>heading.r&&c.r<end);
+    const total=block.find(c=>c.text==='TOTALDOMESTIKEXPORT');
+    const prior=block.find(c=>c.text==='ACTUALBIPROMOSILASTYEAR'+(Number(period.slice(0,4))-1));
+    const actual=block.find(c=>c.text==='ACTUAL'+Number(period.slice(0,4)));
+    if(!total||!prior||!actual)throw new Error('Header Actual atau Total (Domestik + Export) RATIO BIAYA tidak ditemukan.');
+    const r=workbook.humanResourcesCostRange.first+12;
+    for(const [col,sourceCol] of [[2,prior.c],[3,prior.c+1],[4,actual.c]]){
+      const address=X.encode_cell({r:total.r,c:sourceCol}),target=sheet[X.encode_cell({r,c:col})];
+      const value=sheet[address]?.v;
+      target.t='n';target.v=typeof value==='number'&&Number.isFinite(value)?value:0;
+      target.f=address;target.z='#,##0';delete target.w;
+    }
+  };
+
+  global.fillHumanResourcesHeadcountActuals = async function(workbook,period){
+    const X=global.XLSX.utils,report=workbook.Sheets.LAPORAN,current=workbook.Sheets['BOD JML SDM'];
+    if(!report||!current||!workbook.humanResourcesCostRange)throw new Error('Tabel Jumlah SDM belum tersedia.');
+    const priorYear=Number(period.slice(0,4))-1;
+    const archive={Sheets:{},SheetNames:[]};
+    await global.replaceBodJmlSdmTemplateSheet(archive,priorYear+'-12');
+    const norm=v=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const lookup=sheet=>{
+      const cells=Object.entries(sheet).filter(([a])=>/^[A-Z]+[0-9]+$/.test(a)).map(([a,cell])=>({a,...X.decode_cell(a),cell,text:norm(cell.v)}));
+      const real=cells.find(c=>c.text==='REALSD BULANINI'.replace(/ /g,''));
+      const label=cells.find(c=>c.text==='KETERANGAN');
+      if(!real||!label)throw new Error('Header REAL S/D BULAN INI atau KETERANGAN BOD JML SDM tidak ditemukan.');
+      const result={};
+      for(const c of cells.filter(c=>c.c===label.c&&c.r>label.r)){
+        let key=null;
+        if(c.text==='TOTAL')key='total';
+        else if((c.text.includes('ETHICAL')||c.text.includes('ETH'))&&(c.text.includes('EXCLUD')||c.text.includes('NON')||c.text.includes('TANPA')))key='base';
+        else if(c.text.includes('ETHICAL'))key='ethical';
+        else if(c.text.includes('EXPORT')||c.text.includes('EKSPOR'))key='export';
+        if(key){const a=X.encode_cell({r:c.r,c:real.c});result[key]={a,value:sheet[a]?.v};}
+      }
+      return result;
+    };
+    const now=lookup(current),prior=lookup(archive.Sheets['BOD JML SDM']);
+    for(const [offset,key] of [[6,'total'],[7,'base'],[8,'ethical'],[9,'export']]){
+      const r=workbook.humanResourcesCostRange.first+offset;
+      for(const [col,entry,linked] of [[4,now[key],true],[2,prior[key],false]]){
+        if(!entry)continue;
+        const target=report[X.encode_cell({r,c:col})];
+        if(typeof entry.value!=='number'||!Number.isFinite(entry.value))continue;
+        target.t='n';target.v=entry.value;target.z='#,##0';delete target.w;delete target.f;
+        if(linked)target.f="'BOD JML SDM'!"+entry.a;
+      }
+    }
+  };
+
+  global.fillHumanResourcesCostActuals = function(workbook,period){
+    const source=workbook.Sheets['BOD BI.SDM'],report=workbook.Sheets.LAPORAN,X=global.XLSX.utils;
+    if(!source||!report||!workbook.humanResourcesCostRange)throw new Error('Sheet BOD BI.SDM atau tabel Biaya SDM belum tersedia.');
+    const norm=v=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const cells=Object.entries(source).filter(([a])=>/^[A-Z]+[0-9]+$/.test(a)).map(([a,cell])=>({a,...X.decode_cell(a),cell,text:norm(cell.v)}));
+    const year=Number(period.slice(0,4));
+    const lookup=y=>{
+      const heading=cells.find(c=>c.text==='BIAYASDMTH'+y);
+      if(!heading)throw new Error('Tabel BIAYA SDM TH '+y+' tidak ditemukan.');
+      const next=cells.filter(c=>c.r>heading.r&&/^BIAYASDMTH20[0-9]{2}$/.test(c.text)).sort((a,b)=>a.r-b.r)[0]?.r??Infinity;
+      const block=cells.filter(c=>c.r>=heading.r&&c.r<next);
+      const totalHeader=block.find(c=>c.text==='TOTAL'&&c.c>heading.c);
+      const ytdHeader=block.find(c=>c.c>heading.c&&/^SD[A-Z]/.test(c.text));
+      if(!totalHeader||!ytdHeader)throw new Error('Kolom TOTAL atau S/D bulan BOD BI.SDM '+y+' tidak ditemukan.');
+      const result={};
+      for(const [key,label] of [['total','TOTAL'],['salary','GAJIUPAHDLL'],['recruitment','RECRUITMENT']]){
+        const row=block.find(c=>c.c===heading.c&&c.text===label);
+        if(!row)throw new Error('Baris '+label+' BOD BI.SDM '+y+' tidak ditemukan.');
+        result[key]={fy:X.encode_cell({r:row.r,c:totalHeader.c}),ytd:X.encode_cell({r:row.r,c:ytdHeader.c})};
+      }
+      return result;
+    };
+    const previous=lookup(year-1),current=lookup(year),first=workbook.humanResourcesCostRange.first;
+    for(const [offset,key] of [[3,'total'],[4,'salary'],[5,'recruitment']]){
+      const r=first+offset;
+      for(const [c,address] of [[2,previous[key].fy],[3,previous[key].ytd],[4,current[key].ytd]]){
+        const target=report[X.encode_cell({r,c})],value=source[address]?.v;
+        target.t='n';target.v=typeof value==='number'&&Number.isFinite(value)?value:0;
+        target.f="'BOD BI.SDM'!"+address;target.z='#,##0';delete target.w;
+      }
+    }
   };
 
   global.fillOnTimeFormulationRegistration = function(workbook,period){

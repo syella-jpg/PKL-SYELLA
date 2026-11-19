@@ -15,6 +15,12 @@
     const file = normalize(filename);
     const distrMonths=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
     const distrShort=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    if(labels.includes('SERVICE LEVEL')&&labels.some(v=>/^EKSTERNAL\s*\(MNJ TO OUTLET\)/.test(v))&&labels.some(v=>/^INTERNAL\s*\(KX TO MNJ\)/.test(v))){
+      const years=labels.map(v=>v.match(/^TH\.\s*(20\d{2})$/)?.[1]).filter(Boolean).map(Number);
+      const period=file.match(/(?:^|[^0-9])(20\d{2})-(0[1-9]|1[0-2])(?:[^0-9]|$)/);
+      const year=years.length?Math.max(...years):period?Number(period[1]):null;
+      return {choices:[{section:'SERVICE LEVEL',label:'SERVICE LEVEL'}],year,month:period&&Number(period[1])===year?Number(period[2]):null};
+    }
     if(labels.includes('NAMA PRODUK')&&labels.includes('RENCANA LAUNCH')&&labels.includes('REALISASI LAUNCH')){
       const period=file.match(/(?:^|[^0-9])(20\d{2})-(0[1-9]|1[0-2])(?:[^0-9]|$)/);
       return {choices:[{section:'LAUNCH',label:'LAUNCH'}],year:period?Number(period[1]):null,month:period?Number(period[2]):null};

@@ -162,6 +162,7 @@
         <option value="TARGET REVENUE"></option>
         <option value="DAFTAR"></option>
         <option value="LAUNCH"></option>
+        <option value="SERVICE LEVEL"></option>
         <option value="BOD KX Sell In"></option>
         <option value="BOD MNJ"></option>
         <option value="BOD JML SDM"></option>
@@ -242,7 +243,7 @@
   </form>
 </main>
 
-<script src="file-detection.js?v=bod-jml-sdm-20261118"></script>
+<script src="file-detection.js?v=service-level-20261119"></script>
 <script src="workbook-detection-reader.js?v=ods-preview-20261116"></script>
 <script src="bod-upload-type.js?v=20261109"></script>
 <script src="../dashboard/report-api-cache.js?v=read-only-detection-20261116"></script>
@@ -250,7 +251,7 @@
 <script src="../dashboard/unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
 <script src="../dashboard/bod-kx-sell-in.js?v=ib-revenue-sync-20261109"></script>
 <script src="../dashboard/mtm-appendix.js?v=ytd-idr-qty-20261103"></script>
-<script src="../dashboard/report-templates.js?v=bod-jml-sdm-20261118"></script>
+<script src="../dashboard/report-templates.js?v=service-level-20261119"></script>
 <script>
   /* ================= PENGATURAN (isi sesuai kebutuhan) ================= */
   // Saat dibuka dengan file://, ETHICAL tetap dikirim ke server lokal agar
@@ -341,9 +342,9 @@
 
   function updateTemplateDownload() {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    const visible = ["DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
+    const visible = ["SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
     const validPeriod = /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
-    $("downloadTemplate").textContent = ["DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? "Unduh Template ODS" : "Unduh Template Excel";
+    $("downloadTemplate").textContent = ["SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? "Unduh Template ODS" : "Unduh Template Excel";
     $("templateHelp").hidden = !visible;
     $("downloadTemplate").disabled = busy || !validPeriod;
     if (!visible) return;
@@ -353,7 +354,9 @@
       return;
     }
     $("templateTitle").textContent = "Template " + section + " · " + period;
-    $("templateDescription").textContent = section === "LAUNCH"
+    $("templateDescription").textContent = section === "SERVICE LEVEL"
+      ? "Template ODS mengikuti tabel SERVICE LEVEL eksternal dan internal pada file sumber. Template raw data hanya berisi dua tabel: Eksternal dan Internal untuk tahun periode pilihan. Upload menyimpan tabel beserta format dan rumusnya ke database. Data terakhir pada tahun yang sama tersedia kembali saat mengunduh."
+      : section === "LAUNCH"
       ? "Template ODS mengikuti file LAUNCH. Sel kosong aman; baris dan kolom data boleh ditambah atau dikurangi. Upload menyimpan sheet utuh per periode dan laporan menampilkannya dengan nama LAUNCH."
       : section === "BOD JML SDM"
       ? "Template ODS mengikuti file BOD JML SDM, termasuk rumus selisih dan total. Baris atau kolom kosong aman; upload menyimpan sheet utuh per periode dan laporan menampilkannya sebagai BOD JML SDM."
@@ -391,7 +394,7 @@
   window.addEventListener("pageshow", updateIbRateField);
   $("downloadTemplate").addEventListener("click", async () => {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    if (!["DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
+    if (!["SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
     const button = $("downloadTemplate");
     button.disabled = true;
     try {
@@ -402,7 +405,7 @@
         throw new Error(result.message || "Template gagal diunduh.");
       }
       const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
-      link.href = url; link.download = "Template_" + section + "_" + period + (["DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? ".ods" : ".xlsx");
+      link.href = url; link.download = "Template_" + section + "_" + period + (["SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? ".ods" : ".xlsx");
       link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { setMsg(error.message || "Template gagal diunduh.", "error"); }
     finally { button.disabled = false; }
@@ -987,6 +990,13 @@
         const response=await fetch(endpoint,{method:"POST",body}), result=await response.json().catch(()=>null);
         if(!response.ok||!result?.success)throw new Error(result?.message||"Upload DAFTAR gagal. Periksa terminal server.");
         barFill.style.width="100%"; setMsg("DAFTAR tersimpan di database untuk "+result.period+". Isian, rumus, dan susunan baris tersedia kembali pada unduhan template serta laporan.","ok"); clearFile(); return;
+      }
+      if (sectionSelect.value === "SERVICE LEVEL") {
+        const body=new FormData();body.append("file",chosen);body.append("period",periodSelect.value);
+        const endpoint=LOCAL_FILE_MODE?"http://127.0.0.1:8000/api/report.php?endpoint=service_level_input_api":"../api/report.php?endpoint=service_level_input_api";
+        const response=await fetch(endpoint,{method:"POST",body}),result=await response.json().catch(()=>null);
+        if(!response.ok||!result?.success)throw new Error(result?.message||"Upload SERVICE LEVEL gagal.");
+        barFill.style.width="100%";setMsg("SERVICE LEVEL tersimpan untuk "+result.period+". Sheet tersedia pada template dan unduhan laporan.","ok");clearFile();return;
       }
       if (sectionSelect.value === "LAUNCH") {
         const body=new FormData();body.append("file",chosen);body.append("period",periodSelect.value);

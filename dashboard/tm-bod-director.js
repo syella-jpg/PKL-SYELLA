@@ -14,7 +14,7 @@
     logout.onclick=()=>{sessionStorage.removeItem('konimex_login_user');location.href='../login/login.html';};document.querySelector('.ctrl').append(logout);
     $('preview-title').textContent='Presentasi Tinjauan Manajemen BOD';
     $('preview-help').textContent='Pilih kuartal untuk melihat presentasi yang sudah disiapkan. Catatan dapat ditulis di bawah presentasi.';
-    $('download').textContent='Unduh PPT';
+    $('download').textContent='Unduh';
     $('download').disabled=true;
     $('download').onclick=()=>{if(!$('preview-download').disabled)$('preview-download').click();};
   }

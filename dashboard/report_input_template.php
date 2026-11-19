@@ -30,6 +30,11 @@ try {
         header('Cache-Control: no-store');echo $bytes;return;
     }
     reportInputTemplateSpec($section, $period);
+    if($section==='SERVICE LEVEL'){
+        require_once __DIR__.'/../includes/service_level_input_store.php';require_once __DIR__.'/../includes/database.php';
+        $conn=openReportConnection();try{$bytes=loadServiceLevelInputOds($conn,$period,true);}finally{$conn->close();}
+        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');header('Content-Disposition: attachment; filename="Template_SERVICE LEVEL_'.$period.'.ods"');header('Cache-Control: no-store');echo $bytes;return;
+    }
     if($section==='DAFTAR'){
         require_once __DIR__.'/../includes/daftar_input_store.php';
         require_once __DIR__.'/../includes/database.php';

@@ -270,7 +270,7 @@ foreach (array_unique([$periodYear, $periodYear - 1]) as $targetYear) {
 
 $output = new Spreadsheet();
 $output->getActiveSheet()->setTitle('LAPORAN');
-$workbookSheetNames = ['LAPORAN', 'IB', 'ETHICAL', 'MNJ', 'MTM', 'UNIT', 'REVENUE EDP MNJ', 'BIAYA', 'TARGET REVENUE', 'DAFTAR', 'LAUNCH', 'BOD KX Sell In', 'BOD MNJ', 'BOD JML SDM', 'BOD BI.SDM', 'BOD BI.Opr', 'RATIO UPB', 'UP BJ kx', 'UPB non BJ', 'UPB DISTR', 'PARETO UPB DISTR AGT 26', 'complaint - Accident', 'NEAR ED TW 3', 'TOP 10 NEAR ED TW 3'];
+$workbookSheetNames = ['LAPORAN', 'SERVICE LEVEL', 'IB', 'ETHICAL', 'MNJ', 'MTM', 'UNIT', 'REVENUE EDP MNJ', 'BIAYA', 'TARGET REVENUE', 'DAFTAR', 'LAUNCH', 'BOD KX Sell In', 'BOD MNJ', 'BOD JML SDM', 'BOD BI.SDM', 'BOD BI.Opr', 'RATIO UPB', 'UP BJ kx', 'UPB non BJ', 'UPB DISTR', 'PARETO UPB DISTR AGT 26', 'complaint - Accident', 'NEAR ED TW 3', 'TOP 10 NEAR ED TW 3'];
 $edpTemplateSource = file_get_contents(__DIR__ . '/report-templates.js');
 if ($edpTemplateSource === false || !preg_match('/const TEMPLATE_BASE64 = "([A-Za-z0-9+\/=]+)";/', $edpTemplateSource, $edpTemplateMatch)) {
     throw new RuntimeException('Template REVENUE EDP MNJ tertanam tidak ditemukan.');
@@ -295,6 +295,12 @@ foreach ($workbookSheetNames as $sheetName) {
         finally { @unlink($daftarPath); }
         $output->addExternalSheet($daftarBook->getSheetByName('DAFTAR'));
         continue;
+    }
+    if ($sheetName === 'SERVICE LEVEL') {
+        require_once __DIR__.'/../includes/service_level_input_store.php';
+        $servicePath=tempnam(sys_get_temp_dir(),'service-report-');
+        try{file_put_contents($servicePath,loadServiceLevelInputOds($conn,$period));$serviceBook=IOFactory::load($servicePath);}finally{@unlink($servicePath);}
+        $serviceSheet=$serviceBook->getSheetByName('SERVICE LEVEL')??$serviceBook->getSheet(0);$serviceSheet->setTitle('SERVICE LEVEL');$output->addExternalSheet($serviceSheet);continue;
     }
     if ($sheetName === 'LAUNCH') {
         require_once __DIR__.'/../includes/launch_input_store.php';

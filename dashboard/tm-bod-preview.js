@@ -462,24 +462,27 @@
   $('next-slide').onclick = () => { if (position < slides.length - 1) { position++; render(); } };
   $('preview-download').onclick = async () => {
     if (busy || loadingContent) return;
+    const format=$('presentation-format')?.value==='pdf'?'pdf':'odp';
     busy = true;
     $('preview-download').disabled = true;
     disableSaving(true);
     $('quarter').disabled = true;
+    if($('presentation-format'))$('presentation-format').disabled=true;
     $('preview-status').textContent = 'Menyiapkan unduhan…';
     try {
       const endpoint = location.protocol==='file:'?'http://127.0.0.1:8000/api/report.php?endpoint=tm_bod_download':new URL('../api/report.php?endpoint=tm_bod_download', location.href).href;
-      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year:Number($('cover-year').value), designId:window.TmBodAnnual?.backgrounds?.uploadId||null, slides: slides.map(({ type, fields, fontSizes, bodyImage }) => ({ type, fields, fontSizes, bodyImage })) }) });
+      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format, year:Number($('cover-year').value), designId:window.TmBodAnnual?.backgrounds?.uploadId||null, slides: slides.map(({ type, fields, fontSizes, bodyImage }) => ({ type, fields, fontSizes, bodyImage })) }) });
       if (!response.ok) {
         let message = `Unduhan gagal (HTTP ${response.status}).`;
         try { message = (await response.json()).message || message; } catch (_) {}
         throw new Error(message);
       }
-      if (!response.headers.get('content-type')?.includes('application/vnd.oasis.opendocument.presentation')) throw new Error('Server tidak mengembalikan presentasi. Buka melalui server aplikasi.');
+      const expectedType=format==='pdf'?'application/pdf':'application/vnd.oasis.opendocument.presentation';
+      if (!response.headers.get('content-type')?.includes(expectedType)) throw new Error('Server tidak mengembalikan file '+format.toUpperCase()+' yang valid.');
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement('a');
       link.href = url;
-      link.download = `TM-BOD-${quarter}.odp`;
+      link.download = `TM-BOD-${quarter}.${format}`;
       document.body.append(link);
       link.click();
       link.remove();
@@ -495,6 +498,7 @@
       $('preview-download').disabled = false;
       disableSaving(false);
       $('quarter').disabled = false;
+      if($('presentation-format'))$('presentation-format').disabled=false;
     }
   };
 })();
