@@ -6,11 +6,11 @@ for(const year of [2026,2027]){
  ctx.window.appendRatioBiayaReportTable(b,year+'-10');
  const s=b.Sheets.LAPORAN,total=Object.entries(s).find(([a,c])=>c.v==='Total (Domestik + Export)');
  const r=X.utils.decode_cell(total[0]).r;
- for(const [col,value] of [[2,150000],[3,120000],[4,160000]])Object.assign(s[X.utils.encode_cell({r,c:col})],{t:'n',v:value});
+ for(const [col,value] of [[2,150000],[3,120000],[4,160000],[5,200000]])Object.assign(s[X.utils.encode_cell({r,c:col})],{t:'n',v:value});
  ctx.window.appendOnTimeFormulationReportTable(b,year+'-10');
  ctx.window.fillHumanResourcesPromotionActuals(b,year+'-10');
  const target=b.humanResourcesCostRange.first+12;
- for(const [col,value] of [[2,150000],[3,120000],[4,160000]]){
+ for(const [col,value] of [[2,150000],[3,120000],[4,160000],[5,200000]]){
   const cell=s[X.utils.encode_cell({r:target,c:col})];
   assert.equal(cell.v,value);assert.equal(cell.f,X.utils.encode_cell({r,c:col}));assert.equal(cell.z,'#,##0');
  }

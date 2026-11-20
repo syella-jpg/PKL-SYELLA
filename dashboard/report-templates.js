@@ -264,7 +264,10 @@
     workbook.Sheets["BOD JML SDM"]=sheet;if(!workbook.SheetNames.includes("BOD JML SDM"))workbook.SheetNames.push("BOD JML SDM");workbook.bodJmlSdmNativeOds=native;
   };
   global.replaceBodBiReportSheets=async function(workbook,period){
-    const native=await loadUpbReportData("bod_bi_report_api.php",period);
+    const response=await fetchReportApi(apiBase+'bod_bi_report_api.php?'+new URLSearchParams({period}),{cache:'reload'});
+    const result=await response.json();
+    if(!response.ok||!result.success||!result.base64)throw new Error(result.message||'Data BOD gagal dimuat.');
+    const native=result.base64;workbook.bodBiSdmBudgets=result.sdmBudgets||{};
     const X=global.XLSX,preview=X.CFB.read(native,{type:"base64"}),styles=X.CFB.find(preview,"styles.xml");
     if(styles)X.CFB.utils.cfb_add(preview,"styles.xml",new TextEncoder().encode(new TextDecoder().decode(styles.content).replace(/<style:map\b[^>]*\/>/g,"")));
     const source=X.read(X.CFB.write(preview,{type:"array",fileType:"zip",compression:true}),{type:"array",cellStyles:true,cellNF:true,cellFormula:true});
@@ -539,7 +542,7 @@
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || "BOD MNJ gagal dimuat.");
         uploaded = result.data;
-      } catch (error) { console.warn("Data unggahan BOD MNJ tidak tersedia; memakai file bawaan jika tersedia:", error); }
+      } catch (error) { throw new Error("Data BOD MNJ "+targetPeriod+" gagal dimuat: "+error.message); }
       if (uploaded) base64 = uploaded.base64;
       return base64 ? global.readBodMnjSheet(base64, targetYear, uploaded?.formulas) : null;
     }
@@ -2465,6 +2468,22 @@
     workbook.humanResourcesCostRange={first,last};
   };
 
+  global.fillHumanResourcesSdmBudgets = function(workbook){
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils,block=workbook.humanResourcesCostRange;
+    if(!sheet||!block)return;
+    const budgets=workbook.bodBiSdmBudgets||{};
+    for(const [offset,key] of [[4,'salary'],[5,'recruitment']]){
+      const value=budgets[key];if(typeof value!=='number'||!Number.isFinite(value))continue;
+      const cell=sheet[X.encode_cell({r:block.first+offset,c:5})];
+      cell.t='n';cell.v=value;cell.z='#,##0';delete cell.w;delete cell.f;
+    }
+    if(typeof budgets.salary==='number'&&typeof budgets.recruitment==='number'){
+      const cell=sheet[X.encode_cell({r:block.first+3,c:5})];
+      cell.t='n';cell.v=budgets.salary+budgets.recruitment;cell.z='#,##0';
+      cell.f='SUM(F'+(block.first+5)+':F'+(block.first+6)+')';delete cell.w;
+    }
+  };
+
   global.fillHumanResourcesOperationalActuals = function(workbook,period){
     const source=workbook.Sheets['BOD BI.Opr'],report=workbook.Sheets.LAPORAN,X=global.XLSX.utils;
     if(!source||!report||!workbook.humanResourcesCostRange)throw new Error('Sheet BOD BI.Opr atau tabel Biaya Operasional belum tersedia.');
@@ -2501,9 +2520,10 @@
     const total=block.find(c=>c.text==='TOTALDOMESTIKEXPORT');
     const prior=block.find(c=>c.text==='ACTUALBIPROMOSILASTYEAR'+(Number(period.slice(0,4))-1));
     const actual=block.find(c=>c.text==='ACTUAL'+Number(period.slice(0,4)));
-    if(!total||!prior||!actual)throw new Error('Header Actual atau Total (Domestik + Export) RATIO BIAYA tidak ditemukan.');
+    const budget=block.find(c=>c.text==='ANGGARAN');
+    if(!total||!prior||!actual||!budget)throw new Error('Header Actual, Anggaran atau Total (Domestik + Export) RATIO BIAYA tidak ditemukan.');
     const r=workbook.humanResourcesCostRange.first+12;
-    for(const [col,sourceCol] of [[2,prior.c],[3,prior.c+1],[4,actual.c]]){
+    for(const [col,sourceCol] of [[2,prior.c],[3,prior.c+1],[4,actual.c],[5,budget.c]]){
       const address=X.encode_cell({r:total.r,c:sourceCol}),target=sheet[X.encode_cell({r,c:col})];
       const value=sheet[address]?.v;
       target.t='n';target.v=typeof value==='number'&&Number.isFinite(value)?value:0;
@@ -2518,11 +2538,11 @@
     const archive={Sheets:{},SheetNames:[]};
     await global.replaceBodJmlSdmTemplateSheet(archive,priorYear+'-12');
     const norm=v=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-    const lookup=sheet=>{
+    const lookup=(sheet,header='REAL S/D BULAN INI')=>{
       const cells=Object.entries(sheet).filter(([a])=>/^[A-Z]+[0-9]+$/.test(a)).map(([a,cell])=>({a,...X.decode_cell(a),cell,text:norm(cell.v)}));
-      const real=cells.find(c=>c.text==='REALSD BULANINI'.replace(/ /g,''));
+      const real=cells.find(c=>c.text===norm(header));
       const label=cells.find(c=>c.text==='KETERANGAN');
-      if(!real||!label)throw new Error('Header REAL S/D BULAN INI atau KETERANGAN BOD JML SDM tidak ditemukan.');
+      if(!real||!label)throw new Error('Header '+header+' atau KETERANGAN BOD JML SDM tidak ditemukan.');
       const result={};
       for(const c of cells.filter(c=>c.c===label.c&&c.r>label.r)){
         let key=null;
@@ -2534,10 +2554,10 @@
       }
       return result;
     };
-    const now=lookup(current),prior=lookup(archive.Sheets['BOD JML SDM']);
+    const now=lookup(current),prior=lookup(archive.Sheets['BOD JML SDM']),plan=lookup(current,'PLAN '+(priorYear+1));
     for(const [offset,key] of [[6,'total'],[7,'base'],[8,'ethical'],[9,'export']]){
       const r=workbook.humanResourcesCostRange.first+offset;
-      for(const [col,entry,linked] of [[4,now[key],true],[2,prior[key],false]]){
+      for(const [col,entry,linked] of [[4,now[key],true],[2,prior[key],false],[5,plan[key],true]]){
         if(!entry)continue;
         const target=report[X.encode_cell({r,c:col})];
         if(typeof entry.value!=='number'||!Number.isFinite(entry.value))continue;

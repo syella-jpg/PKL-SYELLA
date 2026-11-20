@@ -342,9 +342,9 @@
 
   function updateTemplateDownload() {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    const visible = ["SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
+    const visible = ["BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
     const validPeriod = /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
-    $("downloadTemplate").textContent = ["SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? "Unduh Template ODS" : "Unduh Template Excel";
+    $("downloadTemplate").textContent = ["BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? "Unduh Template ODS" : "Unduh Template Excel";
     $("templateHelp").hidden = !visible;
     $("downloadTemplate").disabled = busy || !validPeriod;
     if (!visible) return;
@@ -354,7 +354,9 @@
       return;
     }
     $("templateTitle").textContent = "Template " + section + " · " + period;
-    $("templateDescription").textContent = section === "SERVICE LEVEL"
+    $("templateDescription").textContent = section === "BOD MNJ"
+      ? "Template ODS mengikuti file BOD MNJ terbaru: struktur, format, dan rumus dipertahankan. Tahun dan label S/D bulan mengikuti periode unduhan."
+      : section === "SERVICE LEVEL"
       ? "Template ODS mengikuti tabel SERVICE LEVEL eksternal dan internal pada file sumber. Template raw data hanya berisi dua tabel: Eksternal dan Internal untuk tahun periode pilihan. Upload menyimpan tabel beserta format dan rumusnya ke database. Data terakhir pada tahun yang sama tersedia kembali saat mengunduh."
       : section === "LAUNCH"
       ? "Template ODS mengikuti file LAUNCH. Sel kosong aman; baris dan kolom data boleh ditambah atau dikurangi. Upload menyimpan sheet utuh per periode dan laporan menampilkannya dengan nama LAUNCH."
@@ -394,7 +396,7 @@
   window.addEventListener("pageshow", updateIbRateField);
   $("downloadTemplate").addEventListener("click", async () => {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    if (!["SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
+    if (!["BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
     const button = $("downloadTemplate");
     button.disabled = true;
     try {
@@ -405,7 +407,7 @@
         throw new Error(result.message || "Template gagal diunduh.");
       }
       const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
-      link.href = url; link.download = "Template_" + section + "_" + period + (["SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? ".ods" : ".xlsx");
+      link.href = url; link.download = "Template_" + section + "_" + period + (["BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? ".ods" : ".xlsx");
       link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { setMsg(error.message || "Template gagal diunduh.", "error"); }
     finally { button.disabled = false; }

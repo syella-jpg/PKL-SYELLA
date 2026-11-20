@@ -45,7 +45,7 @@
     }
     if (!isReport) return nativeFetch(input, options);
     // Explicit reload and cancellable requests keep normal fetch semantics.
-    if (options?.cache === 'reload' || options?.signal || input?.signal) return nativeFetch(input, options);
+    if (options?.cache === 'reload' || options?.cache === 'no-store' || input?.cache === 'no-store' || options?.signal || input?.signal) return nativeFetch(input, options);
     const currentRevision = readRevision();
     if (revision !== currentRevision) { clear(); revision = currentRevision; }
     url.searchParams.sort();

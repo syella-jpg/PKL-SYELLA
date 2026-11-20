@@ -64,12 +64,22 @@ function decodeBodMnjWorkbook(string $base64, int $year): Spreadsheet
     }
 }
 
+/** One authoritative file store; retain compatibility with older uploaded records. */
+function ensureBodMnjStore($conn): void
+{
+    $conn->query('CREATE TABLE IF NOT EXISTS `BOD MNJ` (report_period CHAR(7) NOT NULL PRIMARY KEY, payload LONGTEXT NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    $months=['jan','feb','mar','apr','mei','jun','jul','agu','sep','okt','nov','des'];
+    $columns=implode(',',array_map(static fn($m)=>'`'.$m.'` DOUBLE NULL',$months));
+    $conn->query('CREATE TABLE IF NOT EXISTS bod_mnj (periode DATE NOT NULL,tahun_data INT NOT NULL,jenis VARCHAR(20) NOT NULL,'.$columns.',PRIMARY KEY (periode,tahun_data,jenis)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+}
+
 /** Latest upload up to the requested month, strictly within the selected year. */
 function findBodMnjRecord($conn, string $period): ?array
 {
     validateBodMnjPeriod($period);
+    ensureBodMnjStore($conn);
     try {
-        $query = $conn->prepare('SELECT report_period, payload FROM bod_mnj_files WHERE report_period BETWEEN ? AND ? ORDER BY report_period DESC LIMIT 1');
+        $query = $conn->prepare('SELECT report_period, payload FROM `BOD MNJ` WHERE report_period BETWEEN ? AND ? ORDER BY report_period DESC LIMIT 1');
         if (!$query) {
             if ((int)$conn->errno === 1146) return null;
             throw new RuntimeException('Data BOD MNJ gagal dibaca.');
@@ -79,6 +89,12 @@ function findBodMnjRecord($conn, string $period): ?array
             $query->bind_param('ss', $first, $period);
             if (!$query->execute()) throw new RuntimeException('Data BOD MNJ gagal dibaca.');
             $record = $query->get_result()->fetch_assoc();
+            if(!$record){
+                try{
+                    $legacy=$conn->prepare('SELECT report_period,payload FROM bod_mnj_files WHERE report_period BETWEEN ? AND ? ORDER BY report_period DESC LIMIT 1');
+                    $legacy->bind_param('ss',$first,$period);$legacy->execute();$record=$legacy->get_result()->fetch_assoc();$legacy->close();
+                }catch(mysqli_sql_exception $error){if((int)$error->getCode()!==1146)throw $error;}
+            }
             return $record ? array_merge(json_decode($record['payload'], true, 512, JSON_THROW_ON_ERROR), ['period' => $record['report_period']]) : null;
         } finally { $query->close(); }
     } catch (mysqli_sql_exception $error) {
@@ -118,15 +134,13 @@ function parseBodMnjNonProduct(Spreadsheet $book, int $defaultYear): array
 function saveBodMnjRecord($conn, string $period, string $base64): void
 {
     validateBodMnjPeriod($period);
-    if (!$conn->query('CREATE TABLE IF NOT EXISTS bod_mnj_files (report_period CHAR(7) PRIMARY KEY, payload LONGTEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4')) {
-        throw new RuntimeException('Tabel BOD MNJ gagal disiapkan.');
-    }
+    ensureBodMnjStore($conn);
     $book=decodeBodMnjWorkbook($base64,(int)substr($period,0,4));
     try { $nonProduct=parseBodMnjNonProduct($book,(int)substr($period,0,4));$formulas=getBodMnjFormulaMap($book); }
     finally { $book->disconnectWorksheets(); }
     $conn->begin_transaction();
     try {
-    $query = $conn->prepare('INSERT INTO bod_mnj_files (report_period, payload) VALUES (?, ?) ON DUPLICATE KEY UPDATE payload = VALUES(payload)');
+    $query = $conn->prepare('INSERT INTO `BOD MNJ` (report_period, payload) VALUES (?, ?) ON DUPLICATE KEY UPDATE payload = VALUES(payload)');
     if (!$query) throw new RuntimeException('Data BOD MNJ gagal disimpan.');
     try {
         $payload = json_encode(['base64' => $base64,'formulas'=>$formulas], JSON_THROW_ON_ERROR);

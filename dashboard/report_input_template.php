@@ -21,6 +21,15 @@ if (in_array($origin, ['null', 'http://127.0.0.1:8000', 'http://localhost:8000']
 try {
     $section = is_string($_GET['section'] ?? null) ? $_GET['section'] : '';
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
+    if($section==='BOD MNJ'){
+        require_once __DIR__.'/../includes/bod_mnj_input_template.php';
+        require_once __DIR__.'/../includes/database.php';
+        $conn=openReportConnection();
+        try{$bytes=loadBodMnjInputTemplateOds($conn,$period);}finally{$conn->close();}
+        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
+        header('Content-Disposition: attachment; filename="Template_BOD MNJ_'.$period.'.ods"');
+        header('Cache-Control: no-store');echo $bytes;return;
+    }
     if($section==='BOD JML SDM'){
         require_once __DIR__.'/../includes/bod_jml_sdm_input_store.php';
         require_once __DIR__.'/../includes/database.php';

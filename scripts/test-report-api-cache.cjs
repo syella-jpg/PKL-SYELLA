@@ -37,5 +37,6 @@ function storage() { const data = new Map(); return {get length(){return data.si
  const routed='http://localhost/api/report.php?endpoint=unit_sell_out_targets_api&period=2026-09';
  const beforeRouted=calls;await fetch(routed);await fetch(routed);assert.equal(calls,beforeRouted+1,'router GET shares the same cache rules');
  await fetch(routed,{cache:'reload'});assert.equal(calls,beforeRouted+2,'router explicit reload stays fresh');
+ const beforeNoStore=calls;await fetch(routed,{cache:'no-store'});await fetch(routed,{cache:'no-store'});assert.equal(calls,beforeNoStore+2,'no-store always reads server');
  console.log('PASS shared requests, cross-menu cache, query isolation, upload invalidation, reload, expiry, retry');
 })().catch(error=>{console.error(error);process.exitCode=1});

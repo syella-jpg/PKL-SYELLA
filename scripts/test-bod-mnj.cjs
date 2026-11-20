@@ -119,8 +119,7 @@ function compareBlock(result, source, offset) {
   await assert.rejects(() => context.window.replaceBodMnjTemplateSheet(book, '2026-06'));
   responseData = () => null;
   failNetwork = true;
-  await context.window.replaceBodMnjTemplateSheet(book, '2026-06');
-  compareBlock(book.Sheets['BOD MNJ'], source2026, 0);
+  await assert.rejects(() => context.window.replaceBodMnjTemplateSheet(book, '2026-06'), /gagal dimuat/);
   failNetwork = false;
   calls.length = 0;
   await context.window.uploadBodMnjFile({bytes: bytes[2026]}, '2026-06');

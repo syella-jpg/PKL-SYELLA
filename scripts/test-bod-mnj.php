@@ -62,7 +62,7 @@ class BodTestQuery
     public function __construct($conn, $sql) { $this->conn = $conn; $this->sql = $sql; }
     public function bind_param($types, &...$args) { $this->args = &$args; }
     public function execute() {
-        if (str_starts_with($this->sql, 'INSERT INTO bod_mnj_files')) $this->conn->records[$this->args[0]] = $this->args[1];
+        if (str_starts_with($this->sql, 'INSERT INTO `BOD MNJ`')) $this->conn->records[$this->args[0]] = $this->args[1];
         return true;
     }
     public function get_result() { return $this; }

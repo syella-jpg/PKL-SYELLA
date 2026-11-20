@@ -6,7 +6,7 @@ $origin=$_SERVER['HTTP_ORIGIN']??'';if(in_array($origin,['null','http://127.0.0.
 if(($_SERVER['REQUEST_METHOD']??'GET')==='OPTIONS'){http_response_code(204);exit;}$conn=null;
 try{
  $period=$_GET['period']??'';if(!is_string($period))throw new InvalidArgumentException('Periode tidak valid.');bodBiInputPeriod($period);
- $conn=openReportConnection();$bytes=loadBodBiReportOds($conn,$period);echo json_encode(['success'=>true,'base64'=>base64_encode($bytes)]);
+ $conn=openReportConnection();$bytes=loadBodBiReportOds($conn,$period);echo json_encode(['success'=>true,'base64'=>base64_encode($bytes),'sdmBudgets'=>loadBodBiSdmBudgets($conn,$period)]);
 }catch(InvalidArgumentException $e){http_response_code(400);echo json_encode(['success'=>false,'message'=>$e->getMessage()]);}
 catch(Throwable $e){error_log('BOD BI report: '.$e->getMessage());http_response_code(500);echo json_encode(['success'=>false,'message'=>'Data laporan BOD gagal dimuat dari database.']);}
 finally{if($conn)$conn->close();}
