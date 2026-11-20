@@ -80,3 +80,12 @@ assert.equal(cell('IB Farma',9).v,46/120);assert.equal(cell('IB Food',9).v,57/23
 assert.equal(cell('IB Farma',4).v,priorActual);assert.equal(JSON.stringify(ib),actualIbBefore);
 for(const label of ['IB Farma','IB Food','Ekspor'])for(const c of [2,3,6,7])assert.equal(JSON.stringify(cell(label,c)),lockedTargets[label+c]);
 console.log('PASS current IB FM/FD actual EXIST+NEW YTD, export achievement and percentages refreshed, targets/prior actual/source unchanged');
+const corporateLabel='KORPORAT (GB, ETHICAL, IB)',corporateMembers=['PHARMA','HCE','Biskuit','Candy','Ethical','Ekspor'];
+for(let c=2;c<=8;c++){
+ assert.equal(cell(corporateLabel,c).v,corporateMembers.reduce((sum,label)=>sum+(Number(cell(label,c).v)||0),0));
+ assert.equal(cell(corporateLabel,c).f.split('+').length,6);
+}
+assert.equal(cell(corporateLabel,9).v,cell(corporateLabel,8).v/cell(corporateLabel,6).v);
+assert.equal(cell(corporateLabel,10).v,cell(corporateLabel,8).v/cell(corporateLabel,5).v-1);
+assert.equal(cell(corporateLabel,9).z,'0.00%');
+console.log('PASS corporate sums seven value columns, achievement and growth computed separately.');

@@ -150,7 +150,10 @@
   const year=Number(period.slice(0,4));
   const mapping={'GB 1':'GB 1','GB 2':'GB 2','GB 3':'GB 3','GB 4':'GB 4','BISKUIT':'BISKUIT','CANDY':'CANDY','ETHICAL':'ETHICAL','EKSTRAKSI SOLONAT':'EKSTRAKSI SOLONAT','KODC':'KODC','TOLL IN':'TOLL IN','IB FARMA':'IB FARMASI','IB FOOD':'IB FOOD'};
   const reportByLabel=new Map();
-  for(let r=first+3;r<=first+21;r++)reportByLabel.set(normalize(reportRows[r]?.[1]),r);
+  for(let r=first+3;r<reportRows.length;r++){
+   if(normalize(reportRows[r]?.[0])&&!/^\d+$/.test(normalize(reportRows[r]?.[0])))break;
+   const label=normalize(reportRows[r]?.[1]);if(label)reportByLabel.set(label,r);
+  }
   const columns=[{targetYear:year-1,heading:'TARGET SELL IN',links:[[2,15],[3,2]]},{targetYear:year,heading:'TARGET SELL IN',links:[[6,15],[7,2]]},{targetYear:year-1,heading:'REALISASI PENJUALAN KONIMEX',links:[[4,15],[5,2]]},{targetYear:year,heading:'REALISASI PENJUALAN KONIMEX',links:[[8,2]]}];
   for(const {targetYear,heading,links} of columns){
    const start=sourceRows.findIndex((row,r)=>normalize(row[0]).startsWith(heading)&&normalize(sourceRows[r+1]?.[0])===`TAHUN ${targetYear} ( RP )`);
@@ -211,6 +214,15 @@
      const refs=children.map(r=>utils.encode_cell({r,c:column})),address=utils.encode_cell({r:exportRow,c:column});
      report[address]={...(report[address]||{}),t:'n',v:refs.reduce((sum,ref)=>sum+(Number(report[ref]?.v)||0),0),f:`SUM(${refs[0]}:${refs[1]})`,z:'#,##0'};delete report[address].w;
     }
+   }
+  }
+  const corporate=reportByLabel.get('KORPORAT (GB, ETHICAL, IB)');
+  const members=['PHARMA','HCE','BISKUIT','CANDY','ETHICAL','EKSPOR'].map(label=>reportByLabel.get(label));
+  if(corporate!==undefined&&members.every(r=>r!==undefined)){
+   for(let column=2;column<=8;column++){
+    const refs=members.map(r=>utils.encode_cell({r,c:column})),address=utils.encode_cell({r:corporate,c:column});
+    report[address]={...(report[address]||{}),t:'n',v:refs.reduce((sum,ref)=>sum+(Number(report[ref]?.v)||0),0),f:refs.join('+'),z:'#,##0'};
+    delete report[address].w;
    }
   }
   for(const [label,row] of reportByLabel){

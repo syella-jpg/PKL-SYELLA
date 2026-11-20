@@ -10,7 +10,7 @@ for(const period of ['2026-09','2027-10']){
  const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});const title=rows.findIndex(r=>r[0]==='REVENUE KONIMEX (SELLING IN) – RP. (000)');
  assert.equal(title,4);assert.equal(rows[title+1][2],'Target '+(Number(period.slice(0,4))-1));assert.equal(rows[title+1][6],'Target '+period.slice(0,4));
  assert.equal(rows[title+2][3],period.endsWith('09')?'YTD SEP':'YTD OKT');
- const labels=rows.slice(title+3).map(r=>r[1]);assert.deepEqual(labels,['PHARMA','GB 1','GB 4','','HCE','GB 2','GB 3','','Biskuit','Candy','Ethical','','Ekstraksi Solonat','KODC','Toll In','','Ekspor','IB Farma','IB Food']);
+ const labels=rows.slice(title+3).map(r=>r[1]);assert.deepEqual(labels,['KORPORAT (GB, ETHICAL, IB)','PHARMA','GB 1','GB 4','','HCE','GB 2','GB 3','','Biskuit','Candy','Ethical','','Ekstraksi Solonat','KODC','Toll In','','Ekspor','IB Farma','IB Food']);
  for(let r=title+3;r<rows.length;r++)for(let c=2;c<11;c++)assert.equal(rows[r][c],'');
  const snapshot=JSON.stringify(sheet);ctx.window.appendSellingInReportTable(book,period);assert.equal(JSON.stringify(sheet),snapshot);
  const copy=XLSX.read(XLSX.write({SheetNames:['LAPORAN'],Sheets:{LAPORAN:sheet}},{type:'buffer',bookType:'ods'}),{type:'buffer'});

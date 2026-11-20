@@ -2097,10 +2097,10 @@
     heights[first+1]={hpt:24};heights[first+2]={hpt:24};
     for(const c of [0,1])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
     for(const c of [2,4,6])merges.push({s:{r:first+1,c},e:{r:first+1,c:c+1}});
-    const labels=["PHARMA","GB 1","GB 4","","HCE","GB 2","GB 3","","Biskuit","Candy","Ethical","","Ekstraksi Solonat","KODC","Toll In","","Ekspor","IB Farma","IB Food"];
+    const labels=["KORPORAT (GB, ETHICAL, IB)","PHARMA","GB 1","GB 4","","HCE","GB 2","GB 3","","Biskuit","Candy","Ethical","","Ekstraksi Solonat","KODC","Toll In","","Ekspor","IB Farma","IB Food"];
     labels.forEach((label,i)=>{
       const row=first+3+i;put(row,["",label]);heights[row]={hpt:18};
-      if(["PHARMA","HCE","Ekspor"].includes(label))sheet[utils.encode_cell({r:row,c:1})].s.font.bold=true;
+      if(["KORPORAT (GB, ETHICAL, IB)","PHARMA","HCE","Ekspor"].includes(label))sheet[utils.encode_cell({r:row,c:1})].s.font.bold=true;
     });
     sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,10)}});
   };
@@ -2466,6 +2466,26 @@
     const last=first+1+labels.length;
     sheet['!ref']=X.encode_range({s:range.s,e:{r:last,c:Math.max(range.e.c,9)}});
     workbook.humanResourcesCostRange={first,last};
+  };
+
+  global.fillHumanResourcesRatios = function(workbook){
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils,block=workbook.humanResourcesCostRange;
+    if(!sheet||!block)throw new Error('Tabel BIDANG SUMBER DAYA MANUSIA belum tersedia.');
+    const corporate=Object.entries(sheet).find(([address,cell])=>/^B[0-9]+$/.test(address)&&String(cell.v??'').trim().toUpperCase()==='KORPORAT (GB, ETHICAL, IB)');
+    if(!corporate)throw new Error('Baris KORPORAT (GB, ETHICAL, IB) Selling In tidak ditemukan.');
+    const denominatorRow=X.decode_cell(corporate[0]).r,locked='$F$'+(denominatorRow+1),currentLocked='$I$'+(denominatorRow+1);
+    for(const offset of [3,4,5,6,7,8,9,12,13]){
+      const r=block.first+offset,actual=X.encode_cell({r,c:4}),previous=X.encode_cell({r,c:3}),budget=X.encode_cell({r,c:5});
+      for(const [col,numerator,denominator,growth] of [
+        [6,actual,budget,false],[7,actual,previous,true],[8,previous,locked,false],[9,actual,currentLocked,false]
+      ]){
+        const a=sheet[numerator]?.v,b=sheet[denominator.replace(/\$/g,'')]?.v;
+        const valid=typeof a==='number'&&Number.isFinite(a)&&typeof b==='number'&&Number.isFinite(b)&&b!==0;
+        const target=sheet[X.encode_cell({r,c:col})];
+        target.t=valid?'n':'s';target.v=valid?a/b-(growth?1:0):'';
+        target.f=numerator+'/'+denominator+(growth?'-1':'');target.z='0.00%';delete target.w;
+      }
+    }
   };
 
   global.fillHumanResourcesSdmBudgets = function(workbook){
