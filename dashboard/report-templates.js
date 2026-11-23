@@ -1977,7 +1977,7 @@
     const index=rows.findIndex((row,i)=>i>start && norm(row[1])==="ETHICAL");
     if(index<0)return;
     const r=index+1, numeric=(v)=>typeof v === "number" && Number.isFinite(v);
-    for(const [column,numerator,denominator,growth] of [["H","G","F",false],["I","G","E",false],["J","D","G",true]]) {
+    for(const [column,numerator,denominator,growth] of [["H","G","F",false],["I","G","E",false],["J","G","D",true]]) {
       const a=sheet[numerator+r]?.v,b=sheet[denominator+r]?.v;
       const cell=sheet[column+r] || (sheet[column+r]={});
       delete cell.f;delete cell.F;delete cell.w;cell.z="0.00%";
@@ -2121,18 +2121,18 @@
     const border=Object.fromEntries(["top","bottom","left","right"].map((side)=>[side,{style:"thin",color:{rgb:"000000"}}]));
     const merges=sheet["!merges"]||(sheet["!merges"]=[]),heights=sheet["!rows"]||(sheet["!rows"]=[]);
     const put=(row,values,header=false)=>{
-      for(let c=0;c<11;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
+      for(let c=0;c<12;c++)sheet[utils.encode_cell({r:row,c})]={t:"s",v:values[c]??"",s:{
         font:{name:"Arial",sz:header?10:11,bold:header,color:{rgb:"000000"}},
         fill:{fgColor:{rgb:header?"8FC9F4":"FFFFFF"}},border,
         alignment:{horizontal:header?"center":"left",vertical:"center",wrapText:true}
       }};
     };
     sheet[utils.encode_cell({r:first,c:0})]={t:"s",v:title,s:{font:{name:"Arial",sz:16,bold:true},alignment:{horizontal:"left",vertical:"center"}}};
-    merges.push({s:{r:first,c:0},e:{r:first,c:10}});heights[first]={hpt:28};
-    put(first+1,["No","UNIT BISNIS","Actual BI PROMOSI–Last Year ("+prior+")","","Actual "+year,"Anggaran","Ratio Biaya","","","Target Ratio Biaya "+year,"Ratio Growth YTD"],true);
-    put(first+2,["","","Full Year",ytd,ytd,String(year),"FY "+prior,"YTD "+prior,"YTD "+year,"",""],true);
+    merges.push({s:{r:first,c:0},e:{r:first,c:11}});heights[first]={hpt:28};
+    put(first+1,["No","UNIT BISNIS","Actual BI PROMOSI–Last Year ("+prior+")","","Actual "+year,"Anggaran","Ratio Biaya","","","Target Ratio Biaya "+year,"Ratio Ach","Ratio Growth YTD"],true);
+    put(first+2,["","","Full Year",ytd,ytd,String(year),"FY "+prior,"YTD "+prior,"YTD "+year,"","",""],true);
     heights[first+1]={hpt:28};heights[first+2]={hpt:24};
-    for(const c of [0,1,9,10])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
+    for(const c of [0,1,9,10,11])merges.push({s:{r:first+1,c},e:{r:first+2,c}});
     merges.push({s:{r:first+1,c:2},e:{r:first+1,c:3}},{s:{r:first+1,c:6},e:{r:first+1,c:8}});
     const labels=["Total (Domestik + Export)","FARMASI","GB 1","GB 4","HCE","GB 2","GB 3","BISKUIT","CANDY","BIAYA CM","ETHICAL","IB"];
     labels.forEach((label,i)=>{
@@ -2141,7 +2141,7 @@
       cell.s.font.bold=!label.startsWith("GB ");
       if(label.startsWith("GB "))cell.s.alignment.indent=1;
     });
-    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,10)}});
+    sheet["!ref"]=utils.encode_range({s:range.s,e:{r:first+2+labels.length,c:Math.max(range.e.c,11)}});
   };
 
   global.appendSellOutSellInRatioTable = function (workbook, period) {

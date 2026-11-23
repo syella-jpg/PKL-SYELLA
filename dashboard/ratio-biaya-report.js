@@ -103,8 +103,12 @@
   const rows=utils.sheet_to_json(sheet,{header:1,defval:'',raw:true,range:{s:{r:0,c:0},e:utils.decode_range(sheet['!ref']||'A1').e}});
   const first=rows.findIndex(row=>norm(row[0])==='RATIO BIAYA (BIAYA VS SELLING IN)');if(first<0)return;
   for(let r=first+3;r<=first+14;r++){
-   const label=norm(rows[r]?.[1]),address=utils.encode_cell({r,c:10});
+   const label=norm(rows[r]?.[1]),address=utils.encode_cell({r,c:11});
    if(!label)continue;
+   const ach=utils.encode_cell({r,c:10}),numerator='I'+(r+1),denominator='J'+(r+1);
+   const av=sheet[numerator]?.v,bv=sheet[denominator]?.v;
+   const validAch=typeof av==='number'&&Number.isFinite(av)&&typeof bv==='number'&&Number.isFinite(bv)&&bv!==0;
+   sheet[ach]={...(sheet[ach]||{}),t:validAch?'n':'s',v:validAch?av/bv:'',f:`${numerator}/${denominator}`,z:'0.00%'};delete sheet[ach].w;delete sheet[ach].F;
    if(['TOTAL (DOMESTIK + EXPORT)','BIAYA CM'].includes(label)){
     sheet[address]={...(sheet[address]||{}),t:'s',v:''};delete sheet[address].f;delete sheet[address].F;delete sheet[address].w;continue;
    }

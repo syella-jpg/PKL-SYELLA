@@ -17,7 +17,7 @@
   const year=Number(period.slice(0,4));
   const month=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'][Number(period.slice(5,7))-1];
   const labels=[`Actual BI PROMOSI ${year-1} YTD ${month}`,`Anggaran ${year}`,`Actual ${year} YTD ${month}`];
-  return {cards:values.map(v=>v===null?'—':v.toLocaleString('id-ID',{maximumFractionDigits:2})),chart:{period,ratios:[9,10].map(c=>typeof row[c]==='number'&&Number.isFinite(row[c])?row[c]:null),labels:[tab],series:labels.map((name,i)=>({name,values:[values[i]]}))}};
+  return {cards:values.map(v=>v===null?'—':v.toLocaleString('id-ID',{maximumFractionDigits:2})),chart:{period,ratios:[9,11].map(c=>typeof row[c]==='number'&&Number.isFinite(row[c])?row[c]:null),labels:[tab],series:labels.map((name,i)=>({name,values:[values[i]]}))}};
  };
  global.ratioBiayaChartSvg=function(chart){
   const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
