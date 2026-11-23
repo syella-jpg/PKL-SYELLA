@@ -3764,6 +3764,36 @@
     sum(corporate, [corporate + 1, corporate + 2]);
   };
 
+  global.formulaEdpYtdAndTotals = function(sheet,period){
+    const X=global.XLSX.utils,month=Number(period.slice(5,7));
+    const norm=v=>String(v??'').trim().toUpperCase().replace(/\s+/g,' ');
+    const grid=X.sheet_to_json(sheet,{header:1,defval:'',raw:true});
+    const aliases=[['JANUARI','JAN'],['FEBRUARI','FEB'],['MARET','MAR'],['APRIL','APR'],['MEI','MAY'],['JUNI','JUN'],['JULI','JUL'],['AGUSTUS','AGS','AGU','AUG'],['SEPTEMBER','SEP'],['OKTOBER','OKT','OCT'],['NOVEMBER','NOV','NOP'],['DESEMBER','DES','DEC']];
+    const headers=[];
+    grid.forEach((row,r)=>{
+      const labels=row.map(norm),columns=aliases.map(names=>labels.findIndex(v=>names.includes(v)));
+      if(columns.some(c=>c<0))return;
+      const ytd=labels.findIndex(v=>/^YTD(?: |$)/.test(v)),total=labels.findIndex(v=>/^(TOTAL|TOTAL FY|FULL YEAR)$/.test(v));
+      headers.push({r,columns,ytd:ytd>=0?ytd:columns[0]-1,total:total>=0?total:columns[11]+1});
+    });
+    headers.forEach((header,i)=>{
+      const end=headers[i+1]?.r??grid.length;
+      for(let r=header.r+1;r<end;r++){
+        const label=norm(grid[r]?.[1]||grid[r]?.[0]);
+        if(!/^(EXIST(?:ING)?|NP|TOTAL|NEW PRODUCT)(?: |$)/.test(label))continue;
+        for(const [col,columns] of [[header.ytd,header.columns.slice(0,month)],[header.total,header.columns]]){
+          if(col<0)continue;
+          const refs=columns.map(c=>X.encode_cell({r,c})),address=X.encode_cell({r,c:col});
+          const contiguous=columns.every((c,i)=>i===0||c===columns[i-1]+1);
+          const formula=contiguous?'SUM('+refs[0]+':'+refs[refs.length-1]+')':'SUM('+refs.join(',')+')';
+          const value=refs.reduce((sum,a)=>sum+(typeof sheet[a]?.v==='number'&&Number.isFinite(sheet[a].v)?sheet[a].v:0),0);
+          sheet[address]={...(sheet[address]||{}),t:'n',v:value,f:formula,z:'#,##0;[Red]-#,##0'};
+          delete sheet[address].w;delete sheet[address].F;
+        }
+      }
+    });
+  };
+
   global.replaceEdpTemplateSheet = async function (workbook, period, revenueAchievement) {
     if (!global.XLSX) throw new Error("Komponen spreadsheet belum dimuat.");
     const templateWorkbook = readStaticReportLayout("EDP",await readTemplate(), {
@@ -4414,6 +4444,7 @@
         }
       }
     }
+    global.formulaEdpYtdAndTotals(sheet,period);
     const existingIndex = workbook.SheetNames.indexOf(TEMPLATE_NAME);
     if (existingIndex < 0) {
       global.XLSX.utils.book_append_sheet(workbook, sheet, TEMPLATE_NAME);

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__."/ib_history_merge.php";
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
@@ -18,6 +19,18 @@ function loadIbPeriodHistory(mysqli $conn,string $period,bool $annualTargets=fal
                 WHERE report_period LIKE CONCAT(?,"-%")) ORDER BY month_number');
         $stmt->bind_param('ss',$period,$year);$stmt->execute();
         $records=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);$stmt->close();
+        // Missing cells in one upload must not hide values already supplied in earlier uploads.
+        $fields='month_number,target_ib_fm,actual_ib_fm,target_ib_fd,actual_ib_fd,target_new_ib_fm,actual_new_ib_fm,target_new_ib_fd,actual_new_ib_fd,target_mcm,actual_mcm,report_period';
+        $historyQuery=$conn->prepare('SELECT '.$fields.' FROM revenue_ibfm WHERE report_period LIKE CONCAT(?,"-%") AND report_period<=? ORDER BY report_period DESC,month_number');
+        $historyQuery->bind_param('ss',$year,$period);$historyQuery->execute();
+        $history=$historyQuery->get_result()->fetch_all(MYSQLI_ASSOC);$historyQuery->close();
+        $records=mergeIbMonthlyHistory($records,$history,$period);
+        try{
+            $rawQuery=$conn->prepare('SELECT report_period,month_number,metric_code,business_unit,value_type,amount FROM ib_monthly_values WHERE report_period LIKE CONCAT(?,"-%") AND report_period<=? AND metric_code IN ("revenue_exist_cum","revenue_new_cum","mcm_cum") ORDER BY report_period DESC,month_number');
+            $rawQuery->bind_param('ss',$year,$period);$rawQuery->execute();
+            $raw=$rawQuery->get_result()->fetch_all(MYSQLI_ASSOC);$rawQuery->close();
+            $records=repairIbMonthlyFromCumulative($records,$raw,$period);
+        }catch(mysqli_sql_exception $error){if($error->getCode()!==1146)throw $error;}
         if ($annualTargets) {
             // Annual targets remain visible even when an earlier report uses a later upload.
             // Actuals stop at the report period, independently of the source snapshot.

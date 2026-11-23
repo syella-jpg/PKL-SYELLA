@@ -1220,6 +1220,8 @@
             ? "Data MTM bagian Increase Revenue berhasil disimpan ke database untuk periode " + period + "."
           : isEdpMnjRevenue
             ? "Berhasil: data UNIT & Revenue tersimpan di database UNIT dan revenue_edp_mnj untuk periode " + period + "."
+          : isIbRevenue
+            ? "Berhasil: data IB tersimpan di database untuk periode " + period + "."
           : LOCAL_FILE_MODE
             ? "Berhasil: \"" + chosen.name + "\" diproses dan disimpan di browser untuk periode " + period + "."
               : "Berhasil: \"" + chosen.name + "\" terkirim pada bagian " + sectionSelect.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
