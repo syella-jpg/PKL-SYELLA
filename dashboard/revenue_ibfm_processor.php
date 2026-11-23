@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__."/../includes/ib_sheet_names.php";
 
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -6,17 +7,9 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear = null, string $sheetName = 'YFR - IBFM', bool $allowEmpty = false, string $subKpi = 'SALES REVENUE (USD)', int $targetRow = 6): array
 {
     $spreadsheet = IOFactory::load($filePath);
-    $sheet = null;
-    $sheetAliases = strtoupper(trim($sheetName)) === 'YFR - IBFM' || strtoupper(trim($sheetName)) === 'IBFM'
-        ? ['YFR - IBFM', 'IBFM']
-        : [$sheetName];
-    foreach ($spreadsheet->getWorksheetIterator() as $candidate) {
-        if (in_array(strtoupper(trim($candidate->getTitle())), array_map('strtoupper', $sheetAliases), true)) {
-            $sheet = $candidate;
-            break;
-        }
-    }
-    if (!$sheet) throw new RuntimeException('Sheet ' . implode(' atau ', $sheetAliases) . ' tidak ditemukan pada file IB.');
+    $sheetAliases=ibInputSheetAliases($sheetName);
+    $sheet=getIbInputSheet($spreadsheet,$sheetName);
+    if(!$sheet)throw new RuntimeException('Sheet '.implode(' atau ',$sheetAliases).' tidak ditemukan pada file IB.');
     $title = strtoupper(trim((string)$sheet->getCell('A1')->getValue()));
     if ($expectedYear !== null && preg_match('/\b(20\d{2})\b/', $title, $match) && (int)$match[1] !== $expectedYear) {
         throw new RuntimeException('Tahun pada sheet ' . $sheetName . ' tidak sama dengan periode upload yang dipilih.');
@@ -45,7 +38,7 @@ function processRevenueExistIbFmSpreadsheet(string $filePath, ?int $expectedYear
         if (str_contains(strtoupper($subKpi), 'MCM')) {
             return (str_contains($label, 'MCM') && str_contains($label, 'REVENUE')
                 && str_contains($label, 'HPP') && str_contains($label, 'EXPENSES'))
-                || (strtoupper(trim($sheetName)) === 'HRU'
+                || (in_array('GM IB',ibInputSheetAliases($sheetName),true)
                     && str_contains($label, 'COST EFFICIENCY & EFFECTIVENESS')
                     && str_contains($label, '% REALIZATION OF COST VS BUDGET'));
         }

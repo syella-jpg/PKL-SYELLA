@@ -140,12 +140,15 @@ function buildUpbDistrInputTemplateOds(string $period,?string $history=null,bool
 }
 require_once __DIR__.'/upb_distr_customization.php';
 function buildDataParetoUpbTemplateOds(string $period,?string $saved=null): string {
+ require_once __DIR__.'/data_pareto_upb_formulas.php';
  [$year,$month]=distrPeriod($period);$path=tempnam(sys_get_temp_dir(),'pareto-input-');$zip=new ZipArchive();$opened=false;
  try{
   if($saved!==null)file_put_contents($path,$saved);else copy(__DIR__.'/../dashboard/assets/input-templates/upb-distr-raw.ods',$path);
   if($zip->open($path)!==true)throw new InvalidArgumentException('Gunakan file ODS DATA PARETO UPB.');$opened=true;$doc=upbBjXml(readOdsUploadContent($path));$tables=upbBjTables($doc);$table=$tables['DATA PARETO UPB']??null;if(!$table)throw new InvalidArgumentException('Sheet DATA PARETO UPB tidak ditemukan.');
   $parent=$doc->getElementsByTagNameNS(UPB_O,'spreadsheet')->item(0);foreach($tables as $name=>$other)if($name!=='DATA PARETO UPB')$parent->removeChild($other);
   if($saved===null)foreach($table->getElementsByTagNameNS(UPB_X,'p') as $text)if(preg_match('/^PERIODE JAN SD /i',$text->textContent)){$text->nodeValue='PERIODE JAN SD '.DISTR_SHORT[$month-1].' '.$year;}
+  refreshDataParetoUpbSums($table);
+  refreshDataParetoDetailRanges($table);
   $zip->addFromString('content.xml',$doc->saveXML());$zip->close();$opened=false;return file_get_contents($path);
  }finally{if($opened)$zip->close();@unlink($path);}
 }

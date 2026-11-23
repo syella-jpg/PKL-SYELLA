@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__."/ib_sheet_names.php";
 require_once __DIR__."/ib_history_merge.php";
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -104,7 +105,7 @@ function fillIbTemplateHistory(Spreadsheet $book,string $period,array $records,a
         ['HRU',6,'target_mcm','mcm_cum','GROUP','TARGET'],['HRU',7,'actual_mcm','mcm_cum','GROUP','ACTUAL']
     ];
     foreach($mapping as [$name,$row,$key,$metric,$unit,$type]){
-        $sheet=$book->getSheetByName($name);if(!$sheet)continue;
+        $sheet=getIbInputSheet($book,$name);if(!$sheet)continue;
         $exact=$raw[$metric][$unit][$type]??null;
         $sum=0.0;$complete=true;
         for($m=1;$m<=12;$m++){

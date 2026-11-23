@@ -366,7 +366,7 @@ try {
     if ($divisi === 'IB') {
         $inputBook = IOFactory::load($file);
         validateReportInputTemplate($inputBook, 'IB', $period);
-        $ibUnitParts=$inputBook->getSheetByName('_TEMPLATE')?->getCell('A5')->getValue()==='IB_UNIT_KPI_V1'?readIbUnitTable($inputBook->getSheetByName('HRU'),true):null;
+        $ibUnitParts=$inputBook->getSheetByName('_TEMPLATE')?->getCell('A5')->getValue()==='IB_UNIT_KPI_V1'?readIbUnitTable(getIbInputSheet($inputBook,'GM IB'),true):null;
         $hasUnitData=$ibUnitParts!==null&&count(array_filter(array_merge(...array_values($ibUnitParts)),static fn($v)=>$v!==null))>0;
         if($hasUnitData){ensureUnitSellOutTargets($conn);ensureUnitSellOutInputStore($conn);}
         $inputBook->disconnectWorksheets();

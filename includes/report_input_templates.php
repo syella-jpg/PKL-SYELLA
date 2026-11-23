@@ -50,9 +50,9 @@ function buildReportInputTemplate(string $section, string $period): Spreadsheet
     $book->removeSheetByIndex(0);
     $specs = $section === 'MTM'
         ? [['MTM', 'MTM', ['Revenue (Rp)', 'Revenue Existing (Rp)', 'Revenue New Product (Rp)']]]
-        : [['YFR - IBFM', 'IB FARMA — USD', ['SALES REVENUE (USD)', 'SALES REVENUE NEW BUSINESS PRODUCT (USD)']],
-           ['IAP', 'IB FOOD — USD', ['SALES REVENUE (USD)', 'SALES REVENUE NEW BUSINESS PRODUCT (USD)']],
-           ['HRU', 'HRU — USD', ['% REALIZATION OF COST VS BUDGET']]];
+        : [['IB FARMA', 'IB FARMA — USD', ['SALES REVENUE (USD)', 'SALES REVENUE NEW BUSINESS PRODUCT (USD)']],
+           ['IB FOOD', 'IB FOOD — USD', ['SALES REVENUE (USD)', 'SALES REVENUE NEW BUSINESS PRODUCT (USD)']],
+           ['GM IB', 'GM IB — USD', ['% REALIZATION OF COST VS BUDGET']]];
     $book->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
     foreach ($specs as [$name, $title, $metrics]) {
         $sheet = new Worksheet($book, $name);
@@ -84,7 +84,7 @@ function buildReportInputTemplate(string $section, string $period): Spreadsheet
             $r = 6 + $i*($height+1);
             if ($section === 'IB') {
                 $sheet->setCellValue('A'.$r, $i+1);
-                $sheet->setCellValue('B'.$r, $name === 'HRU' ? 'COST EFFICIENCY & EFFECTIVENESS' : 'REVENUE GROWTH');
+                $sheet->setCellValue('B'.$r, $name === 'GM IB' ? 'COST EFFICIENCY & EFFECTIVENESS' : 'REVENUE GROWTH');
                 $sheet->mergeCells('B'.$r.':B'.($r+1));
             }
             $labelCol = $section === 'IB' ? 'C' : 'A';
@@ -153,7 +153,7 @@ function buildReportInputTemplate(string $section, string $period): Spreadsheet
         $sheet->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(1);
         $sheet->getPageSetup()->setPrintArea('A1:'.$last.$end);
     }
-    if($section==='IB')appendIbUnitTable($book->getSheetByName('HRU'),$period,true);
+    if($section==='IB')appendIbUnitTable($book->getSheetByName('GM IB'),$period,true);
     $meta = new Worksheet($book, '_TEMPLATE');
     $book->addSheet($meta);
     $meta->fromArray([['KONIMEX_INPUT_V1'],[$section],[$year],[$period]]);
@@ -171,9 +171,9 @@ function validateReportInputTemplate(Spreadsheet $book, string $section, string 
     if (!$meta || $meta->getCell('A1')->getValue() !== 'KONIMEX_INPUT_V1') return;
     if ($meta->getCell('A2')->getValue() !== $section) throw new InvalidArgumentException('Bagian template tidak sesuai. Pilih '.$meta->getCell('A2')->getValue().' pada halaman upload.');
     if ((int)$meta->getCell('A3')->getValue() !== (int)substr($period,0,4)) throw new InvalidArgumentException('Tahun template tidak sesuai dengan periode upload. Unduh template untuk tahun yang dipilih.');
-    $specs = $section === 'MTM' ? ['MTM'=>[3,[6,7,9,10,12,13]]] : ['YFR - IBFM'=>[4,[6,7,9,10]],'IAP'=>[4,[6,7,9,10]],'HRU'=>[4,[6,7]]];
+    $specs = $section === 'MTM' ? ['MTM'=>[3,[6,7,9,10,12,13]]] : ['IB FARMA'=>[4,[6,7,9,10]],'IB FOOD'=>[4,[6,7,9,10]],'GM IB'=>[4,[6,7]]];
     foreach ($specs as $name => [$first,$rows]) {
-        $sheet = $book->getSheetByName($name);
+        $sheet = $section==='IB'?getIbInputSheet($book,$name):$book->getSheetByName($name);
         if (!$sheet) throw new InvalidArgumentException('Sheet '.$name.' tidak ditemukan. Gunakan susunan template yang diunduh.');
         if ($section === 'MTM' && $meta->getCell('A5')->getValue()==='MTM_TARGETS_V2') $rows=[6,7,8,10,11,12,14,15,16];
         if ($section === 'IB' && $sheet->getCell('B5')->getValue() === 'OBJECTIVE') $first = 5;
