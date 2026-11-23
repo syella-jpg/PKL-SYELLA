@@ -21,7 +21,7 @@ for(const [period,shift]of [['2026-07',0],['2027-01',2]]){
  const achColumns=[10,8,9,8],growthColumns=[11,9,10,9];
  sourceRows.forEach((map,i)=>{let n=0;for(const [label,row]of map){put(row,achColumns[i],0.2+i+n/100);put(row,growthColumns[i],-0.1-i-n/100);if(i===0)put(row,9,999);if(i===1||i===3)put(row,7,999);n++;}});
  const rupiah=sourceRows[2];
- for(const [label,actual,target]of [['GB 1',10,20],['GB 4',20,80],['GB 2',0,10],['GB 3',40,90],['BISKUIT',30,40],['CANDY',70,60]]){put(rupiah.get(label),8,actual);put(rupiah.get(label),6,target);put(rupiah.get(label),7,999999);}
+ for(const [label,actual,target]of [['GB 1',10,20],['GB 4',20,80],['GB 2',0,10],['GB 3',40,90],['BISKUIT',30,40],['CANDY',70,60]]){put(rupiah.get(label),8,actual);put(rupiah.get(label),6,target);put(rupiah.get(label),7,999999);put(rupiah.get(label),5,target/2);put(rupiah.get(label),4,777777);}
  put(sourceRows[0].get('GB 1'),10,0);put(sourceRows[0].get('GB 1'),11,-0.25);
  put(sourceRows[1].get('GB 4'),8,'');put(sourceRows[3].get('GB 3'),8,0);
  if(shift){
@@ -41,13 +41,21 @@ for(const [period,shift]of [['2026-07',0],['2027-01',2]]){
   if(group===2&&['PHARMA','HCE','FOOD'].includes(label)){
    const names={PHARMA:['GB 1','GB 4'],HCE:['GB 2','GB 3'],FOOD:['BISKUIT','CANDY']}[label],members=names.map(name=>rupiah.get(name)),aRefs=members.map(r=>address(r,8+shift)),bRefs=members.map(r=>address(r,6+shift));
    const ratio=aRefs.reduce((sum,ref)=>sum+report[ref].v,0)/bRefs.reduce((sum,ref)=>sum+report[ref].v,0),formula='('+aRefs.join('+')+')/('+bRefs.join('+')+')';
-   assert.equal(report[address(row,6)].v,ratio);assert.equal(report[address(row,7)].v,ratio-1);assert.equal(report[address(row,6)].f,formula);assert.equal(report[address(row,7)].f,formula+'-1');continue;
+   assert.equal(report[address(row,6)].v,ratio);assert.equal(report[address(row,6)].f,formula);
+   const priorRefs=members.map(r=>address(r,5+shift));
+   const growthFormula=['PHARMA','HCE','FOOD'].includes(label)?'('+aRefs.join('+')+')/('+priorRefs.join('+')+')-1':formula+'-1';
+   const growth=['PHARMA','HCE','FOOD'].includes(label)?aRefs.reduce((sum,ref)=>sum+report[ref].v,0)/priorRefs.reduce((sum,ref)=>sum+report[ref].v,0)-1:ratio-1;
+   assert.equal(report[address(row,7)].v,growth);assert.equal(report[address(row,7)].f,growthFormula);continue;
   }
-  let name=label;if(group===2)name=label==='GB 5'?'BISKUIT':label==='GB 6'?'CANDY':label==='INTERNATIONAL BUSINESS'?'EKSPOR':label;
+  let name=label;if(group===2)name=label==='CORPORATE'?'KORPORAT (GB, ETHICAL, IB)':label==='GB 5'?'BISKUIT':label==='GB 6'?'CANDY':label==='INTERNATIONAL BUSINESS'?'EKSPOR':label;
   for(const [offset,col]of [[0,achColumns[group]],[1,growthColumns[group]]]){
    const cell=report[address(row,2+group*2+offset)],from=sourceRows[group].get(name),ref=from===undefined?null:address(from,col+shift),value=ref?report[ref]?.v:null,valid=typeof value==='number';
    assert.equal(cell.v,valid?value:'',label+' group '+group);assert.equal(cell.f,valid?ref:undefined);assert.equal(cell.z,'0.00%');assert.equal(cell.F,undefined);assert.equal(cell.w,undefined);
   }
+ }
+ for(const [destinationColumn,sourceColumn]of [[6,9],[7,10]]){
+  const target=report[address(dest.get('CORPORATE'),destinationColumn)],ref=address(rupiah.get('KORPORAT (GB, ETHICAL, IB)'),sourceColumn+shift);
+  assert.equal(typeof target.v,'number');assert.equal(target.v,report[ref].v);assert.equal(target.f,ref);assert.equal(target.z,'0.00%');
  }
  for(const [a,value]of Object.entries(before))if(!allowed.has(a))assert.equal(JSON.stringify(report[a]),JSON.stringify(value),'Existing table/style changed: '+a);
  for(const bookType of ['xlsx','ods']){
@@ -55,7 +63,9 @@ for(const [period,shift]of [['2026-07',0],['2027-01',2]]){
   for(const a of allowed){assert.equal(out[a]?.v??'',report[a].v);assert.equal(out[a]?.f,report[a].f);}
  }
  for(const name of ['GB 2','GB 3'])put(rupiah.get(name),6+shift,0);
- ctx.window.fillAchievementGrowthReportValues(book,period);assert.equal(report[address(dest.get('HCE'),6)].v,'');assert.equal(report[address(dest.get('HCE'),7)].f,undefined);
+ ctx.window.fillAchievementGrowthReportValues(book,period);assert.equal(report[address(dest.get('HCE'),6)].v,'');assert.equal(report[address(dest.get('HCE'),7)].v,40/50-1);
+ for(const name of ['GB 2','GB 3'])put(rupiah.get(name),5+shift,0);
+ ctx.window.fillAchievementGrowthReportValues(book,period);assert.equal(report[address(dest.get('HCE'),7)].f,undefined);
  report.A5.v='SOURCE REMOVED';ctx.window.fillAchievementGrowthReportValues(book,period);assert.equal(report[address(dest.get('GB 1'),2)].v,'');assert.equal(report[address(dest.get('GB 1'),2)].f,undefined);
 }
-console.log('PASS Achievement/Growth values: annual FY percentages vs YTD, direct source references, GB5/6 and export aliases, exact special division ratios and ratio-minus-one growth, Corporate Rupiah blank, zero/blank/negative, future labels and moved columns, reset, preserved sources/styles, XLSX/ODS.');
+console.log('PASS Achievement/Growth values: annual FY percentages vs YTD, direct source references, GB5/6 and export aliases, exact special division ratios and ratio-minus-one growth, Corporate Rupiah references KORPORAT Achievement/Growth, zero/blank/negative, future labels and moved columns, reset, preserved sources/styles, XLSX/ODS.');

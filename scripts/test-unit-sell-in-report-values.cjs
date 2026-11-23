@@ -2,7 +2,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const ctx={window:{XLSX},URL,location:{protocol:'file:'},document:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dashboard/report-templates.js','utf8'),ctx);
 for(const [period,fullLabel]of [['2026-10','TOTAL'],['2027-02','FULL YEAR'],['2028-01','TOTAL FY'],['2028-12','JAN-DES']]){
  const year=Number(period.slice(0,4)),raw=[],sourceRows={};
- const values={};for(let gb=1;gb<=8;gb++)values[gb===7?'TOTAL ETHICAL':gb===8?'IB':'TOTAL GB '+gb]={full:gb===3?null:gb*100,prior:gb===3?null:gb*10,target:gb===2?0:gb===3?null:gb*5,actual:gb===2?0:gb===3?null:gb===4?-20:gb*20};
+ const values={};for(let gb=1;gb<=8;gb++)values[gb===7?'TOTAL ETHICAL':gb===8?'IB':'TOTAL GB '+gb]={full:gb===3?null:gb*100,prior:gb===3?null:gb*10,targetFull:gb*73,target:gb===2?0:gb===3?null:gb*5,actual:gb===2?0:gb===3?null:gb===4?-20:gb*20};
  function block(title,fyKey,ytdKey){
   raw.push([title]);const header=Array(18).fill('');header[1]='PRODUK';header[7]='YTD BULAN';header[17]=fullLabel;raw.push(header);
   for(const label of Object.keys(values).reverse()){
@@ -11,7 +11,7 @@ for(const [period,fullLabel]of [['2026-10','TOTAL'],['2027-02','FULL YEAR'],['20
  }
  block(`REVENUE TAHUN ${year} (SELL OUT)`,'full','prior');
  block(`REVENUE TAHUN ${year-1} (SELL IN)`,'full','prior');
- block(`TARGET SELL IN TAHUN ${year}`,null,'target');
+ block(`TARGET SELL IN TAHUN ${year}`,'targetFull','target');
  block(`REVENUE TAHUN ${year} (SELL IN)`,null,'actual');
  block(`TARGET SELL OUT TAHUN ${year}`,null,'prior');
  const source=XLSX.utils.aoa_to_sheet(raw),report=XLSX.utils.aoa_to_sheet([['LOCKED OTHER TABLE',123]]),book={SheetNames:['LAPORAN','UNIT'],Sheets:{LAPORAN:report,UNIT:source}};
@@ -27,18 +27,19 @@ for(const [period,fullLabel]of [['2026-10','TOTAL'],['2027-02','FULL YEAR'],['20
  const mapping={PHARMA:['TOTAL GB 1','TOTAL GB 4'],HCE:['TOTAL GB 2','TOTAL GB 3'],FOOD:['TOTAL GB 5','TOTAL GB 6'],ETHICAL:['TOTAL ETHICAL'],'INTERNATIONAL BUSINESS':['IB'],CORPORATE:Object.keys(values)};
  for(let gb=1;gb<=6;gb++)mapping['GB '+gb]=['TOTAL GB '+gb];
  for(const [label,r]of rows){
-  for(const [col,key]of [['C','full'],['D','prior'],['F','target'],['G','actual']]){
+  for(const [col,key]of [['C','full'],['D','prior'],['E','targetFull'],['F','target'],['G','actual']]){
    const known=mapping[label].map(k=>values[k][key]).filter(v=>v!==null),expected=known.length?known.reduce((a,b)=>a+b,0):'';
    assert.equal(report[col+(r+1)].v,expected,label+' '+col);
    allowed.add(col+(r+1));
   }
-  const e='E'+(r+1),out='E'+(outRows.get(label)+1);allowed.add(e);assert.equal(report[e].v,report[out].v);assert.equal(report[e].f,out,'Full Year target comes only from report SELL OUT');
   for(const [col,denom,growth]of [['H','F',false],['I','E',false],['J','D',true]]){
    const addr=col+(r+1),a=report['G'+(r+1)].v,b=report[denom+(r+1)].v,valid=typeof a==='number'&&typeof b==='number'&&b!==0;allowed.add(addr);
    assert.equal(report[addr].v,valid?a/b-(growth?1:0):'');assert.equal(report[addr].f,valid?`G${r+1}/${denom}${r+1}${growth?'-1':''}`:undefined);assert.equal(report[addr].z,'0.00%');
   }
  }
  const gb=rows.get('GB 1')+1,from=sourceRows[`REVENUE TAHUN ${year-1} (SELL IN)|TOTAL GB 1`]+1;
+ const targetFrom=sourceRows[`TARGET SELL IN TAHUN ${year}|TOTAL GB 1`]+1;
+ assert.equal(report['E'+gb].f,`'UNIT'!R${targetFrom}`);assert.equal(report['F'+gb].f,`'UNIT'!H${targetFrom}`);
  assert.equal(report['C'+gb].f,`'UNIT'!R${from}`);assert.equal(report['D'+gb].f,`'UNIT'!H${from}`);
  const pharma=rows.get('PHARMA')+1;assert.equal(report['G'+pharma].f,`G${rows.get('GB 1')+1}+G${rows.get('GB 4')+1}`);
  for(const [address,cell]of Object.entries(before))if(!allowed.has(address))assert.equal(JSON.stringify(report[address]),JSON.stringify(cell),'Unrelated data/style changed: '+address);
@@ -47,6 +48,6 @@ for(const [period,fullLabel]of [['2026-10','TOTAL'],['2027-02','FULL YEAR'],['20
   const out=XLSX.read(XLSX.write(book,{type:'buffer',bookType}),{type:'buffer',cellFormula:true}).Sheets.LAPORAN;
   for(const col of ['C','D','E','F','G','H','I','J']){assert.equal(out[col+gb].v,report[col+gb].v);assert.equal(out[col+gb].f,report[col+gb].f);}
  }
- delete book.Sheets.UNIT;ctx.window.fillUnitSellInReportValues(book,period);assert.equal(report['C'+gb].v,'');assert.equal(report['F'+gb].v,'');assert.equal(report['H'+gb].f,undefined);assert.equal(report['E'+gb].v,report['E'+(outRows.get('GB 1')+1)].v);
+ delete book.Sheets.UNIT;ctx.window.fillUnitSellInReportValues(book,period);assert.equal(report['C'+gb].v,'');assert.equal(report['F'+gb].v,'');assert.equal(report['H'+gb].f,undefined);assert.equal(report['E'+gb].v,'');
 }
-console.log('PASS UNIT SELL IN sources, exact SELL OUT FY target, simple ratios/growth, division/Corporate totals, dynamic periods and moved source columns, zero/blank/negative, stale reset, other tables/styles preserved, XLSX/ODS.');
+console.log('PASS UNIT SELL IN sources, SELL IN TOTAL FY and YTD targets, simple ratios/growth, division/Corporate totals, dynamic periods and moved source columns, zero/blank/negative, stale reset, other tables/styles preserved, XLSX/ODS.');

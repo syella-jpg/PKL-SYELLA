@@ -2936,20 +2936,23 @@
     const grid=X.sheet_to_json(sheet,{header:1,defval:"",raw:true,range:X.encode_range({s:{r:0,c:0},e:X.decode_range(sheet["!ref"]).e})});
     const first=grid.findIndex(row=>norm(row[0])==="UPB (000) MNJ");if(first<0)return;
     const year=Number(period.slice(0,4)),source=grid.findIndex(row=>row.some(v=>/^REVENUE KONIMEX \(SELLING OUT\).*RP\.?\s*\(000\)$/.test(norm(v))));
-    let denominator=null;
+    const denominators=[null,null,null];
     if(source>=0){
-      let header=-1,corporate=-1,column=-1;
+      let header=-1,corporate=-1;const columns=[-1,-1,-1];
       for(let r=source+1;r<grid.length;r++){
         if(grid[r].some(v=>/^(?:UPB \(000\)|REVENUE KONIMEX|MCM KONIMEX|SALES MNJ|ACHIEVEMENT & GROWTH)/.test(norm(v))))break;
         if(header<0&&grid[r].some(v=>norm(v)==="PARAMETER")){
-          header=r;const start=grid[r].findIndex(v=>norm(v)==="ACH LAST YEAR ("+(year-1)+")");
-          if(start>=0){let end=start+1;while(end<grid[r].length&&!norm(grid[r][end]))end++;
-            for(let c=start;c<end;c++)if(["FULL YEAR","FY"].includes(norm(grid[r+1]?.[c]))){column=c;break;}
+          header=r;
+          for(const [i,title,isYtd]of [[0,"ACH LAST YEAR ("+(year-1)+")",false],[1,"ACH LAST YEAR ("+(year-1)+")",true],[2,"TARGET "+year,true]]){
+            const start=grid[r].findIndex(v=>norm(v)===title);
+            if(start>=0){let end=start+1;while(end<grid[r].length&&!norm(grid[r][end]))end++;
+              for(let c=start;c<end;c++)if(isYtd?/^YTD(?:\s|$)/.test(norm(grid[r+1]?.[c])):["FULL YEAR","FY"].includes(norm(grid[r+1]?.[c]))){columns[i]=c;break;}
+            }
           }
         }
         if(header>=0&&norm(grid[r][grid[header].findIndex(v=>norm(v)==="PARAMETER")])==="CORPORATE"){corporate=r;break;}
       }
-      if(corporate>=0&&column>=0)denominator=X.encode_cell({r:corporate,c:column}).replace(/^([A-Z]+)(\d+)$/,"$$$1$$$2");
+      if(corporate>=0)columns.forEach((column,i)=>{if(column>=0)denominators[i]=X.encode_cell({r:corporate,c:column}).replace(/^([A-Z]+)(\d+)$/,"$$$1$$$2");});
     }
     const numeric=v=>typeof v==="number"&&Number.isFinite(v);
     const divide=(r,c,a,b,minus=false)=>{
@@ -2960,7 +2963,7 @@
     for(let r=first+3;r<grid.length;r++){
       if(norm(grid[r][0])&&!/^\d+$/.test(norm(grid[r][0])))break;
       const label=norm(grid[r][1]);if(!["UPB (000) MNJ","GB 1 S/D GB 6","ETHICAL","NON KONIMEX"].includes(label))continue;
-      for(let i=0;i<3;i++)divide(r,6+i,X.encode_cell({r,c:2+i}),denominator);
+      for(let i=0;i<3;i++)divide(r,6+i,X.encode_cell({r,c:2+i}),denominators[i]);
       divide(r,9,"I"+(r+1),"H"+(r+1),true);
       // K is an editable manual target; retain it if this function runs again.
       divide(r,11,"I"+(r+1),"K"+(r+1));
@@ -3104,6 +3107,29 @@
     }
   };
 
+  global.fillUpbKonimexAchievementContribution = function(workbook) {
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;if(!sheet)return;
+    const grid=X.sheet_to_json(sheet,{header:1,defval:""});
+    const norm=v=>String(v??"").trim().toUpperCase().replace(/\s+/g," ");
+    const start=grid.findIndex(row=>norm(row[0])==="UPB (000) KONIMEX");if(start<0)return;
+    const parents={"UPB (000) KONIMEX":"UPB (000) KONIMEX","BARANG JADI":"UPB (000) KONIMEX","FARMASI":"BARANG JADI","SOBISCO":"BARANG JADI","CANDY":"BARANG JADI","BAHAN BAKU":"UPB (000) KONIMEX","BB FM":"BAHAN BAKU","BB FD":"BAHAN BAKU","KEMASAN":"UPB (000) KONIMEX","BK FM":"KEMASAN","BK FD":"KEMASAN","WIP":"UPB (000) KONIMEX","WIP FM":"WIP","WIP FD":"WIP"};
+    const rows=new Map();
+    for(let r=start+3;r<grid.length;r++){
+      if(/^(?:UPB |REVENUE KONIMEX|SALES MNJ|RATIO |MTM CONTRIBUTION|ACHIEVEMENT & GROWTH)/.test(norm(grid[r][0])))break;
+      const label=norm(grid[r][1]);if(label in parents||label==="RUSAK PRODUKSI NON BARANG JADI")rows.set(label,r+1);
+    }
+    const divide=(address,a,b)=>{
+      const av=sheet[a]?.v,bv=sheet[b.replace(/\$/g,"")]?.v;
+      const valid=typeof av==="number"&&Number.isFinite(av)&&typeof bv==="number"&&Number.isFinite(bv)&&bv!==0;
+      const cell={...(sheet[address]||{}),t:valid?"n":"s",v:valid?av/bv:"",z:"0.00%",f:`IFERROR(IF(OR(${a}="",${b}=""),"",${a}/${b}),"")`};
+      delete cell.w;delete cell.F;sheet[address]=cell;
+    };
+    for(const [label,r]of rows){
+      divide("L"+r,"I"+r,"K"+r);
+      const parent=parents[label];if(parent&&rows.has(parent))divide("M"+r,"E"+r,"$E$"+rows.get(parent));
+    }
+  };
+
   global.fillUpbKonimexFinishedGoodsGrowth = function (workbook, nonBj = false) {
     const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;if(!sheet?.["!ref"])return;
     const range=X.decode_range(sheet["!ref"]),grid=X.sheet_to_json(sheet,{header:1,defval:"",range:X.encode_range({s:{r:0,c:0},e:range.e})});
@@ -3232,7 +3258,7 @@
       if(!merged)for(let c=first+1;c<headers.length&&!norm(headers[c]);c++)last=c;
       if(last===first)return first;
       const sub=grid[source.header+1]||[];
-      for(let c=first;c<=last;c++)if(norm(sub[c])===year||/^(?:FY(?:\s|$)|FULL YEAR$)/.test(norm(sub[c])))return c;
+      for(let c=first;c<=last;c++)if(fullYear==='ytd'?/^YTD(?:\s|$)/.test(norm(sub[c])):norm(sub[c])===year||/^(?:FY(?:\s|$)|FULL YEAR$)/.test(norm(sub[c])))return c;
       return -1;
     };
     const sources=[
@@ -3251,7 +3277,7 @@
       sheet[address]=cell;
     };
     const sourceRow=(source,label)=>{
-      const aliases={"GB 5":["BISKUIT"],"GB 6":["CANDY"],"INTERNATIONAL BUSINESS":["EKSPOR","EXPORT","IB"]};
+      const aliases={"CORPORATE":["KORPORAT (GB, ETHICAL, IB)"],"GB 5":["BISKUIT"],"GB 6":["CANDY"],"INTERNATIONAL BUSINESS":["EKSPOR","EXPORT","IB"]};
       return [label,...(aliases[label]||[])].map(name=>source.rows.get(name)).find(r=>r!==undefined);
     };
     const sum=refs=>{
@@ -3265,7 +3291,7 @@
       const label=norm(grid[r][1]);if(!labels.has(label))continue;
       sources.forEach((source,i)=>{
         const destination=2+i*2;
-        if(i===2&&label==="CORPORATE"){write(r,destination,null);write(r,destination+1,null);return;}
+
         if(i===2&&groups[label]){
           const members=groups[label].map(name=>sourceRow(source,name));
           const actual=column(source,value=>/^ACH(?:IEVEMENT)?(?:\s+20\d{2})?$/.test(value));
@@ -3274,7 +3300,14 @@
           const aRefs=members.map(row=>utils.encode_cell({r:row,c:actual})),bRefs=members.map(row=>utils.encode_cell({r:row,c:target}));
           const a=sum(aRefs),b=sum(bRefs),ratio=numeric(a)&&numeric(b)&&b!==0?a/b:null;
           const formula="("+aRefs.join("+")+")/("+bRefs.join("+")+")";
-          write(r,destination,ratio,formula);write(r,destination+1,numeric(ratio)?ratio-1:null,formula+"-1");
+          write(r,destination,ratio,formula);
+          if(label==='PHARMA'||label==='HCE'||label==='FOOD'){
+            const previous=column(source,value=>/^ACH(?:IEVEMENT)? LAST YEAR(?:\s|$|\()/.test(value),'ytd');
+            const previousRefs=previous<0?[]:members.map(row=>utils.encode_cell({r:row,c:previous}));
+            const previousSum=previousRefs.length?sum(previousRefs):null;
+            const growth=numeric(a)&&numeric(previousSum)&&previousSum!==0?a/previousSum-1:null;
+            write(r,destination+1,growth,"("+aRefs.join("+")+")/("+previousRefs.join("+")+")-1");
+          }else write(r,destination+1,numeric(ratio)?ratio-1:null,formula+"-1");
           return;
         }
         const row=sourceRow(source,label),ach=column(source,value=>value.startsWith("% ACHIEVEMENT"),true),growth=column(source,value=>/^GROWTH(?:\s|$)/.test(value));
@@ -3304,7 +3337,6 @@
     };
     const destinations=reportRows("REVENUE KONIMEX (UNIT) – SELL IN");
     if(!destinations.size)return;
-    const sellOut=reportRows("REVENUE KONIMEX (UNIT) – SELL OUT");
     const total=value=>["TOTAL","FULL YEAR","TOTAL FY","JAN-DES"].includes(norm(value));
     const ytd=value=>/^YTD(?:\s|$)/.test(norm(value));
     const source=heading=>{
@@ -3333,17 +3365,15 @@
     };
     for(const [label,row]of destinations){
       const labels=mapping[label];if(!labels)continue;
-      for(const [column,block,index]of [["C",prior,prior.full],["D",prior,prior.ytd],["F",target,target.ytd],["G",actual,actual.ytd]]){
+      for(const [column,block,index]of [["C",prior,prior.full],["D",prior,prior.ytd],["E",target,target.full],["F",target,target.ytd],["G",actual,actual.ytd]]){
         const refs=index<0?[]:labels.filter(name=>block.rows.has(name)).map(name=>utils.encode_cell({r:block.rows.get(name),c:index}));
         write(row,column,sum(unit,refs),refs.map(ref=>"'UNIT'!"+ref).join("+"));
       }
-      const from=sellOut.get(label),ref=from===undefined?null:"E"+(from+1);
-      write(row,"E",ref?report[ref]?.v:null,ref);
     }
     // Use the displayed GB values for divisions, then the displayed divisions for Corporate.
     for(const [label,members]of [["PHARMA",["GB 1","GB 4"]],["HCE",["GB 2","GB 3"]],["FOOD",["GB 5","GB 6"]],["CORPORATE",["PHARMA","HCE","FOOD","ETHICAL","INTERNATIONAL BUSINESS"]]]){
       const row=destinations.get(label);if(row===undefined)continue;
-      for(const column of ["C","D","F","G"]){
+      for(const column of ["C","D","E","F","G"]){
         const refs=members.filter(name=>destinations.has(name)).map(name=>column+(destinations.get(name)+1));
         write(row,column,sum(report,refs),refs.join("+"));
       }
