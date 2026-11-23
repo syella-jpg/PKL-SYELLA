@@ -116,11 +116,15 @@
           const tag=cell.match(/^<[^>]*>/)[0],col=c;c+=Number(tag.match(/table:number-columns-repeated="(\d+)"/)?.[1]||1);
           const costBlock=workbook.humanResourcesCostRange;
           const inCost=costBlock&&r>=costBlock.first&&r<=costBlock.last&&col<=9;
-          if(!inCost&&(r<block.first||r>block.last||col>7))return cell;
+          const compliance=workbook.complianceLevelRange;
+          const inCompliance=compliance&&r>=compliance.first&&r<=compliance.last&&col<=5;
+          const service=workbook.serviceLevelReportRange;
+          const inService=service&&r>=service.first&&r<=service.last&&col<=4;
+          if(!inService&&!inCompliance&&!inCost&&(r<block.first||r>block.last||col>7))return cell;
           const reportCell=workbook.Sheets.LAPORAN[X.utils.encode_cell({r,c:col})],s=reportCell?.s;if(!s)return cell;
           const parent=tag.match(/table:style-name="([^"]+)"/)?.[1]||"Default",fill=s.fill?.fgColor?.rgb||"FFFFFF",bold=!!s.font?.bold,indent=s.alignment?.indent||0;
-          const percent=reportCell.z==='0.00%',integer=reportCell.z==='#,##0';
-          const key=JSON.stringify([parent,fill,bold,indent,!!s.border,percent,integer]);if(!styles.has(key))styles.set(key,{name:"OTFStyle"+styles.size,parent,fill,bold,indent,border:!!s.border,percent,integer});const style=styles.get(key);
+          const percent=reportCell.z==='0.00%',integer=reportCell.z==='#,##0',italic=!!s.font?.italic;
+          const key=JSON.stringify([parent,fill,bold,indent,!!s.border,percent,integer,italic]);if(!styles.has(key))styles.set(key,{name:"OTFStyle"+styles.size,parent,fill,bold,indent,border:!!s.border,percent,integer,italic});const style=styles.get(key);
           let opening=/table:style-name=/.test(tag)?tag.replace(/table:style-name="[^"]*"/,'table:style-name="'+style.name+'"'):tag.replace(/(\/?>)$/,' table:style-name="'+style.name+'"$1');
           if(percent&&typeof reportCell.v==='number')opening=opening.replace(/office:value-type="[^"]*"/,'office:value-type="percentage"');
           let output=cell.replace(tag,opening);
@@ -132,7 +136,7 @@
     });
     const percentStyle='<number:percentage-style style:name="OTFPercent2"><number:number number:decimal-places="2" number:min-decimal-places="2" number:min-integer-digits="1"/><number:text>%</number:text></number:percentage-style>';
     const integerStyle='<number:number-style style:name="OTFInteger" number:language="en" number:country="US"><number:number number:decimal-places="0" number:min-integer-digits="1" number:grouping="true"/></number:number-style>';
-    const defs=percentStyle+integerStyle+Array.from(styles.values(),s=>'<style:style style:name="'+s.name+'" style:family="table-cell" style:parent-style-name="'+s.parent+'"'+(s.percent?' style:data-style-name="OTFPercent2"':s.integer?' style:data-style-name="OTFInteger"':'')+'><style:table-cell-properties fo:background-color="#'+s.fill+'"'+(s.border?' fo:border="0.5pt solid #000000"':'')+'/><style:paragraph-properties'+(s.indent?' fo:margin-left="0.4cm"':'')+'/><style:text-properties fo:font-weight="'+(s.bold?'bold':'normal')+'"/></style:style>').join("");
+    const defs=percentStyle+integerStyle+Array.from(styles.values(),s=>'<style:style style:name="'+s.name+'" style:family="table-cell" style:parent-style-name="'+s.parent+'"'+(s.percent?' style:data-style-name="OTFPercent2"':s.integer?' style:data-style-name="OTFInteger"':'')+'><style:table-cell-properties fo:background-color="#'+s.fill+'"'+(s.border?' fo:border="0.5pt solid #000000"':'')+'/><style:paragraph-properties'+(s.indent?' fo:margin-left="0.4cm"':'')+'/><style:text-properties fo:font-weight="'+(s.bold?'bold':'normal')+'" fo:font-style="'+(s.italic?'italic':'normal')+'"/></style:style>').join("");
     xml=xml.replace('</office:automatic-styles>',defs+'</office:automatic-styles>');X.CFB.utils.cfb_add(zip,'content.xml',new TextEncoder().encode(xml));
   }
   global.writeMtmOds=function(workbook){
@@ -2466,6 +2470,108 @@
     const last=first+1+labels.length;
     sheet['!ref']=X.encode_range({s:range.s,e:{r:last,c:Math.max(range.e.c,9)}});
     workbook.humanResourcesCostRange={first,last};
+    global.appendComplianceLevelReportTable(workbook,period);
+  };
+
+  global.appendComplianceLevelReportTable = function(workbook,period){
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;
+    if(!sheet)throw new Error('Sheet LAPORAN tidak ditemukan.');
+    if(workbook.complianceLevelRange)return;
+    const range=X.decode_range(sheet['!ref']),first=range.e.r+3,year=Number(period.slice(0,4));
+    const months=['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGS','SEP','OKT','NOV','DES'];
+    const ytd='YTD '+months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{style:'thin',color:{rgb:'000000'}}]));
+    const merges=sheet['!merges']||(sheet['!merges']=[]),rows=sheet['!rows']||(sheet['!rows']=[]);
+    const put=(r,values,header=false)=>{
+      for(let c=0;c<6;c++)sheet[X.encode_cell({r,c})]={t:'s',v:values[c]??'',s:{
+        font:{name:'Arial',sz:10,bold:header},fill:{fgColor:{rgb:header?'8FC9F4':'FFFFFF'}},border,
+        alignment:{horizontal:header?'center':'left',vertical:'center',wrapText:true}}};
+      rows[r]={hpt:header?28:19};
+    };
+    put(first,['No','Parameter','Actual – Last Year ('+(year-1)+')','','Actual '+year,'Growth'],true);
+    put(first+1,['','','Full Year',ytd,ytd,ytd],true);
+    for(const c of [0,1])merges.push({s:{r:first,c},e:{r:first+1,c}});
+    merges.push({s:{r:first,c:2},e:{r:first,c:3}});
+    const labels=['COMPLIANCE LEVEL','Number of Product Recall','','Number of Complaint','Keluhan Farmasi','Keluhan Food','','Zero Loss Time Accident','','Quality Maturity Level',''];
+    labels.forEach((label,i)=>{
+      const r=first+2+i;put(r,['',label]);
+      if([0,1,3,7,9].includes(i))Object.assign(sheet[X.encode_cell({r,c:1})].s.font,{bold:true,italic:true});
+    });
+    const last=first+1+labels.length;
+    sheet['!ref']=X.encode_range({s:range.s,e:{r:last,c:Math.max(range.e.c,5)}});
+    workbook.complianceLevelRange={first,last};
+    global.appendServiceLevelReportTable(workbook,period);
+  };
+
+  global.appendServiceLevelReportTable = function(workbook,period){
+    const sheet=workbook.Sheets.LAPORAN,X=global.XLSX.utils;
+    if(!sheet)throw new Error('Sheet LAPORAN tidak ditemukan.');
+    if(workbook.serviceLevelReportRange)return;
+    const range=X.decode_range(sheet['!ref']),first=range.e.r+3,year=Number(period.slice(0,4));
+    const months=['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGS','SEP','OKT','NOV','DES'],month=months[Number(period.slice(5,7))-1];
+    const border=Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{style:'thin',color:{rgb:'000000'}}]));
+    const merges=sheet['!merges']||(sheet['!merges']=[]),rows=sheet['!rows']||(sheet['!rows']=[]);
+    const put=(r,values,header=false)=>{
+      for(let c=0;c<5;c++)sheet[X.encode_cell({r,c})]={t:'s',v:values[c]??'',s:{
+        font:{name:'Arial',sz:10,bold:header},fill:{fgColor:{rgb:header?'8FC9F4':'FFFFFF'}},border,
+        alignment:{horizontal:header?'center':'left',vertical:'center',wrapText:true}}};
+      rows[r]={hpt:header?25:19};
+    };
+    put(first,['No','Parameter','YTD','','Growth'],true);
+    put(first+1,['','',month+' '+String(year-1).slice(-2),month+' '+String(year).slice(-2),''],true);
+    for(const c of [0,1,4])merges.push({s:{r:first,c},e:{r:first+1,c}});
+    merges.push({s:{r:first,c:2},e:{r:first,c:3}});
+    const groups=['GB 1','GB 2','GB 3','GB 4','GB 5','GB 6','GB ET','TOTAL'];
+    const labels=['Service Level','SL Eksternal (MNJ to Outlet) – UNIT',...groups,'','SL Internal (KX to MNJ) – UNIT',...groups];
+    labels.forEach((label,i)=>{
+      const r=first+2+i;put(r,['',label]);
+      if([0,1,11].includes(i))sheet[X.encode_cell({r,c:1})].s.font.bold=true;
+    });
+    const last=first+1+labels.length;
+    sheet['!ref']=X.encode_range({s:range.s,e:{r:last,c:Math.max(range.e.c,4)}});
+    workbook.serviceLevelReportRange={first,last};
+  };
+
+  global.fillServiceLevelReport = function(workbook,period){
+    const source=workbook.Sheets['SERVICE LEVEL'],report=workbook.Sheets.LAPORAN,X=global.XLSX.utils,block=workbook.serviceLevelReportRange;
+    if(!source||!report||!block)throw new Error('Sheet SERVICE LEVEL atau tabel laporannya belum tersedia.');
+    const norm=v=>String(v??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const cells=Object.entries(source).filter(([a])=>/^[A-Z]+[0-9]+$/.test(a)).map(([a,cell])=>({a,...X.decode_cell(a),cell,text:norm(cell.v)})).sort((a,b)=>a.r-b.r||a.c-b.c);
+    const months=[['JAN','JANUARI'],['FEB','FEBRUARI'],['MAR','MARET'],['APR','APRIL'],['MEI','MAY'],['JUN','JUNI'],['JUL','JULI'],['AGS','AGU','AUG','AGUSTUS'],['SEP','SEPTEMBER'],['OKT','OCT','OKTOBER'],['NOV','NOP','NOVEMBER'],['DES','DEC','DESEMBER']];
+    const year=Number(period.slice(0,4)),month=Number(period.slice(5,7));
+    const sections=[];let sourceYear=null;
+    for(const cell of cells){
+      const heading=/^TH(20[0-9]{2})$/.exec(cell.text);if(heading)sourceYear=Number(heading[1]);
+      const kind=cell.text==='EKSTERNALMNJTOOUTLETUNIT'?'external':cell.text==='INTERNALKXTOMNJUNIT'?'internal':null;
+      if(kind)sections.push({...cell,kind,year:sourceYear});
+    }
+    const names=['GB1','GB2','GB3','GB4','GB5','GB6','GBET','TOTAL'];
+    for(const section of sections){
+      const col=section.year===year?3:section.year===year-1?2:null;if(col===null)continue;
+      const nextSection=sections.find(s=>s.r>section.r)?.r??Infinity;
+      const nextYear=cells.find(c=>c.r>section.r&&/^TH20[0-9]{2}$/.test(c.text))?.r??Infinity;
+      const end=Math.min(nextSection,nextYear);
+      const candidates=cells.filter(c=>c.r>=section.r&&c.r<end);
+      const monthHeader=candidates.find(c=>months[month-1].includes(c.text));
+      if(!monthHeader)throw new Error('Kolom bulan SERVICE LEVEL '+section.year+' tidak ditemukan.');
+      for(const cell of candidates){
+        if(cell.c!==section.c||cell.r<=section.r)continue;
+        const name=['ETHICAL','ETH','ET','GBETHICAL','GBETH'].includes(cell.text)?'GBET':cell.text;
+        const i=names.indexOf(name);if(i<0)continue;
+        const address=X.encode_cell({r:cell.r,c:monthHeader.c}),value=source[address];
+        const target=report[X.encode_cell({r:block.first+(section.kind==='external'?4:14)+i,c:col})];
+        if(typeof value?.v!=='number'||!Number.isFinite(value.v))continue;
+        target.t='n';target.v=value.v;target.f="'SERVICE LEVEL'!"+address;
+        target.z='0.00%';delete target.w;
+      }
+    }
+    for(const offset of [4,14])for(let i=0;i<8;i++){
+      const r=block.first+offset+i,previous=X.encode_cell({r,c:2}),current=X.encode_cell({r,c:3});
+      const a=report[current]?.v,b=report[previous]?.v;
+      const valid=typeof a==='number'&&Number.isFinite(a)&&typeof b==='number'&&Number.isFinite(b)&&b!==0;
+      const cell=report[X.encode_cell({r,c:4})];
+      cell.t=valid?'n':'s';cell.v=valid?a/b-1:'';cell.f=current+'/'+previous+'-1';cell.z='0.00%';delete cell.w;
+    }
   };
 
   global.fillHumanResourcesRatios = function(workbook){

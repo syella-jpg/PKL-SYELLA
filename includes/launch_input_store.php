@@ -9,8 +9,9 @@ function ensureLaunchInputStore(mysqli $conn): void {
 }
 function findLaunchInput(mysqli $conn, string $period): ?array {
     launchInputPeriod($period); ensureLaunchInputStore($conn);
-    $q=$conn->prepare('SELECT report_period,filename,base64 FROM `launch_input` WHERE report_period=?');
-    $q->bind_param('s',$period);$q->execute();$record=$q->get_result()->fetch_assoc();$q->close();
+    $first=substr($period,0,4).'-01';
+    $q=$conn->prepare('SELECT report_period,filename,base64 FROM `launch_input` WHERE report_period BETWEEN ? AND ? ORDER BY report_period DESC LIMIT 1');
+    $q->bind_param('ss',$first,$period);$q->execute();$record=$q->get_result()->fetch_assoc();$q->close();
     return $record?:null;
 }
 function validateLaunchInputBytes(string $bytes): void {

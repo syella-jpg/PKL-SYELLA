@@ -9,10 +9,37 @@ function serviceLevelPeriod(string $period): int {
 function ensureServiceLevelInputStore(mysqli $conn): void {
     $conn->query('CREATE TABLE IF NOT EXISTS service_level_input (report_period CHAR(7) NOT NULL PRIMARY KEY,filename VARCHAR(255) NOT NULL,base64 LONGTEXT NOT NULL,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 }
+function serviceLevelHistorySelectionSql(): string {
+    return 'SELECT report_period,filename,base64 FROM service_level_input WHERE report_period BETWEEN ? AND ? ORDER BY (report_period <= ?) DESC, CASE WHEN report_period <= ? THEN report_period END DESC, report_period ASC LIMIT 1';
+}
+/** Hide future monthly values in the export copy; the uploaded snapshot stays intact. */
+function serviceLevelLimitMonths(DOMElement $table,int $lastMonth): void {
+    $aliases=[['JAN','JANUARI'],['FEB','FEBRUARI'],['MAR','MARET'],['APR','APRIL'],['MAY','MEI'],['JUN','JUNI'],['JUL','JULI'],['AUG','AGS','AGU','AGUSTUS'],['SEP','SEPTEMBER'],['OCT','OKT','OKTOBER'],['NOV','NOP','NOVEMBER'],['DEC','DES','DESEMBER']];
+    $cells=upbBjCells($table);$active=[];$rowNumber=1;
+    foreach($table->childNodes as $row){
+        if(!$row instanceof DOMElement||$row->localName!=='table-row')continue;
+        $current=$cells[$rowNumber]??[];$header=[];
+        foreach($current as $c=>$cell){
+            $label=strtoupper(trim($cell->textContent));
+            foreach($aliases as $i=>$names)if(in_array($label,$names,true))$header[$c]=$i+1;
+        }
+        if(count($header)>=2)$active=$header;
+        else foreach($active as $c=>$month){
+            if($month<=$lastMonth||!isset($current[$c]))continue;
+            $cell=$current[$c];
+            $cell->removeAttributeNS(UPB_T,'formula');
+            foreach(['value','value-type','string-value','date-value','boolean-value'] as $attribute)$cell->removeAttributeNS(UPB_O,$attribute);
+            $cell->removeAttributeNS('urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0','value-type');
+            while($cell->firstChild)$cell->removeChild($cell->firstChild);
+        }
+        $rowNumber+=max(1,(int)$row->getAttributeNS(UPB_T,'number-rows-repeated'));
+    }
+}
 function findServiceLevelInput(mysqli $conn,string $period): ?array {
-    $year=serviceLevelPeriod($period);ensureServiceLevelInputStore($conn);$first=$year.'-01';
-    $q=$conn->prepare('SELECT report_period,filename,base64 FROM service_level_input WHERE report_period BETWEEN ? AND ? ORDER BY report_period DESC LIMIT 1');
-    $q->bind_param('ss',$first,$period);$q->execute();$row=$q->get_result()->fetch_assoc();$q->close();return $row?:null;
+    $year=serviceLevelPeriod($period);ensureServiceLevelInputStore($conn);$first=$year.'-01';$last=$year.'-12';
+    // Prefer the latest snapshot at/before the report, then the earliest later upload in that year.
+    $q=$conn->prepare(serviceLevelHistorySelectionSql());
+    $q->bind_param('ssss',$first,$last,$period,$period);$q->execute();$row=$q->get_result()->fetch_assoc();$q->close();return $row?:null;
 }
 /** Change only sheet name and year headings; retain native styles and blank cells. */
 function buildServiceLevelInputOds(string $period,?string $saved=null,bool $rawTemplate=false): string {
@@ -40,6 +67,7 @@ function buildServiceLevelInputOds(string $period,?string $saved=null,bool $rawT
                 if($remove)$table->removeChild($node);
             }
         }
+        if($rawTemplate)serviceLevelLimitMonths($table,(int)substr($period,5,2));
         if($zip->open($path)!==true)throw new RuntimeException('Template SERVICE LEVEL tidak dapat dibaca.');$opened=true;
         $zip->addFromString('content.xml',$doc->saveXML());$zip->close();$opened=false;return file_get_contents($path);
     }finally{if($opened)$zip->close();@unlink($path);}
