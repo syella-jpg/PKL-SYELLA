@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/upload_file_locks.php';
+guardReportFileUpload('upb_bj_input_api');
 require_once __DIR__.'/../includes/database.php';require_once __DIR__.'/../includes/upb_bj_template_history.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
 $origin=$_SERVER['HTTP_ORIGIN']??'';if(in_array($origin,['null','http://127.0.0.1:8000','http://localhost:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Methods: POST, OPTIONS');}

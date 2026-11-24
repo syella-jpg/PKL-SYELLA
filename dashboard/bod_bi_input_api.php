@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/upload_file_locks.php';
+guardReportFileUpload('bod_bi_input_api');
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../includes/bod_bi_input_store.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/upload_file_locks.php';
+guardReportFileUpload('unit_sell_out_targets_api');
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../vendor/autoload.php';
 require_once __DIR__.'/../includes/unit_sell_out_targets.php';

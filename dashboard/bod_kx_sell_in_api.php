@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/upload_file_locks.php';
+guardReportFileUpload('bod_kx_sell_in_api');
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../vendor/autoload.php';
 require_once __DIR__.'/../includes/bod_kx_sell_in_monthly.php';

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/upload_file_locks.php';
+guardReportFileUpload('revenue_edp_mnj_target_api');
 require_once __DIR__ . '/../includes/database.php';
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';

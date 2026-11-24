@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/upload_file_locks.php';
+guardReportFileUpload('upload');
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/ib_exchange_rates.php';
 
@@ -83,7 +85,8 @@ try {
         throw new Exception('Divisi upload tidak valid.');
     }
     $tableName = $reportTables[$divisi];
-    $replaceExistingPeriod = $divisi === 'REVENUE VERSI EDP MNJ'
+    $replaceExistingPeriod = isset($GLOBALS['reportUploadAuthorizedScope'])
+        || $divisi === 'REVENUE VERSI EDP MNJ'
         || $divisi === 'ETHICAL'
         || $divisi === 'IB'
         || $divisi === 'MTM'

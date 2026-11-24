@@ -25,7 +25,7 @@
 
   /* ===== Kartu ===== */
   main { padding: 38px 16px 48px; }
-  .upload-nav { max-width: 616px; margin: 0 auto 16px; }
+  .upload-nav { max-width: 616px; margin: 0 auto 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
   .back-menu { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 600; text-decoration: none; }
   .back-menu svg { width: 16px; height: 16px; }
   .back-menu:hover { border-color: var(--red); color: var(--red-dark); }
@@ -144,7 +144,7 @@
   </nav>
   <form class="card" id="form" novalidate>
     <h1>Upload File Laporan</h1>
-    <p class="sub">Pilih file terlebih dahulu. Bagian laporan dan periode akan dibantu dikenali otomatis.</p>
+    <p class="sub">Pilih file terlebih dahulu. Bagian laporan dan periode akan dibantu dikenali otomatis. Setelah upload berhasil, bagian file pada periode itu terkunci. Hubungi admin 2 untuk membuka akses upload ulang.</p>
 
     <label class="label" for="bagian">Bagian File Laporan</label>
     <div class="select-wrap" id="bagianWrap">
@@ -243,6 +243,11 @@
   </form>
 </main>
 
+<script>
+(()=>{let u;try{u=JSON.parse(sessionStorage.getItem('konimex_login_user')||'null');}catch{}if(u?.username!=='admin 2')return;const a=document.createElement('a');a.textContent='Kelola File';a.href="kelola-file.html";a.className="back-menu";document.querySelector(".upload-nav")?.append(a);})();
+</script>
+<script src="upload-notice.js?v=20261124"></script>
+<script src="upload-access.js?v=20261124"></script>
 <script src="file-detection.js?v=ib-sheet-names-20261123"></script>
 <script src="workbook-detection-reader.js?v=ods-preview-20261116"></script>
 <script src="bod-upload-type.js?v=20261109"></script>
@@ -431,6 +436,10 @@
   }
 
   function setMsg(text, type) {
+    if(type === "error" && /Upload .+ periode \d{4}-\d{2} terkunci\./i.test(String(text))) {
+      const clean=String(text).replace(/ melalui Kelola File\.?/gi, "").replace(/\s*\(HTTP 423\)\.?/gi, "").replace(/\.$/, "");
+      msg.textContent="";msg.className="msg";window.UploadNotice.show(clean);return;
+    }
     msg.textContent = text || "";
     msg.className = "msg" + (type ? " " + type : "");
   }
@@ -900,19 +909,6 @@
   // Simpan lokal pada file://, atau kirim ke endpoint PHP saat dijalankan lewat web.
   function send(divisi, file, period) {
     return new Promise((resolve, reject) => {
-      if (LOCAL_FILE_MODE && divisi === "Revenue Konimex Selling Out") {
-        resolve({ success: true, local: true });
-        return;
-      }
-      if (!UPLOAD_URL) { // mode demo
-        let p = 0;
-        const t = setInterval(() => {
-          p += 12 + Math.random() * 10;
-          barFill.style.width = Math.min(p, 100) + "%";
-          if (p >= 100) { clearInterval(t); resolve(); }
-        }, 120);
-        return;
-      }
       const fd = new FormData();
       // UNIT & Revenue diproses server dengan pemisahan tabel UNIT dan EDP MNJ.
       fd.append("divisi", divisi === "UNIT & Revenue" ? "REVENUE VERSI EDP MNJ" : divisi);
@@ -1150,6 +1146,7 @@
       if (isEdpMnjTarget && targetStorageYear !== selectedYear) {
         throw new Error("Tahun target EDP MNJ pada file (" + targetStorageYear + ") berbeda dari tahun periode yang dipilih (" + selectedYear + ").");
       }
+      const uploadResult = !isTarget ? await send(sectionSelect.value, chosen, period) : null;
       if (LOCAL_FILE_MODE && !isTarget && !isMtm && !isEthical && !isUnitRevenue && !isEdpMnjRevenue) {
         let history = {};
         try { history = JSON.parse(localStorage.getItem(PROCESSED_KEY) || "{}"); } catch (_) { history = {}; }
@@ -1160,7 +1157,6 @@
           throw new Error("Browser tidak mengizinkan penyimpanan lokal. Buka halaman ini di Chrome atau Edge, lalu izinkan penyimpanan situs untuk file lokal.");
         }
       }
-      const uploadResult = !isTarget ? await send(sectionSelect.value, chosen, period) : null;
       if (isEthical) {
         // Database menjadi penyimpanan utama; cache lokal hanya membantu
         // halaman unduh yang sedang dibuka di browser yang sama.
@@ -1173,16 +1169,6 @@
         try { localStorage.setItem(ETHICAL_HJP_KEY, JSON.stringify(history)); } catch (_) { /* data utama sudah berhasil tersimpan di database */ }
       }
       if (isTarget) {
-        if (!isEdpMnjTarget) {
-          let history = {};
-          try { history = JSON.parse(localStorage.getItem(TARGET_KEY) || "{}"); } catch (_) { history = {}; }
-          history[String(targetStorageYear)] = { year: targetStorageYear, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
-          try { localStorage.setItem(TARGET_KEY, JSON.stringify(history)); } catch (_) { /* API menyimpan data lintas halaman */ }
-          let sellOutTargets = {};
-          try { sellOutTargets = JSON.parse(localStorage.getItem(SELL_OUT_TARGET_KEY) || "{}"); } catch (_) { sellOutTargets = {}; }
-          sellOutTargets[String(targetStorageYear)] = { year: targetStorageYear, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
-          try { localStorage.setItem(SELL_OUT_TARGET_KEY, JSON.stringify(sellOutTargets)); } catch (_) { /* target API remains available to other reports */ }
-        }
         let response;
         try {
           response = await fetch(isEdpMnjTarget ? EDP_MNJ_TARGET_API_URL : TARGET_API_URL, {
@@ -1200,6 +1186,16 @@
           throw new Error(result && result.message ? result.message : (isEdpMnjTarget
             ? "Target EDP MNJ gagal disimpan ke revenue_edp_mnj_target."
             : "Target tersimpan di halaman Upload, tetapi belum bisa dibagikan ke Dashboard. Buka aplikasi melalui server lokal dan unggah ulang."));
+        }
+        if (!isEdpMnjTarget) {
+          let history = {};
+          try { history = JSON.parse(localStorage.getItem(TARGET_KEY) || "{}"); } catch (_) { history = {}; }
+          history[String(targetStorageYear)] = { year: targetStorageYear, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
+          try { localStorage.setItem(TARGET_KEY, JSON.stringify(history)); } catch (_) { /* API menyimpan data lintas halaman */ }
+          let sellOutTargets = {};
+          try { sellOutTargets = JSON.parse(localStorage.getItem(SELL_OUT_TARGET_KEY) || "{}"); } catch (_) { sellOutTargets = {}; }
+          sellOutTargets[String(targetStorageYear)] = { year: targetStorageYear, source: chosen.name, processedAt: new Date().toISOString(), rows: processedRows };
+          try { localStorage.setItem(SELL_OUT_TARGET_KEY, JSON.stringify(sellOutTargets)); } catch (_) { /* target API remains available to other reports */ }
         }
       } else if (processedRows && !LOCAL_FILE_MODE && !isUnitRevenue && !isEdpMnjRevenue) {
         let history = {};
@@ -1223,7 +1219,7 @@
           : isIbRevenue
             ? "Berhasil: data IB tersimpan di database untuk periode " + period + "."
           : LOCAL_FILE_MODE
-            ? "Berhasil: \"" + chosen.name + "\" diproses dan disimpan di browser untuk periode " + period + "."
+            ? "Berhasil: \"" + chosen.name + "\" tersimpan di database untuk periode " + period + "."
               : "Berhasil: \"" + chosen.name + "\" terkirim pada bagian " + sectionSelect.value + (UPLOAD_URL ? "." : " (mode demo)."), "ok");
       clearFile();
       sectionSelect.value = "";

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/upload_file_locks.php';
+guardReportFileUpload('mnj_api');
 require_once __DIR__.'/../vendor/autoload.php';require_once __DIR__.'/../includes/database.php';require_once __DIR__.'/../includes/mnj_input_template.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
 $origin=$_SERVER['HTTP_ORIGIN']??'';if(in_array($origin,['null','http://127.0.0.1:8000','http://localhost:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Headers: Content-Type');header('Access-Control-Allow-Methods: GET, POST, OPTIONS');}

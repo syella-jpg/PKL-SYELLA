@@ -253,8 +253,14 @@
         transferToken = result.token;
       } catch (failure) { error.textContent = failure.message || 'Server login tidak dapat dihubungi.'; return; }
     }
+    let uploadToken=null;
     try {
-      sessionStorage.setItem('konimex_login_user', JSON.stringify({username: user, role: user === 'direksi' ? 'Direksi' : 'Administrator', transferToken}));
+      const endpoint=location.protocol==='file:'?'http://127.0.0.1:8000/api/report.php?endpoint=upload_files_api':'../api/report.php?endpoint=upload_files_api';
+      const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',username:user,password:pass.value})});
+      const result=await response.json();if(!response.ok||!result.success)throw new Error(result.message||'Sesi upload gagal dibuat.');uploadToken=result.token;
+    } catch(failure){error.textContent=failure.message||'Server login tidak dapat dihubungi.';return;}
+    try {
+      sessionStorage.setItem('konimex_login_user', JSON.stringify({username: user, role: user === 'direksi' ? 'Direksi' : 'Administrator', transferToken, uploadToken}));
     } catch (_) {
       error.textContent = 'Sesi login tidak dapat disimpan. Izinkan penyimpanan browser lalu coba lagi.';
       return;
