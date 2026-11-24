@@ -1,0 +1,17 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),XLSX=require('/tmp/target-sheetjs.js'),c={window:{XLSX}};vm.createContext(c);vm.runInContext(fs.readFileSync('dashboard/upb-konimex-chart.js','utf8'),c);
+for(const period of ['2026-10','2027-02']){
+ const sheet=XLSX.utils.aoa_to_sheet([['UPB (000) KONIMEX'],['No','Parameter'],[],['','UPB (000) KONIMEX',999,100,120,.2,.9,.02,.03,.5,.04,.75],['','Farmasi',999,0,0,0,.9,0,0,0,0,null],['UPB (000) MNJ'],['','Farmasi',0,0,999]]),book={Sheets:{LAPORAN:sheet}};
+ const d=c.window.upbKonimexChartData(book,'UPB (000) KONIMEX',period);assert.equal(d.summary.prior,100);assert.equal(d.summary.actual,120);assert.equal(d.ratio.prior,.02);assert.equal(d.ratio.target,.04);assert.equal(d.ratio.actual,.03);
+ const svg=c.window.upbKonimexChartSvg(d);assert.equal((svg.match(/<rect x=/g)||[]).length,10);for(const t of ['RATIO UPB (%)','Ach YTD 75%','Growth 50%','Target Ratio '+period.slice(0,4)])assert.ok(svg.includes(t));assert.ok(!/NaN|Infinity/.test(svg));
+ const z=c.window.upbKonimexChartData(book,'Farmasi',period);assert.equal(z.summary.actual,0);assert.ok(!/NaN|Infinity/.test(c.window.upbKonimexChartSvg(z)));assert.equal(c.window.upbKonimexChartData(book,'Missing',period),null);
+}
+const groupedBook={Sheets:{LAPORAN:XLSX.utils.aoa_to_sheet([['UPB (000) KONIMEX'],['No','Parameter'],[],...['Rusak Produksi Non barang Jadi','Bahan Baku','Kemasan','WIP'].map((name,i)=>['',name,999,100+i,200+i,1,.9,.02,.03,.5,.04,.75])])}};
+const grouped=c.window.upbKonimexChartData(groupedBook,'Rusak Produksi Non barang Jadi','2027-02');assert.equal(grouped.items.length,3);
+const groupedSvg=c.window.upbKonimexChartSvg(grouped);for(const name of ['Bahan Baku','Kemasan','WIP'])assert.ok(groupedSvg.includes(name));assert.equal((groupedSvg.match(/<rect x=/g)||[]).length,20);assert.ok(!/NaN|Infinity/.test(groupedSvg));
+const raw=[['UPB (000) KONIMEX'],['No','Parameter'],[]];
+for(const [name,prior,actual]of [['UPB (000) KONIMEX',400,800],['Bahan Baku',100,200],['BB FM',40,80],['BB FD',60,120],['Kemasan',100,200],['BK FM',40,80],['BK FD',60,120],['WIP',100,200],['WIP FM',40,80],['WIP FD',60,120],['Barang Jadi',100,200],['Farmasi',40,80],['Sobisco',30,60],['Candy',30,60]])raw.push(['',name,0,prior,actual,1,0,prior/10000,actual/20000,0,.02,.5]);
+const corp=c.window.upbKonimexChartData({Sheets:{LAPORAN:XLSX.utils.aoa_to_sheet(raw)}},'Korporat','2027-02');assert.equal(corp.categories.length,4);
+for(const category of corp.categories){assert.ok(Math.abs(category.stacks.actual[0]-.004)<1e-12);assert.ok(Math.abs(category.stacks.actual[1]-.006)<1e-12);assert.ok(Math.abs(category.stacks.actual.reduce((a,b)=>a+b)-category.item.ratio.actual)<1e-12);}
+const stacked=c.window.upbKonimexChartSvg(corp);for(const label of ['BB','BK','WIP','BJ','Pharma','Food','Target total'])assert.ok(stacked.includes(label));assert.ok(!/NaN|Infinity/.test(stacked));
+const html=fs.readFileSync('dashboard/UPB Konimex.html','utf8');assert.ok(html.includes('const TABS = ["Korporat", "Barang Jadi", "Rusak Produksi Non barang Jadi"]'));for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))if(m[1].trim())new vm.Script(m[1]);assert.ok(html.indexOf('shared-report-download.js')<html.indexOf('async function loadData'));
+console.log('PASS dummy UPB two charts, exact actual/ratio/target columns, five bars, percent labels, year/month, zero/missing, source isolation and page syntax.');

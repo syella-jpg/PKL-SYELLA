@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard - Laporan Korporat</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --side: #4a3bd4; --side-active: #3a2f9e; --head: #9b8cff; --tabbar: #dcd8ff; --green: #14b87c; --ink: #111; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { font-family: 'Inter', sans-serif; color: var(--ink); background: #fff; display: grid; grid-template-columns: 226px 1fr; overflow: hidden; }
+  button { font-family: inherit; cursor: pointer; }
+  :focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+
+  /* ===== Sidebar ===== */
+  aside { background: var(--side); height: 100vh; overflow-y: auto; color: #fff; padding-bottom: 24px; }
+  .logo { display: inline-flex; align-items: flex-start; gap: 2px; margin: 36px 0 28px 24px; font-weight: 700; font-style: italic; font-size: 31px; letter-spacing: -1px; color: #e31e24; text-decoration: none; }
+  .logo svg { width: 22px; height: 22px; margin-top: -6px; }
+  .sec { display: flex; align-items: center; gap: 22px; width: 176px; height: 52px; margin: 0 0 18px 23px; padding-left: 28px; border: 0; border-radius: 8px; background: var(--green); color: #fff; font-size: 13px; box-shadow: 0 3px 6px rgba(0,0,0,.25); }
+  .sec svg { width: 22px; height: 22px; flex-shrink: 0; }
+  .sec.on { box-shadow: 0 0 0 3px rgba(255,255,255,.55), 0 3px 6px rgba(0,0,0,.25); }
+  nav { margin-top: 26px; }
+  nav button { display: block; width: 100%; text-align: left; padding: 14px 14px; border: 0; background: transparent; color: #fff; font-size: 12.5px; line-height: 1.25; }
+  nav button:hover { background: rgba(255,255,255,.1); }
+  nav button.on { background: var(--side-active); }
+
+  /* ===== Konten utama ===== */
+  main { height: 100vh; overflow-y: auto; position: relative; }
+  .head { background: var(--head); padding: 28px 32px 22px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .head h1 { font-size: 23px; font-weight: 600; }
+  .head h2 { font-size: 23px; font-weight: 600; margin-top: 16px; }
+  .ctrl { display: flex; gap: 14px; align-items: center; margin-right: 8px; }
+  .pill { height: 32px; border: 1.5px solid #2a6bff; border-radius: 10px; background: #fff; padding: 0 14px; font-size: 13px; display: flex; align-items: center; gap: 28px; color: var(--ink); }
+  .pill svg { width: 20px; height: 20px; }
+  .period { position: relative; }
+  .period select { height: 32px; width: 138px; appearance: none; -webkit-appearance: none; border: 1.5px solid #333; border-radius: 10px; background: #fff; padding: 0 34px 0 22px; font-family: inherit; font-size: 13px; }
+  .period svg { position: absolute; right: 12px; top: 9px; width: 16px; height: 16px; pointer-events: none; }
+
+  .dots { position: absolute; top: 12px; right: 18px; }
+  .dots > button { border: 0; background: none; font-size: 22px; line-height: 1; padding: 4px 8px; font-weight: 700; }
+  .menu { display: none; position: absolute; right: 0; top: 34px; background: #fff; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,.25); min-width: 150px; overflow: hidden; z-index: 5; }
+  .menu.open { display: block; }
+  .menu a { display: block; padding: 10px 14px; font-size: 13px; color: var(--ink); text-decoration: none; }
+  .menu a:hover { background: #f1efff; }
+  .burger { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 10px; border: 1px solid #cfcaf5; border-radius: 9px; background: #fff; color: #111; padding: 7px 11px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 5px rgba(0,0,0,.12); }
+
+  .tabs { user-select: none; -webkit-user-select: none; background: var(--tabbar); display: flex; gap: 8px; padding: 6px 14px 0; overflow-x: auto; }
+  .tabs button { flex: 1 0 auto; border: 0; background: transparent; padding: 11px 20px; font-size: 13px; border-radius: 6px 6px 0 0; white-space: nowrap; }
+  .tabs button:hover { background: rgba(255,255,255,.5); }
+  .tabs button.on { background: #fff; }
+
+  .body { padding: 10px 20px 48px; }
+  .cards { user-select: none; -webkit-user-select: none; display: flex; gap: 22px; overflow-x: auto; padding: 8px 8px 22px; }
+  .kpi { flex: 0 0 205px; min-height: 125px; background: #fff; border-radius: 28px; padding: 18px 12px 16px 12px; box-shadow: 0 4px 8px rgba(0,0,0,.22); }
+  .kpi p { font-size: 13px; line-height: 1.2; min-height: 32px; }
+  .kpi b { display: block; margin-top: 12px; font-size: 25px; font-weight: 500; }
+
+  .subs { display: flex; gap: 40px; margin: 22px 0 10px 30px; }
+  .subs span { font-size: 13px; font-weight: 700; padding: 4px 0; border-bottom: 2px solid var(--side); }
+  /* Sembunyikan scrollbar (tetap bisa di-scroll) */
+  * { scrollbar-width: none; -ms-overflow-style: none; }
+  *::-webkit-scrollbar { display: none; }
+  .chartcard { background: #fff; border-radius: 28px; box-shadow: 0 4px 8px rgba(0,0,0,.22); padding: 22px; margin: 0 8px; max-width: 760px; min-height: 220px; }
+  .empty { display: grid; place-items: center; min-height: 176px; text-align: center; font-size: 12.5px; color: #6b7280; border: 2px dashed #d6d3ee; border-radius: 18px; padding: 16px; }
+  .chartcard svg { width: 100%; height: auto; display: block; }
+  .chart-actions { display: flex; justify-content: flex-end; margin: 0 8px 10px; max-width: 760px; }
+  .chart-download { border: 1px solid #c9c5e7; border-radius: 9px; background: #fff; padding: 8px 12px; font-size: 12px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; margin-top: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
+
+  /* ===== Analisis & catatan ===== */
+  .analysis { margin: 44px 8px 0; max-width: 760px; background: #f6f5ff; border-radius: 22px; padding: 22px; }
+  .analysis h3, .notes h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  textarea { width: 100%; min-height: 130px; resize: vertical; border: 1.5px solid #cfcaf5; border-radius: 12px; padding: 12px 14px; font-family: inherit; font-size: 13px; background: #fff; }
+  .acts { display: flex; justify-content: flex-end; gap: 12px; margin-top: 14px; }
+  .btn { height: 36px; padding: 0 26px; border-radius: 10px; font-size: 13px; font-weight: 600; }
+  .btn.cancel { border: 1.5px solid #9ca3af; background: #fff; color: #374151; }
+  .btn.save { border: 0; background: var(--green); color: #fff; }
+  .notes { margin: 28px 8px 0; max-width: 760px; }
+  .note { background: #fff; border: 1px solid #e5e3f7; border-left: 5px solid var(--side); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 2px 5px rgba(0,0,0,.06); }
+  .note p { font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .note footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #6b7280; }
+  .note footer button { border: 0; background: none; color: #c62828; font-size: 11px; }
+  .none { font-size: 12.5px; color: #6b7280; }
+
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1f2430; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13px; opacity: 0; pointer-events: none; transition: .2s; z-index: 20; }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+
+  /* ===== Responsif ===== */
+  @media (max-width: 820px) {
+    body { grid-template-columns: 1fr; }
+    aside { position: fixed; z-index: 10; width: 250px; transform: translateX(-100%); transition: transform .2s; }
+    aside.open { transform: none; }
+    .head { padding-top: 52px; }
+    .ctrl { flex-wrap: wrap; margin-right: 0; }
+    }
+  .note-creation-credit { display:block; text-align:right; margin:0 0 8px; padding:0; background:none; border:0; box-shadow:none; height:auto; font-size:11px; font-weight:400; line-height:1.5; color:#6b7280; overflow-wrap:anywhere; }
+  .note-edit-credit { display:block; margin-top:4px; font-size:11px; color:#6b7280; }
+  .note footer .note-to-tm-bod { padding:5px 9px; border:1px solid #d8d2f4; border-radius:7px; color:#6450bd; font-size:11px; cursor:pointer; }
+  .note-to-tm-bod:hover { background:#f0edff; }
+  .note-actions { display: inline-flex; align-items: center; gap: 8px; }
+  .note-delete { display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 7px; cursor: pointer; }
+  .note-delete:hover { background: #fff0f0; }
+  .note-edit { display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 7px; color: #6450bd; }
+  .note-edit:hover { background: #f0edff; }
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <a class="logo" href="#" aria-label="Konimex">KONIMEX
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="4" fill="#e31e24"/><circle cx="17" cy="9" r="4" fill="#e31e24"/><circle cx="10" cy="16" r="4" fill="#e31e24"/></svg>
+  </a>
+  <button class="sec on" data-sec="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 3v18M3 12h18"/></svg>Dashboard</button>
+  <button class="sec off" data-sec="TM BOD"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 3v18M3 12h18"/></svg>TM BOD</button>
+  <nav id="menu" aria-label="Daftar laporan"></nav>
+</aside>
+
+<main id="main">
+  <div class="dots">
+    <button id="dotsBtn" aria-label="Menu lainnya" aria-haspopup="true">&#8942;</button>
+    <div class="menu" id="dotsMenu">
+      <a href="upload.html">Upload File</a>
+      <a href="login.html">Keluar</a>
+    </div>
+  </div>
+
+  <section class="head">
+    <div>
+      <button class="burger" id="burger" type="button" aria-label="Kembali ke halaman menu"><span aria-hidden="true">&#9776;</span> Menu</button>
+      <h1 id="secTitle">Dashboard</h1>
+      <h2 id="repTitle"></h2>
+    </div>
+    <div class="ctrl">
+      <button class="pill" id="dl">Unduh Data
+        <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" fill="#000"/><path d="M12 7v8M8.5 12l3.5 3.5 3.5-3.5" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="period">
+        <select id="period" aria-label="Periode"></select>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7"/></svg>
+      </div>
+    </div>
+  </section>
+
+  <div class="tabs" id="tabs" role="tablist"></div>
+
+  <div class="body">
+    <div class="cards" id="cards"></div>
+
+    <div class="subs"><span>Ach &amp; Growth</span></div>
+    <div class="chart-actions"><button class="chart-download" id="downloadChart" type="button">Unduh gambar chart (PNG)</button></div>
+    <div class="chartcard" id="chart"></div>
+
+    <section class="analysis">
+      <h3>Analisis</h3>
+      <textarea id="note" placeholder="Tulis analisis atau catatan untuk laporan ini..." aria-label="Analisis"></textarea>
+      <div class="acts">
+        <button class="btn cancel" id="cancel" type="button">Batal</button>
+        <button class="btn save" id="save" type="button">Simpan</button>
+      </div>
+    </section>
+
+    <section class="notes">
+      <h3>Catatan</h3>
+
+    <div id="notes"></div>
+    </section>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="report-api-cache.js?v=no-store-20261120"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
+<script src="unit-target-layout.js?v=20261102"></script>
+<script src="report-templates.js?v=edp-ytd-total-formulas-20261120"></script>
+<script src="achievement-growth-chart.js?v=20261124"></script>
+<script src="shared-report-download.js?v=unit-chart-ready-20261124"></script>
+<script src="analysis-store.js"></script>
+<script src="analysis-to-tm-bod.js"></script>
+<script src="analysis-lock.js"></script>
+<script>
+  /* ================= PENGATURAN ================= */
+  const REPORTS = [
+    "Revenue Konimex Selling Out (RP)", "MCM Konimex Sell In (RP)", "Revenue Konimex Selling In (RP)",
+    "Ratio Biaya (Biaya vs Selling in)", "RATIO SELL OUT VS SELL IN (RUPIAH)", "RATIO SELL OUT VS SELL IN (UNIT)", "MTM Contribution",
+    "Revenue Konimex sell in (Unit)", "Revenue Konimex Sell Out (UNIT)", "Achievement & Growth Sell Out & Sell In (RP & UNIT)",
+    "Sales MNJ", "Service Level", "DOI RM - PM", "DOI Finished Good (KX & MNJ) Unit", "DOI FG",
+    "Branch Availability DOI Total", "Cost Saving", "UPB Konimex (RP)", "UPB MNJ (RP)",
+    "On Time Formulation", "Sumber Daya Manusia", "Complain Level", "Ratio UPB"
+  ];
+  // Halaman ini menampilkan laporan Revenue Konimex Sell Out (UNIT).
+  // isi alamat file-nya di sini (kosong = menampilkan pesan "belum tersedia").
+  const CURRENT = "Achievement & Growth Sell Out & Sell In (RP & UNIT)";
+  const PAGES = {
+    "TM BOD": "TM%20BOD.html",
+    "MCM Konimex Sell In (RP)": "MCM%20KX%20SI.html",
+    "Revenue Konimex Selling Out (RP)": "Revenue%20SO(RP).html",
+    "Revenue Konimex Selling In (RP)": "Revenue%20KX%20SI.html",
+    "Ratio Biaya (Biaya vs Selling in)": "Ratio%20Biaya.html",
+    "RATIO SELL OUT VS SELL IN (RUPIAH)": "Ratio Sell Out Sell In (Rupiah).html",
+    "RATIO SELL OUT VS SELL IN (UNIT)": "Ratio Sell Out Sell In (Unit).html",
+    "MTM Contribution": "MTM%20Contribution.html",
+    "Revenue Konimex sell in (Unit)": "Rev%20SI(UNIT).html",
+    "Revenue Konimex Sell Out (UNIT)": "Rev%20SO(UNIT).html",
+    "Achievement & Growth Sell Out & Sell In (RP & UNIT)": "Achievement%20Growth.html",
+    "Sales MNJ": "Sales%20MNJ.html",
+    "Service Level": "",
+    "DOI RM - PM": "",
+    "DOI FG": "",
+    "Branch Availability DOI Total": "",
+    "Cost Saving": "",
+    "UPB Konimex (RP)": "UPB%20Konimex.html",
+    "UPB MNJ (RP)": "",
+    "On Time Formulation": "On%20Time%20Formulation.html",
+    "Sumber Daya Manusia": "Sumber%20Daya%20Manusia.html",
+    "Complain Level": "",
+    "Ratio UPB": ""
+  };
+  const TABS = ["Corporate", "Pharma", "HCE", "Food", "International Business", "Ethical", "MTM"];
+
+  // Data hasil upload (kosong = angka & chart belum tampil).
+  // Format: DATA[laporan][tab] = { cards: ["43.3%","9.0%","43.5%","6.7%"],
+  //   chart: { labels: ["CORPORATE", ...], series: [{ name: "% Achievement YTD JUNI", values: [95, 43, 9] }, ...] } }
+  const DATA = {};
+  const TARGET_KEY = "konimex_revenue_so_targets_processed";
+  // Atau ambil dari server: GET DATA_URL?report=..&tab=..&period=YYYY-MM  -> mengembalikan objek { cards, chart }
+  const DATA_URL = location.protocol === "file:"
+    ? "http://127.0.0.1:8000/dashboard/revenue_so_api.php"
+    : (location.hostname.endsWith(".vercel.app") ? "revenue_so_api" : "revenue_so_api.php");
+  const TARGET_API_URL = location.protocol === "file:"
+    ? "http://127.0.0.1:8000/dashboard/revenue_so_targets_api.php"
+    : (location.hostname.endsWith(".vercel.app") ? "revenue_so_targets_api" : "revenue_so_targets_api.php");
+  const EDP_API_URL = location.protocol === "file:"
+    ? "http://127.0.0.1:8000/dashboard/revenue_edp_mnj_api.php"
+    : (location.hostname.endsWith(".vercel.app") ? "revenue_edp_mnj_api" : "revenue_edp_mnj_api.php");
+  /* ============================================== */
+
+  const BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  // Angka target Revenue SO disimpan dalam ribuan Rupiah, sedangkan actual dalam Rupiah.
+  const TARGET_RP_SCALE = 1000;
+  const COLORS = ["#004586", "#ff420e", "#ffd320"];
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const currentPeriod = currentYear + "-" + String(currentMonth).padStart(2, "0");
+  const st = { sec: "Dashboard", report: CURRENT, tab: TABS[0], period: currentPeriod };
+  let token = 0, cur = null;
+
+  function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2200); }
+  const monthName = () => BULAN[+st.period.slice(5) - 1];
+
+  function go(name) {
+    $("side").classList.remove("open");
+    if (name === CURRENT) return;
+    if (PAGES[name]) location.href = PAGES[name];
+    else toast("Halaman \"" + name + "\" belum tersedia.");
+  }
+
+  /* ---------- Bangun menu, tab, periode ---------- */
+  REPORTS.forEach((r) => {
+    const b = document.createElement("button"); b.textContent = r; b.dataset.r = r;
+    b.onclick = () => go(r);
+    $("menu").appendChild(b);
+  });
+  TABS.forEach((t) => {
+    const b = document.createElement("button"); b.textContent = t; b.dataset.t = t; b.setAttribute("role", "tab");
+    b.onclick = () => { st.tab = t; render(); };
+    $("tabs").appendChild(b);
+  });
+  for (let year = currentYear; year >= 2025; year--) BULAN.forEach((m, i) => {
+    if (year === currentYear && i + 1 > currentMonth) return;
+    const o = document.createElement("option"); o.value = year + "-" + String(i + 1).padStart(2, "0"); o.textContent = m + " " + year;
+    $("period").appendChild(o);
+  });
+  $("period").value = st.period;
+  $("period").onchange = (e) => { st.period = e.target.value; render(); };
+  document.querySelectorAll(".sec").forEach((b) => b.onclick = () => { if (b.dataset.sec !== "Dashboard") go("TM BOD"); });
+
+  /* ---------- Menu titik tiga & burger ---------- */
+  $("dotsBtn").onclick = (e) => { e.stopPropagation(); $("dotsMenu").classList.toggle("open"); };
+  document.addEventListener("click", () => $("dotsMenu").classList.remove("open"));
+  $("burger").onclick = () => { location.href = "../menu/page.html"; };
+  $("main").addEventListener("click", (e) => {
+    if (window.innerWidth <= 820 && $("side").classList.contains("open") && !$("side").contains(e.target) && e.target !== $("burger")) {
+      $("side").classList.remove("open");
+    }
+  });
+
+  /* ---------- Data ---------- */
+  const dashboardData = new Map();
+  window.addEventListener("storage", (event) => {
+    if(event.storageArea && event.storageArea!==localStorage)return;
+    if (event.key === null || /^konimex_/.test(event.key) && event.key !== "konimex_notes") {
+      dashboardData.clear();
+      render();
+    }
+  });
+  function getData() {
+    const key = JSON.stringify([st.report, st.tab, st.period]);
+    if (!dashboardData.has(key)) {
+      const pending = loadData().then((data) => {
+        if (!data && dashboardData.get(key) === pending) dashboardData.delete(key);
+        return data;
+      }).catch((error) => {
+        if (dashboardData.get(key) === pending) dashboardData.delete(key);
+        throw error;
+      });
+      dashboardData.set(key, pending);
+    }
+    return dashboardData.get(key);
+  }
+  async function loadData() {
+    const period=st.period,tab=st.tab;
+    try {
+      const buffer=await window.loadCorporateReportBuffer(period);
+      return window.achievementGrowthChartData(XLSX.read(buffer,{type:'array'}),tab,period);
+    } catch(error) { toast(error.message||'Grafik Achievement & Growth gagal dimuat.');return null; }
+  }
+  // Dipanggil dari luar setelah file diupload: setDashboardData("Nama Laporan", "Corporate", {cards, chart})
+  window.setDashboardData = (report, tab, obj) => { (DATA[report] = DATA[report] || {})[tab] = obj; dashboardData.clear(); render(); };
+
+  /* ---------- Kartu KPI ---------- */
+  function renderCards() {
+    const labels=['% Ach Sell Out (Rupiah)','% Ach Sell Out (Unit)','% Ach Sell In (Rupiah)','% Ach Sell In (Unit)'];
+    $('cards').innerHTML=labels.map((label,i)=>'<div class="kpi"><p>'+esc(label)+'</p><b>'+esc(cur?.cards?.[i]??'—')+'</b></div>').join('');
+  }
+
+  /* ---------- Chart ---------- */
+  function legend(c) {
+    return '<div class="legend">' + c.series.map((s, i) => '<span><i style="background:' + COLORS[i % 3] + '"></i>' + esc(s.name) + "</span>").join("") + "</div>";
+  }
+  function vChart(c) {
+    const W = 680, H = 330, L = 56, R = 8, T = 14, B = 110, pw = W - L - R, ph = H - T - B;
+    const all = c.series.flatMap((s) => s.values.map(Number));
+    const lo = Math.min(0, Math.floor(Math.min(...all) / 20) * 20), hi = Math.max(20, Math.ceil(Math.max(...all) / 20) * 20);
+    const y = (v) => T + ph * (1 - (v - lo) / (hi - lo));
+    let g = "";
+    for (let i = 0; i <= 5; i++) {
+      const v = lo + (hi - lo) * i / 5;
+      g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="#d9d9d9"/><text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" font-size="11" text-anchor="end">' + v.toFixed(1) + "%</text>";
+    }
+    const n = c.labels.length, gw = pw / n, bw = gw * 0.78 / c.series.length;
+    c.labels.forEach((lb, i) => {
+      const x0 = L + gw * i + gw * 0.11;
+      c.series.forEach((s, k) => {
+        const v = Number(s.values[i]) || 0, top = Math.min(y(v), y(0)), h = Math.abs(y(v) - y(0));
+        g += '<rect x="' + (x0 + bw * k) + '" y="' + top + '" width="' + bw + '" height="' + h + '" fill="' + COLORS[k % 3] + '"><title>' + esc(s.name) + ": " + v + "%</title></rect>";
+      });
+      const cx = L + gw * i + gw / 2;
+      g += '<text transform="translate(' + cx + "," + (H - B + 14) + ') rotate(-35)" font-size="11" text-anchor="end">' + esc(lb) + "</text>";
+    });
+    return '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Chart batang">' + g + '<line x1="' + L + '" x2="' + L + '" y1="' + T + '" y2="' + (T + ph) + '" stroke="#999"/></svg>' + legend(c);
+  }
+  function renderChart() {
+    $('chart').innerHTML=cur?window.achievementGrowthChartSvg(cur):'<div class="empty">Data Achievement & Growth belum tersedia untuk tab dan periode ini.</div>';
+  }
+  $("downloadChart").onclick = async () => {
+    const svg = $("chart").querySelector("svg");
+    if (!svg) { toast("Data belum tersedia."); return; }
+    const clone = svg.cloneNode(true);
+    const box = svg.viewBox.baseVal;
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("width", box.width || 680); clone.setAttribute("height", box.height || 330);
+    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob), image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas"); canvas.width = (box.width || 680) * 2; canvas.height = (box.height || 330) * 2;
+      const ctx = canvas.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((png) => {
+        if (!png) { toast("Gambar chart gagal dibuat."); return; }
+        const link = document.createElement("a"); link.href = URL.createObjectURL(png); link.download = "Chart-Revenue-" + st.period + ".png"; link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      }, "image/png");
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); toast("Gambar chart gagal dibuat."); };
+    image.src = url;
+  };
+
+  /* ---------- Catatan analisis ---------- */
+  const NK = "konimex_notes";
+  function loadNotes() { return window.AnalysisStore.snapshot(); }
+  async function saveNotes(o) { return window.AnalysisStore.save(o); }
+  const nkey = () => st.report + "|" + st.tab;
+  let memNotes = {};
+  window.AnalysisLock.configure({field:$("note"),toolbar:$("noteToolbar"),context:()=>({report:st.report,tab:st.tab}),notify:toast,refresh:()=>renderNotes()});
+
+  let editingNote = null;
+  function noteEditorIdentity() {
+    try {
+      const user = JSON.parse(sessionStorage.getItem('konimex_login_user') || 'null');
+      return user && typeof user.username === 'string' ? {username: user.username, role: typeof user.role === 'string' ? user.role : ''} : null;
+    } catch (_) { return null; }
+  }
+  function noteCreationCredit(note) {
+    const person = note.createdBy;
+    const identity = person && typeof person.username === 'string'
+      ? 'Dibuat oleh ' + person.username : 'Dibuat';
+    return '<header class="note-creation-credit">' + esc(identity) + ' · ' + esc(note.date) + '</header>';
+  }
+  function noteEditCredit(note) {
+    if (!note.updatedAt) return '';
+    const person = note.updatedBy;
+    const identity = person && typeof person.username === 'string'
+      ? ' oleh ' + person.username : '';
+    return '<small class="note-edit-credit">Diedit' + esc(identity) + ' · ' + esc(note.updatedAt) + '</small>';
+  }
+  const pencilIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6L16 3Z"/><path d="m14 5 5 5"/></svg>';
+  const trashIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';
+  function renderNotes() {
+    window.AnalysisLock.context();
+    if (!window.AnalysisStore.loaded) {
+      $("notes").textContent = "Memuat analisis…";
+      window.AnalysisStore.ready().then(() => renderNotes()).catch((error) => { $("notes").textContent = error.message; });
+      return;
+    }
+    if (editingNote && editingNote.key !== nkey()) { editingNote = null; $("note").value = ""; $("save").textContent = "Simpan"; }
+    const all = Object.assign({}, memNotes, loadNotes());
+    const list = all[nkey()] || [];
+    $("notes").innerHTML = list.length ? list.map((n) =>
+      '<article class="note">' + noteCreationCredit(n) + '<p>' + esc(n.text) + "</p><footer><span>" + '' + noteEditCredit(n) + '</span><span class="note-actions">' + window.AnalysisToTmBod.button(n.id) + '<button class="note-edit" data-action="edit" aria-label="Edit analisis" title="Edit analisis" data-id="' + n.id + '">' + pencilIcon + '</button><button class="note-delete" aria-label="Hapus analisis" title="Hapus analisis" data-id="' + n.id + '">' + trashIcon + '</button></span></footer></article>').join("")
+      : '<p class="none">Belum ada catatan untuk laporan ini.</p>';
+    $("notes").querySelectorAll("button").forEach((b) => b.onclick = async () => {
+      if (b.dataset.action === "tm-bod") {
+        b.disabled = true;
+        try { await window.AnalysisToTmBod.send(b.dataset.id, st.period, toast); }
+        finally { b.disabled = false; }
+        return;
+      }
+      try { await window.AnalysisLock.ensure(); }
+      catch (_) { return; }
+      const o = Object.assign({}, memNotes, loadNotes());
+      if (b.dataset.action === "edit") {
+        const note = (o[nkey()] || []).find((n) => String(n.id) === b.dataset.id);
+        if (!note) return;
+        editingNote = {id: String(note.id), key: nkey()};
+        $("note").value = note.text;
+        $("save").textContent = "Simpan perubahan";
+        $("note").focus(); $("note").scrollIntoView({behavior:"smooth",block:"center"});
+        return;
+      }
+      if (editingNote?.id === b.dataset.id) { editingNote = null; $("note").value = ""; $("save").textContent = "Simpan"; }
+      o[nkey()] = (o[nkey()] || []).filter((n) => String(n.id) !== b.dataset.id);
+      try { await saveNotes(o); await window.AnalysisLock.release(); memNotes = {}; renderNotes(); }
+      catch (error) { toast(error.message); }
+    });
+  }
+  $("cancel").onclick = () => { window.AnalysisLock.release(); editingNote = null; $("save").textContent = "Simpan"; $("note").value = ""; toast("Dibatalkan"); };
+  $("save").onclick = async () => {
+    if (!window.AnalysisStore.loaded) { toast("Analisis belum terhubung ke database. Muat ulang halaman dan periksa koneksi."); return; }
+    const text = $("note").value.trim();
+    if (!text) { toast("Tulis analisis terlebih dahulu."); $("note").focus(); return; }
+    try { await window.AnalysisLock.ensure(); } catch (_) { return; }
+    const date = new Date().toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const o = Object.assign({}, memNotes, loadNotes());
+    const list = o[nkey()] = o[nkey()] || [];
+    if (editingNote && editingNote.key === nkey()) {
+      const note = list.find((n) => String(n.id) === editingNote.id);
+      if (!note) { toast("Analisis tidak ditemukan. Muat ulang halaman."); return; }
+      Object.assign(note, {text, updatedAt: date, updatedBy: noteEditorIdentity()});
+    } else list.unshift({id: Date.now(), text, date, createdBy: noteEditorIdentity()});
+    $("save").disabled = true;
+    try { await saveNotes(o); await window.AnalysisLock.release(); }
+    catch (error) { toast(error.message); return; }
+    finally { $("save").disabled = false; }
+    editingNote = null; $("save").textContent = "Simpan";
+    memNotes = {};
+    $("note").value = ""; renderNotes(); toast("Catatan tersimpan");
+  };
+
+  /* ---------- Unduh hasil olahan sebagai OpenDocument Spreadsheet ---------- */
+  async function loadPreviousYearRevenue(period) {
+    const monthFields = ["rev_jan", "rev_feb", "rev_mar", "rev_apr", "rev_mei", "rev_jun", "rev_jul", "rev_agt", "rev_sep", "rev_okt", "rev_nov", "rev_des"];
+    const rules = [
+      [/^TOTAL\s+GB\s*(\d+)$/i, (m) => "gb" + m[1]],
+      [/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/i, (m, gb) => "existing" + (m[1] || gb || "")],
+      [/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/i, (m, gb) => "new" + (m[1] || gb || "")],
+      [/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/i, () => "ethicalExisting"],
+      [/^(?:TOTAL\s+)?(?:NP|NEW(?:\s+PRODUCT)?)\s+ETH$/i, () => "ethicalNew"],
+      [/^TOTAL\s+ETH$/i, () => "ethicalTotal"]
+    ];
+    const buildRevenue = (records, fromBrowser) => {
+      const totals = new Map(), monthTotals = new Map();
+      records.forEach((record) => {
+        let code = fromBrowser ? record.code : null;
+        if (!fromBrowser) {
+          const cells = [record.gb, record.product_code, record.principal_product_code, record.product_name, record.kategori].map((value) => String(value == null ? "" : value).trim());
+          const gbMatch = cells.map((value) => value.match(/^GB\s*(\d+)$/i)).find(Boolean);
+          for (const cell of cells) {
+            for (const [pattern, makeCode] of rules) {
+              const found = cell.match(pattern);
+              if (found) { code = makeCode(found, gbMatch && gbMatch[1]); break; }
+            }
+            if (code) break;
+          }
+        }
+        if (!code) return;
+        const total = Number(fromBrowser ? record.revTotal : record.rev_total);
+        if (Number.isFinite(total)) totals.set(code, (totals.get(code) || 0) + total);
+        const monthly = monthTotals.get(code) || Array(12).fill(0);
+        monthFields.forEach((field, index) => {
+          const value = Number(fromBrowser ? (record.revMonths || [])[index] : record[field]);
+          if (Number.isFinite(value)) monthly[index] += value;
+        });
+        monthTotals.set(code, monthly);
+      });
+      if (!["gb1", "gb2", "gb3", "gb4", "gb5", "gb6"].some((code) => totals.has(code))) {
+        throw new Error("Baris TOTAL GB tidak ditemukan pada data " + period + ".");
+      }
+      return { totals, monthTotals };
+    };
+    let sourceError;
+    try {
+      const history = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "{}");
+      const uploaded = history && history[period];
+      if (uploaded && Array.isArray(uploaded.rows)
+        && uploaded.rows.some((record) => Array.isArray(record.revMonths) && record.revMonths.length === 12)) {
+        return buildRevenue(uploaded.rows, true);
+      }
+    } catch (_) { /* gunakan data server jika riwayat lokal tidak terbaca */ }
+    try {
+      const response = await fetch(EDP_API_URL + "?" + new URLSearchParams({ period }));
+      if (!response.ok) throw new Error("Data periode " + period + " tidak dapat dibaca.");
+      const payload = await response.json();
+      if (!payload.success || !Array.isArray(payload.data)) throw new Error(payload.message || "Data periode " + period + " tidak tersedia.");
+      if (!payload.data.length) throw new Error("Data periode " + period + " belum tersedia di database.");
+      return buildRevenue(payload.data, false);
+    } catch (error) {
+      if (!sourceError) sourceError = error;
+    }
+    throw sourceError || new Error("Data periode " + period + " tidak tersedia.");
+  }
+
+  async function loadAchievement(period) {
+    let history = {};
+    try {
+      history = JSON.parse(localStorage.getItem("konimex_revenue_so_processed") || "{}") || {};
+      const uploaded = history && history[period];
+      if (uploaded && Array.isArray(uploaded.rows) && uploaded.rows.length) return uploaded;
+    } catch (_) { /* gunakan data server bila riwayat lokal tidak tersedia */ }
+    const selectedMonth = Number(period.slice(5, 7));
+    const laterLocalPeriods = Object.keys(history).filter((candidate) =>
+      candidate.startsWith(period.slice(0, 4) + "-") && Number(candidate.slice(5, 7)) > selectedMonth
+        && history[candidate] && Array.isArray(history[candidate].rows) && history[candidate].rows.length)
+      .sort();
+    if (laterLocalPeriods.length) return history[laterLocalPeriods[0]];
+    const earlierLocalPeriods = Object.keys(history).filter((candidate) =>
+      candidate.startsWith(period.slice(0, 4) + "-") && Number(candidate.slice(5, 7)) < selectedMonth
+        && history[candidate] && Array.isArray(history[candidate].rows) && history[candidate].rows.length)
+      .sort().reverse();
+    if (earlierLocalPeriods.length) return history[earlierLocalPeriods[0]];
+    let payload = null;
+    for (let month = selectedMonth; month <= 12; month++) {
+      const sourcePeriod = period.slice(0, 4) + "-" + String(month).padStart(2, "0");
+      try {
+        const response = await fetch(DATA_URL + "?" + new URLSearchParams({ report: st.report, tab: st.tab, period: sourcePeriod }));
+        if (!response.ok) continue;
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data) && result.data.length) { payload = { ...result, period: sourcePeriod }; break; }
+      } catch (_) { /* coba periode sesudahnya yang mungkin memiliki data */ }
+    }
+    if (!payload) {
+      for (let month = selectedMonth - 1; month >= 1; month--) {
+        const sourcePeriod = period.slice(0, 4) + "-" + String(month).padStart(2, "0");
+        try {
+          const response = await fetch(DATA_URL + "?" + new URLSearchParams({ report: st.report, tab: st.tab, period: sourcePeriod }));
+          if (!response.ok) continue;
+          const result = await response.json();
+          if (result.success && Array.isArray(result.data) && result.data.length) {
+            payload = { ...result, period: sourcePeriod };
+            break;
+          }
+        } catch (_) { /* coba periode terdahulu yang mungkin memiliki data */ }
+      }
+    }
+    if (!payload) throw new Error("Data Revenue Sell Out periode " + period + " dan periode sesudahnya tidak tersedia.");
+    const rules = [
+      [/^TOTAL\s+GB\s*(\d+)$/i, (m) => ({ code: "gb" + m[1], label: "TOTAL GB " + m[1] })],
+      [/^TOTAL\s+EXISTING\s+GB(?:\s*(\d+))?$/i, (m) => ({ code: "existing" + (m[1] || ""), label: "TOTAL EXISTING GB" + (m[1] ? " " + m[1] : "") })],
+      [/^TOTAL\s+NEW\s+PRODUCT\s+GB(?:\s*(\d+))?$/i, (m) => ({ code: "new" + (m[1] || ""), label: "TOTAL NEW PRODUCT GB" + (m[1] ? " " + m[1] : "") })],
+      [/^(?:TOTAL\s+)?EXIST(?:ING)?\s+ETH$/i, () => ({ code: "ethicalExisting", label: "EXIST ETH" })],
+      [/^(?:TOTAL\s+)?(?:NP|NEW(?:\s+PRODUCT)?)\s+ETH$/i, () => ({ code: "ethicalNew", label: "NP ETH" })],
+      [/^TOTAL\s+ETH$/i, () => ({ code: "ethicalTotal", label: "TOTAL ETH" })]
+    ];
+    const rows = payload.data.map((record) => {
+      const cells = [record.gb, record.product_code, record.principal_product_code, record.product_name, record.kategori]
+        .map((value) => String(value == null ? "" : value).trim());
+      const gb = cells.map((value) => value.match(/^GB\s*(\d+)$/i)).find(Boolean);
+      let mapped = null;
+      for (const cell of cells) {
+        for (const [pattern, makeRecord] of rules) {
+          const match = cell.match(pattern);
+          if (match) { mapped = makeRecord(match); break; }
+        }
+        if (mapped) break;
+      }
+      if (!mapped) {
+        const totalGb = cells.map((value) => value.match(/^TOTAL\s+GB\s*(\d+)$/i)).find(Boolean);
+        if (totalGb) mapped = { code: "gb" + totalGb[1], label: "TOTAL GB " + totalGb[1] };
+      }
+      // Nama baris TOTAL EXISTING/NEW PRODUCT kadang tidak membawa nomor GB;
+      // nomor GB-nya ditulis di kolom terpisah.
+      if (mapped && !/\d+$/.test(mapped.code) && gb) {
+        const suffix = gb[1];
+        if (mapped.code === "existing") mapped.code += suffix;
+        if (mapped.code === "new") mapped.code += suffix;
+      }
+      return mapped ? {
+        ...mapped,
+        revTotal: record.rev_total,
+        revMonths: ["rev_jan", "rev_feb", "rev_mar", "rev_apr", "rev_mei", "rev_jun", "rev_jul", "rev_agt", "rev_sep", "rev_okt", "rev_nov", "rev_des"]
+          .map((field) => Number(record[field]) || 0)
+      } : null;
+    }).filter(Boolean);
+    if (!rows.length) throw new Error("Baris Achievement tidak ditemukan pada data periode " + period + ".");
+    return { period: payload.period || period, rows };
+  }
+
+  $("dl").onclick = async () => {
+    // Read the selected month directly at click time so a pending render cannot
+    // leave the export using the previous period's YTD cutoff.
+    const selectedPeriod = $("period").value || st.period;
+    st.period = selectedPeriod;
+    const reportYear = Number(selectedPeriod.slice(0, 4));
+    const reportMonth = Number(selectedPeriod.slice(5, 7));
+    let processed = null;
+    let achievementError = "";
+    try { processed = await loadAchievement(selectedPeriod); }
+    catch (error) { achievementError = error && error.message ? error.message : String(error); }
+    let targetData = null;
+    try {
+      const targetHistory = JSON.parse(localStorage.getItem(TARGET_KEY) || "{}");
+      targetData = targetHistory && targetHistory[String(reportYear)] ? targetHistory[String(reportYear)] : null;
+    } catch (_) { targetData = null; }
+    try {
+      const response = await fetch(TARGET_API_URL + "?year=" + encodeURIComponent(reportYear));
+      const result = await response.json();
+      if (response.ok && result.success && result.data && Array.isArray(result.data.rows)) targetData = result.data;
+    } catch (_) { /* localStorage remains the fallback for same-origin use */ }
+    const hasAchievement = processed && Array.isArray(processed.rows) && processed.rows.length;
+    const hasTarget = targetData && Array.isArray(targetData.rows) && targetData.rows.length;
+    let previousYear = { totals: new Map(), monthTotals: new Map() };
+    let previousYearError = "";
+    try {
+      previousYear = await loadPreviousYearRevenue((reportYear - 1) + "-12");
+    } catch (error) {
+      previousYearError = error && error.message ? error.message : String(error);
+    }
+    const hasPreviousYear = previousYear.totals.size > 0;
+    if (!hasAchievement && !hasTarget && !hasPreviousYear) {
+      toast("Achievement periode " + selectedPeriod + " tidak tersedia. " + achievementError + " REV " + (reportYear - 1) + ": " + previousYearError); return;
+    }
+    const targetCodes = new Set(hasTarget ? targetData.rows.map((record) => record.code) : []);
+    const hasNewProductBreakdown = [1, 2, 3, 4, 5, 6].every((number) => targetCodes.has("category" + number + "D"));
+    if (hasTarget && !hasNewProductBreakdown) {
+      toast("Data Target Revenue belum memuat kategori D untuk seluruh GB. Unggah ulang file Target Revenue."); return;
+    }
+    if (!window.XLSX) { toast("Komponen pembuat file ODS gagal dimuat."); return; }
+    const monthLabel = "YTD " + BULAN[reportMonth - 1].toUpperCase();
+    const data = [
+      ["No", "Parameter", "Target " + (reportYear - 1), "", "Ach Last Year (" + (reportYear - 1) + ")", "", "Target " + reportYear, "", "Achievement", "% Achievement", "", "Growth", "Contribution", ""],
+      ["", "", "Full Year", monthLabel, "Full Year", monthLabel, "Full Year", monthLabel, monthLabel, monthLabel, reportYear, monthLabel, "vs Divisi", "vs Corporate"]
+    ];
+    const formulaSpecs = [];
+    const growthValue = (achievement, priorYtd) => {
+      const current = Number(achievement), previous = Number(priorYtd);
+      return Number.isFinite(current) && Number.isFinite(previous) && previous !== 0
+        ? current / previous - 1
+        : undefined;
+    };
+    const achievementRatio = (achievement, target) => {
+      if (achievement === "" || target === "" || target == null) return undefined;
+      const actual = Number(achievement), denominator = Number(target);
+      return Number.isFinite(actual) && Number.isFinite(denominator) && denominator !== 0
+        ? actual / denominator
+        : undefined;
+    };
+    const values = new Map();
+    const sourceLabels = new Map();
+    (hasAchievement ? processed.rows : []).forEach((record) => {
+      if (!record.code) return;
+      const n = Array.isArray(record.revMonths) && record.revMonths.length === 12
+        ? record.revMonths.slice(0, reportMonth).reduce((sum, value) => sum + (Number(value) || 0), 0)
+        : Number(record.revTotal);
+      if (Number.isFinite(n)) {
+        values.set(record.code, (values.get(record.code) || 0) + n);
+        if (!sourceLabels.has(record.code)) sourceLabels.set(record.code, record.label || record.code);
+      }
+    });
+    const sourceData = [["Kode sumber", "Baris asal", "REV TOTAL"]];
+    values.forEach((value, code) => sourceData.push([code, sourceLabels.get(code) || code, value]));
+    const valueByCode = values;
+    const targetByCode = new Map((targetData && Array.isArray(targetData.rows) ? targetData.rows : []).map((record) => [record.code, record]));
+    const targetSourceCodes = (code) => {
+      const gb = String(code).match(/^gb(\d+)$/);
+      if (gb) return ["existing" + gb[1], "new" + gb[1]];
+      const existing = String(code).match(/^existing(\d+)$/);
+      if (existing) {
+        // Existing hanya menjumlahkan A+B+C dan Non Target; kategori D dikecualikan.
+        const categories = ["A", "B", "C"].map((category) => "category" + existing[1] + category);
+        const nonTarget = "nonTarget" + existing[1];
+        return categories.some((categoryCode) => targetByCode.has(categoryCode))
+          ? categories.concat(targetByCode.has(nonTarget) ? [nonTarget] : [])
+          : [code];
+      }
+      const newProduct = String(code).match(/^new(\d+)$/);
+      if (newProduct) {
+        const categoryD = "category" + newProduct[1] + "D";
+        return targetByCode.has(categoryD) ? [categoryD] : [code];
+      }
+      return [code];
+    };
+    const targetForCodes = (codes) => {
+      const records = codes.flatMap((code) => targetSourceCodes(code))
+        .map((code) => targetByCode.get(code)).filter(Boolean);
+      if (!records.length) return null;
+      return {
+        // Hitung Full Year dari Jan–Des agar mengikuti rincian kategori,
+        // bukan nilai kolom TOTAL yang bisa berbeda dari jumlah bulanan.
+        fullYear: records.reduce((sum, record) => sum + (Array.isArray(record.months)
+          ? record.months.reduce((total, value) => total + (Number(value) || 0), 0)
+          : (Number(record.fullYear) || 0)), 0) * TARGET_RP_SCALE,
+        ytd: records.reduce((sum, record) => sum + (Array.isArray(record.months)
+          ? record.months.slice(0, reportMonth).reduce((total, value) => total + (Number(value) || 0), 0)
+          : 0), 0) * TARGET_RP_SCALE
+      };
+    };
+    let serialNo = 0;
+    const corporateCodes = [1, 2, 3, 4, 5, 6];
+    const currentForCodes = (codes) => codes.reduce((sum, code) => sum + (Number(valueByCode.get(code)) || 0), 0);
+    const priorFullForCodes = (codes) => codes.reduce((sum, code) => {
+      const monthly = previousYear.monthTotals.get(code) || [];
+      return sum + (monthly.length ? monthly.reduce((total, value) => total + value, 0) : (Number(previousYear.totals.get(code)) || 0));
+    }, 0);
+    const priorYtdForCodes = (codes) => codes.reduce((sum, code) => {
+      const monthly = previousYear.monthTotals.get(code) || [];
+      return sum + monthly.slice(0, reportMonth).reduce((total, value) => total + value, 0);
+    }, 0);
+    const addDetail = (label, code, aggregateCodes) => {
+      const row = data.length + 1;
+      const codes = aggregateCodes || (code ? [code] : []);
+      const monthly = code ? previousYear.monthTotals.get(code) : null;
+      const priorFull = code && monthly
+        ? monthly.reduce((sum, value) => sum + value, 0)
+        : code ? previousYear.totals.get(code) ?? "" : aggregateCodes ? priorFullForCodes(codes) : "";
+      const priorYtd = code && monthly
+        ? monthly.slice(0, reportMonth).reduce((sum, value) => sum + value, 0)
+        : aggregateCodes ? priorYtdForCodes(codes) : "";
+      const gbMatch = code && String(code).match(/^gb([1-6])$/);
+      const current = code
+        ? valueByCode.has(code)
+          ? valueByCode.get(code)
+          : gbMatch && (valueByCode.has("existing" + gbMatch[1]) || valueByCode.has("new" + gbMatch[1]))
+            ? currentForCodes(["existing" + gbMatch[1], "new" + gbMatch[1]])
+            : ""
+        : aggregateCodes ? currentForCodes(codes) : "";
+      const target = code ? targetForCodes([code]) : aggregateCodes ? targetForCodes(codes) : null;
+      data.push([++serialNo, label, "", "", priorFull, priorYtd, target ? target.fullYear : "", target ? target.ytd : "", current, "", "", "", "", ""]);
+      formulaSpecs.push({ row, col: 9, formula: `IF(OR(H${row}="",I${row}="",H${row}=0),"",I${row}/H${row})`, value: achievementRatio(current, target ? target.ytd : "") });
+      formulaSpecs.push({ row, col: 10, formula: `IF(OR(G${row}="",I${row}="",G${row}=0),"",I${row}/G${row})`, value: achievementRatio(current, target ? target.fullYear : "") });
+      formulaSpecs.push({ row, col: 11, formula: `IF(OR(F${row}="",F${row}=0,I${row}=""),"",I${row}/F${row}-1)`, value: growthValue(current, priorYtd) });
+      return row;
+    };
+    const addSection = (name) => {
+      const row = data.length + 1;
+      data.push(["", name, "", "", "", "", "", "", "", "", "", "", "", ""]);
+      return row;
+    };
+    const setSectionTotal = (sectionRow, detailRows) => {
+      if (!sectionRow || !detailRows.length) return;
+      // Jumlahkan nilai uang dari baris Existing dan New Product di bawahnya.
+      for (let col = 2; col <= 8; col++) {
+        const letter = XLSX.utils.encode_col(col);
+        const formula = `SUM(${detailRows.map((row) => `${letter}${row}`).join(",")})`;
+        const value = detailRows.reduce((sum, row) => sum + (Number(data[row - 1][col]) || 0), 0);
+        formulaSpecs.push({ row: sectionRow, col, formula, value });
+      }
+      const current = detailRows.reduce((sum, row) => sum + (Number(data[row - 1][8]) || 0), 0);
+      const targetFullYear = detailRows.reduce((sum, row) => sum + (Number(data[row - 1][6]) || 0), 0);
+      const targetYtd = detailRows.reduce((sum, row) => sum + (Number(data[row - 1][7]) || 0), 0);
+      formulaSpecs.push({ row: sectionRow, col: 9, formula: `IF(OR(H${sectionRow}="",I${sectionRow}="",H${sectionRow}=0),"",I${sectionRow}/H${sectionRow})`, value: achievementRatio(current, targetYtd) });
+      formulaSpecs.push({ row: sectionRow, col: 10, formula: `IF(OR(G${sectionRow}="",I${sectionRow}="",G${sectionRow}=0),"",I${sectionRow}/G${sectionRow})`, value: achievementRatio(current, targetFullYear) });
+      const priorYtd = detailRows.reduce((sum, row) => sum + (Number(data[row - 1][5]) || 0), 0);
+      formulaSpecs.push({ row: sectionRow, col: 11, formula: `IF(OR(F${sectionRow}="",F${sectionRow}=0,I${sectionRow}=""),"",I${sectionRow}/F${sectionRow}-1)`, value: growthValue(current, priorYtd) });
+    };
+    const addDivision = (name, gbNumbers) => {
+      const sectionRow = addSection(name);
+      const existingCodes = gbNumbers.map((number) => "existing" + number);
+      const newCodes = gbNumbers.map((number) => "new" + number);
+      const summaryRows = [
+        addDetail("Total Existing (ABC) + Non target", null, existingCodes),
+        addDetail("Total New Product (D)", null, newCodes)
+      ];
+      setSectionTotal(sectionRow, summaryRows);
+      gbNumbers.forEach((number) => {
+        const gbRow = addDetail("GB " + number, "gb" + number);
+        const existingRow = addDetail("Total Existing (ABC) + Non target", "existing" + number);
+        const newProductRow = addDetail("Total New Product (D)", "new" + number);
+        [6, 7, 8].forEach((col) => {
+          const letter = XLSX.utils.encode_col(col);
+          const value = [existingRow, newProductRow].reduce((sum, row) => sum + (Number(data[row - 1][col]) || 0), 0);
+          formulaSpecs.push({ row: gbRow, col, formula: `SUM(${letter}${existingRow}:${letter}${newProductRow})`, value });
+        });
+        const actual = [existingRow, newProductRow].reduce((sum, row) => sum + (Number(data[row - 1][8]) || 0), 0);
+        const targetYtd = [existingRow, newProductRow].reduce((sum, row) => sum + (Number(data[row - 1][7]) || 0), 0);
+        const targetFullYear = [existingRow, newProductRow].reduce((sum, row) => sum + (Number(data[row - 1][6]) || 0), 0);
+        formulaSpecs.push({ row: gbRow, col: 9, formula: `IF(OR(H${gbRow}="",I${gbRow}="",H${gbRow}=0),"",I${gbRow}/H${gbRow})`, value: achievementRatio(actual, targetYtd) });
+        formulaSpecs.push({ row: gbRow, col: 10, formula: `IF(OR(G${gbRow}="",I${gbRow}="",G${gbRow}=0),"",I${gbRow}/G${gbRow})`, value: achievementRatio(actual, targetFullYear) });
+      });
+    };
+    const corporateRow = addSection("CORPORATE");
+    const corporateDetailRows = [
+      addDetail("Total Existing (ABC) + Non target", null, corporateCodes.map((number) => "existing" + number)),
+      addDetail("Total New Product (D)", null, corporateCodes.map((number) => "new" + number))
+    ];
+    setSectionTotal(corporateRow, corporateDetailRows);
+    addDivision("PHARMA", [1, 4]);
+    addDivision("HCE", [2, 3]);
+    addDivision("FOOD", [5, 6]);
+    addSection("INTERNATIONAL BUSINESS");
+    addDetail("Total Existing (ABC)", "internationalExisting");
+    addDetail("Total New Product (D)", "internationalNew");
+    const ethicalSection = addSection("ETHICAL");
+    setSectionTotal(ethicalSection, [
+      addDetail("Total Existing (ABC) + Non target", "ethicalExisting"),
+      addDetail("Total New Product (D)", "ethicalNew")
+    ]);
+    const mtmSection = addSection("MTM");
+    setSectionTotal(mtmSection, [
+      addDetail("Total Existing (ABC)", "mtmExisting"),
+      addDetail("Total New Product (D)", "mtmNew")
+    ]);
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    worksheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
+      { s: { r: 0, c: 2 }, e: { r: 0, c: 3 } },
+      { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
+      { s: { r: 0, c: 6 }, e: { r: 0, c: 7 } },
+      { s: { r: 0, c: 8 }, e: { r: 1, c: 8 } },
+      { s: { r: 0, c: 9 }, e: { r: 0, c: 10 } },
+      { s: { r: 0, c: 11 }, e: { r: 1, c: 11 } },
+      { s: { r: 0, c: 12 }, e: { r: 0, c: 13 } }
+    ];
+    const formulaValueByCell = new Map(formulaSpecs.filter((spec) => Number.isFinite(spec.value)).map((spec) => [`${spec.row}:${spec.col}`, spec.value]));
+    formulaSpecs.forEach(({ row, col, formula }) => {
+      const address = XLSX.utils.encode_cell({ r: row - 1, c: col });
+      worksheet[address] = { t: "n", f: formula };
+      const cachedValue = formulaValueByCell.get(`${row}:${col}`);
+      if (cachedValue !== undefined) worksheet[address].v = cachedValue;
+    });
+    worksheet["!cols"] = [{ wch: 5 }, { wch: 38 }, { wch: 15 }, { wch: 14 }, { wch: 15 }, { wch: 14 }, { wch: 15 }, { wch: 14 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 14 }, { wch: 15 }];
+    const headerStyle = { fill: { fgColor: { rgb: "8FC9F4" } }, font: { bold: true, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: { top: { style: "thin", color: { rgb: "000000" } }, bottom: { style: "thin", color: { rgb: "000000" } }, left: { style: "thin", color: { rgb: "000000" } }, right: { style: "thin", color: { rgb: "000000" } } } };
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 14; c++) {
+      const address = XLSX.utils.encode_cell({ r, c });
+      if (worksheet[address]) worksheet[address].s = headerStyle;
+    }
+    [9, 10, 11, 12, 13].forEach((col) => {
+      for (let r = 2; r < data.length; r++) {
+        const address = XLSX.utils.encode_cell({ r, c: col });
+        if (worksheet[address]) worksheet[address].z = "0.0%";
+      }
+    });
+    [2, 3, 4, 5, 6, 7, 8].forEach((col) => {
+      for (let r = 2; r < data.length; r++) {
+        const address = XLSX.utils.encode_cell({ r, c: col });
+        if (worksheet[address]) worksheet[address].z = "#,##0;[Red]-#,##0";
+      }
+    });
+    data.forEach((row, index) => {
+      if (row[1]) {
+        const section = row[0] === "";
+        const corporate = row[1] === "CORPORATE";
+        for (let c = 0; c < 14; c++) {
+          const address = XLSX.utils.encode_cell({ r: index, c });
+          if (worksheet[address]) worksheet[address].s = {
+            font: { bold: section, italic: !corporate },
+            fill: { fgColor: { rgb: corporate || index === 2 || index === 3 ? "DDE8CF" : section ? "FFF7DF" : "FFFFFF" } }
+          };
+        }
+      }
+    });
+    const workbookSheetNames = ["LAPORAN", "SERVICE LEVEL", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    const laporan = {};
+    Object.entries(worksheet).forEach(([key, value]) => {
+      laporan[key] = key.startsWith("!") ? value : { ...value };
+    });
+    for (let r = 2; r < data.length; r++) {
+      for (let c = 2; c < 14; c++) {
+        const address = XLSX.utils.encode_cell({ r, c });
+        laporan[address] = { t: "s", v: "" };
+      }
+    }
+    XLSX.utils.book_append_sheet(workbook, laporan, "LAPORAN");
+    const unitSourceSheet = XLSX.utils.aoa_to_sheet(sourceData);
+    unitSourceSheet["!cols"] = [{ wch: 13 }, { wch: 17 }, { wch: 36 }];
+    XLSX.utils.book_append_sheet(workbook, unitSourceSheet, "UNIT");
+    workbookSheetNames.filter((name) => !["LAPORAN", "UNIT"].includes(name)).forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), name));
+    await replaceDaftarTemplateSheet(workbook,selectedPeriod);
+    await replaceServiceLevelSheet(workbook,selectedPeriod);
+    try { await replaceBodJmlSdmTemplateSheet(workbook,selectedPeriod); }
+    catch(error) { toast(error.message || "Template sheet BOD JML SDM gagal dimuat."); return; }
+    try { await replaceBodBiReportSheets(workbook,selectedPeriod); }
+    catch(error) { toast(error.message || "Data laporan BOD gagal dimuat."); return; }
+    try { await replaceIBTemplateSheet(workbook, selectedPeriod); }
+    catch (error) { toast(error.message || "Template sheet IB gagal dimuat."); return; }
+    try { await replaceUnitTemplateSheet(workbook, selectedPeriod); }
+    catch (error) { toast(error.message || "Template sheet UNIT gagal dimuat."); return; }
+    try { await replaceEdpTemplateSheet(workbook, selectedPeriod); } catch (error) { console.warn(error); }
+    try {
+      const reportYear = Number(selectedPeriod.slice(0, 4));
+      const hjpData = await getEthicalHjpData(reportYear, reportYear + 1, reportYear - 1);
+      await replaceEthicalTemplateSheet(workbook, selectedPeriod, hjpData);
+    }
+    catch (error) { toast(error.message || "Template Ethical gagal dimuat."); return; }
+    const filename = (st.report + " - " + selectedPeriod + ".ods").replace(/[\\/:*?"<>|]/g, "");
+    try { await replaceBodMnjTemplateSheet(workbook, selectedPeriod); }
+    catch (error) { toast(error.message || "BOD MNJ gagal dimuat."); return; }
+    XLSX.writeFile(workbook, filename, { bookType: "ods", cellStyles: true });
+  };
+
+  /* ---------- Render utama ---------- */
+  async function render() {
+    $("secTitle").textContent = st.sec;
+    $("repTitle").textContent = st.report;
+    document.querySelectorAll(".sec").forEach((b) => b.classList.toggle("on", b.dataset.sec === st.sec));
+    document.querySelectorAll("#menu button").forEach((b) => b.classList.toggle("on", b.dataset.r === st.report));
+    document.querySelectorAll("#tabs button").forEach((b) => { const on = b.dataset.t === st.tab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+    const my = ++token;
+    const next = await getData();
+    if (my !== token) return; // abaikan hasil lama bila pengguna sudah pindah
+    cur = next;
+    renderCards(); renderChart(); renderNotes();
+  }
+  /* ---------- Scroll horizontal tanpa scrollbar (roda mouse + geser dengan mouse) ---------- */
+  function hScroll(el) {
+    el.addEventListener("wheel", (e) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    }, { passive: false });
+
+    let down = false, moved = false, sx = 0, sl = 0;
+    el.addEventListener("pointerdown", (e) => {
+      if (e.pointerType !== "mouse") return; // sentuhan sudah bisa digeser bawaan browser
+      down = true; moved = false; sx = e.clientX; sl = el.scrollLeft;
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!down) return;
+      const dx = e.clientX - sx;
+      if (Math.abs(dx) > 5) moved = true;
+      if (moved) el.scrollLeft = sl - dx;
+    });
+    window.addEventListener("pointerup", () => { down = false; });
+    el.addEventListener("click", (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  }
+  hScroll($("tabs"));
+  hScroll($("cards"));
+
+  render();
+</script>
+
+<script src="chart-hover.js"></script>
+<script src="scrollbar-auto-hide.js"></script>
+<script src="sidebar-toggle.js"></script>
+<script src="profile-menu.js"></script>
+</body>
+</html>
