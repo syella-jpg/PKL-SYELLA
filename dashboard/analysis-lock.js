@@ -2,7 +2,7 @@
  const endpoint=location.protocol==='file:'?'http://127.0.0.1:8000/api/report.php?endpoint=analysis_locks_api':new URL('../api/report.php?endpoint=analysis_locks_api',document.currentScript.src).href;
  let current=null,options=null,pending=null;
  function identity(){try{return JSON.parse(sessionStorage.getItem('konimex_login_user')||'null')?.username||'';}catch(_){return '';}}
- function payload(state,action){return {action,report:state.report,tab:state.tab,token:state.token,username:identity()};}
+ function payload(state,action){return {action,report:state.report,tab:state.tab,period:state.period,token:state.token,username:identity()};}
  async function request(state,action,keepalive=false){
   const response=await fetch(endpoint,{method:'POST',cache:'no-store',keepalive,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload(state,action))});
   const result=await response.json();if(!response.ok||!result.success)throw new Error(result.message||'Kunci analisis gagal diakses.');return result;
@@ -28,9 +28,9 @@
  }
  function context(){
   const next=options.context();
-  if(current?.report===next.report&&current?.tab===next.tab)return;
+  if(current?.report===next.report&&current?.tab===next.tab&&current?.period===next.period)return;
   const old=current;current={...next,token:crypto.randomUUID(),mine:false,sequence:0};pending=null;
-  if(old)request(old,'release',true).catch(()=>{});
+  if(old){if(options.field.tagName==='TEXTAREA')options.field.value='';else options.field.innerHTML='';request(old,'release',true).catch(()=>{});}
   paint();sync();
  }
  async function ensure(){
@@ -76,5 +76,5 @@
   global.addEventListener('pagehide',()=>{if(current)request(current,'release',true).catch(()=>{});});
   context();setInterval(()=>{context();sync();},10000);
  }
- global.AnalysisLock={configure,context,ensure,release,tokenFor:(report,tab)=>current?.mine&&current.report===report&&current.tab===tab?current.token:''};
+ global.AnalysisLock={configure,context,ensure,release,tokenFor:(report,tab,period)=>current?.mine&&current.report===report&&current.tab===tab&&current.period===period?current.token:''};
 })(window);

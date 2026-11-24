@@ -205,9 +205,9 @@
 <script src="mtm-contribution-report.js?v=budget-growth-20261104"></script>
 <script src="mtm-appendix.js?v=right-percent-cells-20261103"></script>
 <script src="report-templates.js?v=ratio-ach-20261123"></script>
-<script src="analysis-store.js"></script>
-<script src="analysis-to-tm-bod.js"></script>
-<script src="analysis-lock.js"></script>
+<script src="analysis-store.js?v=period-20261124"></script>
+<script src="analysis-to-tm-bod.js?v=upb-quarter-20261124"></script>
+<script src="analysis-lock.js?v=period-20261124"></script>
 <script>
   /* ================= PENGATURAN ================= */
   const REPORTS = [
@@ -234,13 +234,13 @@
     "Revenue Konimex Sell Out (Unit)": "Rev%20SO(UNIT).html",
     "Achievement & Growth Sell Out & Sell In (RP & UNIT)": "Achievement%20Growth.html",
     "Sales MNJ": "Sales%20MNJ.html",
-    "Service Level": "",
+    "Service Level": "Service%20Level.html",
     "DOI RM - PM": "",
     "DOI FG": "",
     "Branch Availability DOI Total": "",
     "Cost Saving": "",
     "UPB Konimex (RP)": "UPB%20Konimex.html",
-    "UPB MNJ (RP)": "",
+    "UPB MNJ (RP)": "UPB%20MNJ.html",
     "On Time Formulation": "On%20Time%20Formulation.html",
     "Sumber Daya Manusia": "Sumber%20Daya%20Manusia.html",
     "Complain Level": "",
@@ -322,7 +322,7 @@
     $("period").appendChild(o);
   });
   $("period").value = st.period;
-  $("period").onchange = (e) => { st.period = e.target.value; render(); };
+  $("period").onchange = (e) => { st.period = e.target.value; renderNotes(); render(); };
   document.querySelectorAll(".sec").forEach((b) => b.onclick = () => { if (b.dataset.sec !== "Dashboard") go("TM BOD"); });
 
   /* ---------- Menu titik tiga & burger ---------- */
@@ -559,9 +559,9 @@
   const NK = "konimex_notes";
   function loadNotes() { return window.AnalysisStore.snapshot(); }
   async function saveNotes(o) { return window.AnalysisStore.save(o); }
-  const nkey = () => st.report + "|" + st.tab;
+  const nkey = () => st.report + "|" + st.tab + "|" + st.period;
   let memNotes = {};
-  window.AnalysisLock.configure({field:$("note"),toolbar:$("noteToolbar"),context:()=>({report:st.report,tab:st.tab}),notify:toast,refresh:()=>renderNotes()});
+  window.AnalysisLock.configure({field:$("note"),toolbar:$("noteToolbar"),context:()=>({report:st.report,tab:st.tab,period:st.period}),notify:toast,refresh:()=>renderNotes()});
 
   function cleanNoteHtml(html) {
     const parsed = new DOMParser().parseFromString(String(html), "text/html");
@@ -669,10 +669,12 @@
   $("cancel").onclick = () => { window.AnalysisLock.release(); editingNote = null; $("save").textContent = "Simpan"; $("note").innerHTML = ""; toast("Dibatalkan"); };
   $("save").onclick = async () => {
     if (!window.AnalysisStore.loaded) { toast("Analisis belum terhubung ke database. Muat ulang halaman dan periksa koneksi."); return; }
+    const saveKey=nkey();
     const text = $("note").innerText.trim();
     const html = cleanNoteHtml($("note").innerHTML);
     if (!text) { toast("Tulis analisis terlebih dahulu."); $("note").focus(); return; }
     try { await window.AnalysisLock.ensure(); } catch (_) { return; }
+    if(nkey()!==saveKey)return;
     const date = new Date().toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
     const o = Object.assign({}, memNotes, loadNotes());
     const list = o[nkey()] = o[nkey()] || [];
@@ -680,14 +682,14 @@
       const note = list.find((n) => String(n.id) === editingNote.id);
       if (!note) { toast("Analisis tidak ditemukan. Muat ulang halaman."); return; }
       Object.assign(note, {text, html, updatedAt: date, updatedBy: noteEditorIdentity()});
-    } else list.unshift({id: Date.now(), text, html, date, createdBy: noteEditorIdentity()});
+    } else list.unshift({id: crypto.randomUUID(), text, html, date, createdBy: noteEditorIdentity()});
     $("save").disabled = true;
     try { await saveNotes(o); await window.AnalysisLock.release(); }
     catch (error) { toast(error.message); return; }
     finally { $("save").disabled = false; }
     editingNote = null; $("save").textContent = "Simpan";
     memNotes = {};
-    $("note").innerHTML = ""; renderNotes(); toast("Catatan tersimpan");
+    if(nkey()===saveKey)$("note").innerHTML = ""; renderNotes(); toast("Catatan tersimpan");
   };
 
   /* ---------- Unduh hasil olahan sebagai OpenDocument Spreadsheet ---------- */

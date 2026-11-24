@@ -63,9 +63,9 @@
   try{
    const preview=await request('preview');
    if(!await confirmTransfer(preview,period))return;
-   await request('send',preview.revision);
+   const sent=await request('send',preview.revision);
    try{localStorage.setItem('tm-bod-incoming-period',period);localStorage.setItem('tm-bod-incoming-updated',String(Date.now()));}catch(_){}
-   notify('Analisis berhasil dimasukkan ke '+preview.destination+'.');
+   notify('Analisis berhasil dimasukkan ke '+preview.destination+' · '+sent.quarter+' '+sent.year+'.');
   }catch(error){notify(error.message||'Server TM BOD tidak dapat dihubungi.');}
  }
  global.AnalysisToTmBod={button,send};

@@ -18,14 +18,16 @@
   async function save(next){
     await ready();
     for(const key of new Set([...Object.keys(data),...Object.keys(next)])){
-      const separator=key.lastIndexOf('|');if(separator<0)continue;
-      const context={report:key.slice(0,separator),tab:key.slice(separator+1)};
+      const separator=key.lastIndexOf('|'),period=key.slice(separator+1);
+      if(separator<0||!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period))continue;
+      const base=key.slice(0,separator),tabSeparator=base.lastIndexOf('|');if(tabSeparator<0)continue;
+      const context={report:base.slice(0,tabSeparator),tab:base.slice(tabSeparator+1),period};
       const old=data[key]||[],list=next[key]||[];
-      for(const note of old)if(!list.some(n=>String(n.id)===String(note.id)))await request({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...context,lockToken:global.AnalysisLock?.tokenFor(context.report,context.tab)||'',action:'delete',id:String(note.id)})});
+      for(const note of old)if(!list.some(n=>String(n.id)===String(note.id)))await request({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...context,lockToken:global.AnalysisLock?.tokenFor(context.report,context.tab,context.period)||'',action:'delete',id:String(note.id)})});
       for(const note of list){
         const previous=old.find(n=>String(n.id)===String(note.id));
         if(previous&&previous.text===note.text&&(previous.html||'')===(note.html||''))continue;
-        await request({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...context,lockToken:global.AnalysisLock?.tokenFor(context.report,context.tab)||'',action:previous?'update':'create',id:String(note.id),text:note.text,html:note.html||null,user:previous?note.updatedBy:note.createdBy,originalDate:note.originalDate||null})});
+        await request({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...context,lockToken:global.AnalysisLock?.tokenFor(context.report,context.tab,context.period)||'',action:previous?'update':'create',id:String(note.id),text:note.text,html:note.html||null,user:previous?note.updatedBy:note.createdBy,originalDate:note.originalDate||null})});
       }
     }
     await refresh();return true;
@@ -35,7 +37,7 @@
     const old=JSON.parse(localStorage.getItem('konimex_notes')||'{}');
     const next=global.AnalysisStore.snapshot();
     for(const [key,list]of Object.entries(old)) {
-      if(!Array.isArray(list))continue;
+      if(!Array.isArray(list)||!/[|]20\d{2}-(0[1-9]|1[0-2])$/.test(key))continue;
       for(const note of list){
         if(!note || typeof note.text!=='string' || !note.text.trim())continue;
         // Stable legacy IDs let an interrupted import be safely retried.

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../includes/analysis_locks.php';
+require_once __DIR__.'/../includes/analysis_period.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
 $origin=$_SERVER['HTTP_ORIGIN']??'';
 if(in_array($origin,['null','http://localhost:8000','http://127.0.0.1:8000'],true)){
@@ -11,10 +12,11 @@ $conn=null;
 try{
  if(($_SERVER['REQUEST_METHOD']??'')!=='POST'){http_response_code(405);throw new InvalidArgumentException('Metode tidak didukung.');}
  $data=json_decode(file_get_contents('php://input'),true,512,JSON_THROW_ON_ERROR);
+ $period=validateAnalysisPeriod($data['period']??null);
  $report=$data['report']??'';$tab=$data['tab']??'';$token=$data['token']??'';$name=$data['username']??'';$action=$data['action']??'';
  if(!is_string($report)||$report===''||strlen($report)>200||!is_string($tab)||$tab===''||strlen($tab)>120||!is_string($token)||!preg_match('/^[a-zA-Z0-9_-]{16,64}$/',$token)||!is_string($name)||strlen($name)>150||!in_array($action,['status','acquire','renew','release'],true))throw new InvalidArgumentException('Permintaan kunci analisis tidak valid.');
  if(in_array($action,['acquire','renew'],true)&&trim($name)==='')throw new InvalidArgumentException('Login ulang sebelum mengedit analisis.');
- $conn=openReportConnection();$conn->query("SET time_zone = '+07:00'");ensureAnalysisLockTable($conn);$scope=analysisLockScope($report,$tab);
+ $conn=openReportConnection();$conn->query("SET time_zone = '+07:00'");ensureAnalysisLockTable($conn);$scope=analysisLockScope($report,$tab,$period);
  if($action==='release'){
   $q=$conn->prepare('DELETE FROM report_analysis_locks WHERE scope_id=? AND owner_token=?');$q->bind_param('ss',$scope,$token);$q->execute();$q->close();
  }elseif($action==='acquire'){

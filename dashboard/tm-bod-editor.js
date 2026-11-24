@@ -18,7 +18,8 @@
   const read = value => {
     if (typeof value === 'string') return { text: value, html: '', images: [] };
     return { text: typeof value?.text === 'string' ? value.text : '', html: clean(value?.html || ''),
-      images: (Array.isArray(value?.images) ? value.images : [value?.image]).filter(validImage) };
+      images: (Array.isArray(value?.images) ? value.images : [value?.image]).filter(validImage),
+      ...(value?.tmBodImports&&typeof value.tmBodImports==='object'?{tmBodImports:{...value.tmBodImports}}:{}) };
   };
   function initEditor(section, index) {
     const field = section.querySelector('textarea');
@@ -71,7 +72,7 @@
     toolbar.append(uploadButton, upload);
     const imageBox = document.createElement('div'); imageBox.className = 'editor-image'; imageBox.hidden = true;
     const content = document.createElement('div'); content.className = 'editor-content'; content.append(imageBox, editor);
-    let images = [], pending = 0, revision = 0, locked = false;
+    let images = [], pending = 0, revision = 0, locked = false, tmBodImports;
     function showImages(values) {
       images = values.slice(); imageBox.hidden = !images.length; content.classList.toggle('has-images', !!images.length);
       imageBox.replaceChildren();
@@ -108,8 +109,8 @@
     };
     field.hidden = true; field.before(toolbar, content);
     field.richEditor = {
-      get: () => ({ text: editor.innerText, html: clean(editor.innerHTML), images: images.slice() }),
-      set: value => { revision++; const saved = read(value); editor.innerHTML = saved.html; if (!saved.html) editor.textContent = saved.text; field.value = saved.text; showImages(saved.images); selection = null; },
+      get: () => ({ text: editor.innerText, html: clean(editor.innerHTML), images: images.slice(), ...(tmBodImports?{tmBodImports:{...tmBodImports}}:{}) }),
+      set: value => { revision++; const saved = read(value);tmBodImports=saved.tmBodImports; editor.innerHTML = saved.html; if (!saved.html) editor.textContent = saved.text; field.value = saved.text; showImages(saved.images); selection = null; },
       setLocked: value => {
         locked = value; editor.contentEditable = value ? 'false' : 'true'; editor.setAttribute('aria-readonly', String(value)); field.readOnly = value;
         toolbar.querySelectorAll('button, input').forEach(control => { control.disabled = value; });

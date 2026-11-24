@@ -79,9 +79,12 @@
     }
     const values = drafts[$('quarter').value];
     fields.forEach((field, index) => {
-      const value = Array.isArray(values) ? values[index] : '';
+      const saved = Array.isArray(values) ? values[index] : '';
+      const value=window.TmBodIncoming?.mergeInline(sections[index],saved)??saved;
       if (field.richEditor) field.richEditor.set(value); else field.value = readValue(value).text;
-      setSectionLocked(sections[index], hasSavedValue(value));
+      const imported=JSON.stringify(value)!==JSON.stringify(saved);
+      setSectionLocked(sections[index], hasSavedValue(saved)&&!imported);
+      if(imported){statuses[index].textContent='Analisis masuk ke editor. Klik Simpan untuk menyimpan isi slide.';updateSaveState(sections[index]);}
     });
     slides = [];
     applyPreviewVisibility();
@@ -445,6 +448,15 @@
       if(q!==$('quarter').value || year!==$('cover-year').value)return;
       window.TmBodIncoming?.render(sections);
       if(changed && !busy) {
+        sections.forEach((section,index)=>{
+          if(!window.TmBodIncoming?.isInline(section))return;
+          const field=fields[index],current=field.richEditor?field.richEditor.get():field.value;
+          const next=window.TmBodIncoming.mergeInline(section,current);
+          if(JSON.stringify(next)===JSON.stringify(current))return;
+          if(field.richEditor)field.richEditor.set(next);else field.value=readValue(next).text;
+          setSectionLocked(section,false);updateSaveState(section);
+          statuses[index].textContent='Analisis masuk ke editor. Klik Simpan untuk menyimpan isi slide.';
+        });
         const values=Array.isArray(drafts[q])?drafts[q]:[],ordered=allSections();
         const first=ordered.findIndex(section=>hasSavedValue(savedValue(section,q,values,savedCustom(q))));
         if(first>=0)await openPreview(snapshotSections(ordered,q,values,savedCustom(q)),q,slides.length?Math.min(position,ordered.length-1):first);

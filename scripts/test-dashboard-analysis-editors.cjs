@@ -11,7 +11,7 @@ for(const page of pages){
  const html=fs.readFileSync('dashboard/Rev SO(UNIT).html','utf8'),start=html.indexOf('  $("save").onclick = async () => {'),end=html.indexOf('\n  };',start)+5;
  const elements={note:{innerText:'Dummy bold note',innerHTML:'<b>Dummy bold note</b>',focus(){}},save:{disabled:false,textContent:'Simpan'},cancel:{}};
  let saved=null,released=0;const notes={};
- const c={$:id=>elements[id],window:{AnalysisStore:{loaded:true},AnalysisLock:{ensure:async()=>{},release:async()=>{released++;}}},cleanNoteHtml:v=>v,toast:()=>{},Date,memNotes:{},loadNotes:()=>notes,nkey:()=> 'dummy-report|dummy-tab',editingNote:null,noteEditorIdentity:()=>({username:'dummy'}),saveNotes:async o=>{saved=o;},renderNotes:()=>{}};
+ const c={crypto:require('node:crypto').webcrypto,$:id=>elements[id],window:{AnalysisStore:{loaded:true},AnalysisLock:{ensure:async()=>{},release:async()=>{released++;}}},cleanNoteHtml:v=>v,toast:()=>{},Date,memNotes:{},loadNotes:()=>notes,nkey:()=> 'dummy-report|dummy-tab',editingNote:null,noteEditorIdentity:()=>({username:'dummy'}),saveNotes:async o=>{saved=o;},renderNotes:()=>{}};
  vm.createContext(c);vm.runInContext(html.slice(start,end),c);await elements.save.onclick();
  assert.equal(saved['dummy-report|dummy-tab'][0].html,'<b>Dummy bold note</b>');assert.equal(saved['dummy-report|dummy-tab'][0].text,'Dummy bold note');assert.equal(elements.note.innerHTML,'');assert.equal(released,1);assert.equal(elements.save.disabled,false);
  elements.note.innerText='';saved=null;await elements.save.onclick();assert.equal(saved,null);
