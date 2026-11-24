@@ -24,6 +24,9 @@ function tmBodExactAnalysisTargetIds(array $template,string $destination): array
     return $matches;
 }
 function tmBodAnalysisTargetIds(array $template,string $report,string $tab): array {
+    if(trim($report)==='Revenue Konimex Selling Out (RP)'&&in_array($tab,['Pharma','HCE','Ethical'],true)){
+        return tmBodExactAnalysisTargetIds($template,tmBodAnalysisDestination($report,$tab));
+    }
     if(in_array(trim($report),['UPB Konimex (RP)','UPB MNJ (RP)','Service Level'],true)){
         return tmBodExactAnalysisTargetIds($template,tmBodAnalysisDestination($report,$tab));
     }

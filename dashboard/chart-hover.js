@@ -1,15 +1,17 @@
 /* Shared hover and keyboard-focus tooltip for dashboard SVG bars. */
 (() => {
- const chart=document.getElementById('chart');if(!chart)return;
  const style=document.createElement('style');style.textContent=`
- #chart{position:relative}
- #chart .interactive-chart-bar{cursor:pointer;transition:opacity .15s ease}
- #chart.chart-hover-active .interactive-chart-bar:not(.chart-bar-active){opacity:.45}
- #chart .interactive-chart-bar:focus-visible{outline:none;stroke:#26243d;stroke-width:2}
+ .hover-chart{position:relative}
+ .hover-chart .interactive-chart-bar{cursor:pointer;transition:opacity .15s ease}
+ .hover-chart.chart-hover-active .interactive-chart-bar:not(.chart-bar-active){opacity:.45}
+ .hover-chart .interactive-chart-bar:focus-visible{outline:none;stroke:#26243d;stroke-width:2}
  .chart-value-tooltip{position:absolute;z-index:5;pointer-events:none;box-sizing:border-box;width:max-content;max-width:calc(100% - 24px);padding:12px 16px;border-radius:14px;background:#252432;color:#fff;font:13px/1.5 Arial,sans-serif;overflow-wrap:anywhere;text-align:left}
  .chart-value-tooltip strong{display:block;font-size:17px;margin-top:4px}
- @media(prefers-reduced-motion:reduce){#chart .interactive-chart-bar{transition:none}}
+ @media(prefers-reduced-motion:reduce){.hover-chart .interactive-chart-bar{transition:none}}
  `;document.head.append(style);
+ const attached=new WeakSet();
+ function attach(chart){
+ if(!chart||attached.has(chart))return;attached.add(chart);chart.classList.add('hover-chart');
  const wired=new WeakSet();let active=null,tooltip=null;
  function hide(){active=null;chart.classList.remove('chart-hover-active');chart.querySelectorAll('.chart-bar-active').forEach(n=>n.classList.remove('chart-bar-active'));if(tooltip)tooltip.hidden=true;}
  function place(x,y){
@@ -38,4 +40,7 @@
   });
  }
  new MutationObserver(connect).observe(chart,{childList:true,subtree:true});connect();
+ }
+ globalThis.ChartHover={attach};
+ attach(document.getElementById('chart'));
 })();

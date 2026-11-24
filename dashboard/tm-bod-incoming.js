@@ -17,7 +17,7 @@
   const changed=JSON.stringify(notes)!==JSON.stringify(next);
   notes=next;return changed;
  }
- const isInline=section=>['UPB KX','UPB MNJ','SERVICE LEVEL KX TO MNJ'].includes(norm(title(section)))||selected(section).some(note=>note.split_section==='SELL OUT'||note.split_section==='SELL IN');
+ const isInline=section=>['UPB KX','UPB MNJ','SERVICE LEVEL KX TO MNJ','REVENUE DIVISI FARMA (RP)','HEC REVENUE (RP)','ETHICAL REVENUE SELLING OUT (RP)','GB 5 REVENUE (RP)','GB 6 REVENUE (RP)'].includes(norm(title(section)))||selected(section).some(note=>['SELL OUT','SELL IN','GB 5','GB 6'].includes(note.split_section));
  function mergeInline(section,value,source=notes){
   if(!isInline(section))return value;
   const incoming=selected(section,source);if(!incoming.length)return value;

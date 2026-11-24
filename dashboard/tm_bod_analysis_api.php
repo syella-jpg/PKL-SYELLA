@@ -58,6 +58,7 @@ try {
  $template=tmBodActiveTemplate($conn,(int)substr($period,0,4));
  if(!$template){http_response_code(409);throw new InvalidArgumentException('Template TM BOD tahun ini belum aktif. Admin 1 perlu mengaktifkannya terlebih dahulu.');}
  $parts=$note['report_name']==='Achievement & Growth Sell Out & Sell In (RP & UNIT)'?tmBodSplitAchievementAnalysis($template,$note['analysis_text']):null;
+ if($note['report_name']==='Revenue Konimex Selling Out (RP)'&&$note['tab_name']==='Food')$parts=tmBodSplitFoodAnalysis($template,$note['analysis_text']);
  $ids=$parts?array_values(array_unique(array_merge(...array_column($parts,'destination_ids')))):tmBodAnalysisTargetIds($template,$note['report_name'],$note['tab_name']);
  $transferText=$parts?json_encode(['tm_bod_split'=>1,'parts'=>$parts],JSON_THROW_ON_ERROR):$note['analysis_text'];
  $quarter=tmBodQuarterForPeriod($period);

@@ -41,6 +41,10 @@ const note={source_note_id:'dummy-note',report_period:'2026-10',destination_ids:
  assert.equal(si.text,'SELL OUT:\nDummy outbound');assert.equal(so.text,'SELL IN:\nDummy inbound');
  assert.equal(api.mergeInline(sellingIn,si).text,si.text);assert.equal(api.mergeInline(sellingOut,so).text,so.text);
  api.render([sellingIn,sellingOut]);
+ const gb5=section('GB 5 Revenue (Rp)','dummy-gb5'),gb6=section('GB 6 Revenue (Rp)','dummy-gb6');
+ response=[{...note,split_section:'GB 5',destination_ids:['dummy-gb5'],analysis_text:'GB 5:\nDummy five'},{...note,split_section:'GB 6',destination_ids:['dummy-gb6'],analysis_text:'GB 6:\nDummy six'}];
+ await api.load('2026','Q4');assert.equal(api.mergeInline(gb5,'').text,'GB 5:\nDummy five');assert.equal(api.mergeInline(gb6,'').text,'GB 6:\nDummy six');api.render([gb5,gb6]);
+ for(const name of ['Revenue Divisi Farma (Rp)','HEC Revenue (Rp)','Ethical Revenue Selling Out (Rp)'])assert.ok(api.isInline(section(name,'dummy')));
  const incoming=fs.readFileSync('dashboard/tm-bod-incoming.js','utf8');assert.ok(incoming.includes('if(isInline(section))return;'),'No detached incoming panel for UPB KX');
  const editor=fs.readFileSync('dashboard/tm-bod-editor.js','utf8');assert.ok(editor.includes('tmBodImports=saved.tmBodImports'));assert.ok(editor.includes('tmBodImports:{...tmBodImports}'));
  console.log('PASS dummy UPB text enters editor, editable content/images preserved, save/reload idempotence, no duplicate preview, transfer update, legacy dedupe, quarter isolation and other slides unchanged. No live data accessed.');

@@ -1,0 +1,16 @@
+.revenue-so-detail { max-width:1400px; margin:24px 8px; padding:22px; border:1px solid #e2dcfa; border-radius:20px; background:#f8f7fe; color:#252034; }
+.revenue-so-detail > header { margin-bottom:18px; }
+.revenue-so-detail h2 { margin:0; font-size:19px; }
+.revenue-so-detail > header p { margin:6px 0 0; color:#716b80; font-size:13px; }
+.revenue-so-detail [data-content] { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr)); gap:20px; }
+.revenue-detail-chart { min-width:0; padding:18px; border:1px solid #e9e4f5; border-radius:16px; background:white; }
+.revenue-detail-chart > header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.revenue-detail-chart h3 { margin:0; font-size:16px; }
+.revenue-detail-chart svg { display:block; width:100%; height:auto; }
+.revenue-detail-chart [data-detail-plot] { position:relative; }
+.revenue-detail-chart [data-error] { color:#b42318; font-size:13px; }
+.revenue-detail-chart [data-error]:empty { display:none; }
+.revenue-so-detail button { padding:8px 12px; border:1px solid #c9c5e7; border-radius:9px; background:white; cursor:pointer; font-size:12px; }
+.revenue-so-detail button:focus-visible { outline:3px solid #9b8cff; outline-offset:3px; }
+.revenue-so-detail .detail-empty { padding:32px 8px; font-size:13px; color:#716b80; }
+@media(max-width:600px) { .revenue-so-detail { padding:12px; } .revenue-detail-chart { padding:10px; } }
