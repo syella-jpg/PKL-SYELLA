@@ -5,6 +5,8 @@
     }
   },
   "rewrites": [
+    {"source":"/dashboard/service_level_input_api","destination":"/api/report.php?endpoint=service_level_input_api"},
+    {"source":"/dashboard/service_level_input_api.php","destination":"/api/report.php?endpoint=service_level_input_api"},
     {"source":"/dashboard/tm_bod_director_notes_api","destination":"/api/report.php?endpoint=tm_bod_director_notes_api"},
     {"source":"/dashboard/tm_bod_director_notes_api.php","destination":"/api/report.php?endpoint=tm_bod_director_notes_api"},
     {"source":"/dashboard/launch_input_api","destination":"/api/report.php?endpoint=launch_input_api"},
