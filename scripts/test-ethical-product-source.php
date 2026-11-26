@@ -15,7 +15,7 @@ foreach([2025,2026,2027] as $year){
  $data=parseEthicalSourceTemplate($b,$period);
  epcheck($data['summary']['unit']['existing'][0]===24.0&&$data['summary']['hna']['new'][0]===2400.0,'Four product subtotals without scale changes');
  epcheck($data['summary']['unit']['existing'][1]===0.0&&$data['summary']['hna']['existing'][1]===0.0,'Zero and blank distinct');
- epcheck($s->getCell('E110')->getValue()==='=SUM(E10:E109)'&&(float)$s->getCell('E301')->getCalculatedValue()===24.0,'Simple subtotal and summary formulas');
+ epcheck($s->getCell('E110')->getValue()==='=SUM(E10:E109)'&&(float)$b->getSheetByName('KESIMPULAN')->getCell('B10')->getCalculatedValue()===24.0,'Simple subtotal and summary formulas');
  $s->setCellValue('E110',99999);epcheck(parseEthicalSourceTemplate($b,$period)===$data,'Ignore edited/cached subtotal');
  epcheck($data['inputs']['unit']['streamline'][5]===-3.0&&$data['inputs']['hna']['streamline'][5]===-300.0,'Negative correction accepted and HNA recomputed');
  epcheck($data['summary']['actual_unit']['existing'][0]===14.0&&$data['summary']['actual_hna']['new'][0]===1400.0,'REAL separate from TARGET');

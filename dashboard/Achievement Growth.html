@@ -106,6 +106,7 @@
   .note-edit:hover { background: #f0edff; }
 </style>
 <link rel="stylesheet" href="analysis-editor.css?v=20261124">
+<script src="portal-access.js?v=pharma-20261125"></script>
 </head>
 <body>
 
@@ -183,11 +184,11 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script src="report-api-cache.js?v=no-store-20261120"></script>
+<script src="report-api-cache.js?v=account-scope-20261125"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
 <script src="unit-target-layout.js?v=20261102"></script>
-<script src="report-templates.js?v=edp-ytd-total-formulas-20261120"></script>
+<script src="report-templates.js?v=pharma-sources-20261126"></script>
 <script src="achievement-growth-chart.js?v=20261124"></script>
 <script src="shared-report-download.js?v=unit-chart-ready-20261124"></script>
 <script src="analysis-store.js?v=period-20261124"></script>
@@ -231,7 +232,7 @@
     "Complain Level": "",
     "Ratio UPB": ""
   };
-  const TABS = ["Corporate", "Pharma", "HCE", "Food", "International Business", "Ethical", "MTM"];
+  const TABS = window.PortalAccess.tabs(["Corporate", "Pharma", "HCE", "Food", "International Business", "Ethical", "MTM"]);
 
   // Data hasil upload (kosong = angka & chart belum tampil).
   // Format: DATA[laporan][tab] = { cards: ["43.3%","9.0%","43.5%","6.7%"],
@@ -274,7 +275,7 @@
   }
 
   /* ---------- Bangun menu, tab, periode ---------- */
-  REPORTS.forEach((r) => {
+  window.PortalAccess.reports(REPORTS).forEach((r) => {
     const b = document.createElement("button"); b.textContent = r; b.dataset.r = r;
     b.onclick = () => go(r);
     $("menu").appendChild(b);

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('upb_distr_report_api');
 require_once __DIR__.'/../includes/upb_distr_report.php';
 require_once __DIR__.'/../includes/report_artifact_cache.php';
 require_once __DIR__.'/../includes/upb_distr_input_store.php';

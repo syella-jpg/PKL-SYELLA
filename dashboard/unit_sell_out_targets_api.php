@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('unit_sell_out_targets_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('unit_sell_out_targets_api');
 require_once __DIR__.'/../includes/database.php';
@@ -7,7 +9,7 @@ require_once __DIR__.'/../includes/unit_sell_out_targets.php';
 require_once __DIR__.'/../includes/ethical_source_template.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
 $origin=$_SERVER['HTTP_ORIGIN']??'';
-if(in_array($origin,['null','http://127.0.0.1:8000','http://localhost:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Methods: GET, POST, OPTIONS');header('Access-Control-Allow-Headers: Content-Type');}
+if(in_array($origin,['null','http://127.0.0.1:8000','http://localhost:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Methods: GET, POST, OPTIONS');header('Access-Control-Allow-Headers: Content-Type, Authorization');}
 $method=$_SERVER['REQUEST_METHOD']??'GET';if($method==='OPTIONS'){http_response_code(204);exit;}
 $conn=null;$book=null;$inputData=null;
 try{
@@ -25,11 +27,12 @@ try{
  }
  $conn=openReportConnection();ensureUnitSellOutTargets($conn);
  if($method==='POST'){
+  if(reportIsPharma()){foreach($records as $r)if(!in_array(reportGb($r['product']),[1,4],true)&&$r['units']!==null)throw new InvalidArgumentException('Target pharma hanya GB 1 dan GB 4.');$records=reportPharmaRows($records,'product');if(isset($inputData['inputs']))$inputData['inputs']=array_intersect_key($inputData['inputs'],array_flip(['gb1','gb4']));}
   $products=array_values(array_unique(array_column($records,'product')));
   ensureUnitSellOutInputStore($conn);
   $conn->begin_transaction();
   if($inputData['ib_shared']??false){$parts=mergeIbUnitParts($inputData['inputs']['ib'],loadIbUnitHistory($conn,$year,true)??[]);$inputData['inputs']['ib']=$parts;$records=array_merge(array_values(array_filter($records,fn($row)=>$row['product']!=='ib')),ibUnitMonthlyRecords($year,$parts));}
-  $sourceData=applyEthicalSourceTargets($conn,$year,['records'=>$records]+($inputData!==null?['inputs'=>$inputData['inputs']]:[]));$records=$sourceData['records'];if($inputData!==null)$inputData['inputs']=$sourceData['inputs'];
+  $sourceData=reportIsPharma()?(['records'=>$records]+($inputData!==null?['inputs'=>$inputData['inputs']]:[])):applyEthicalSourceTargets($conn,$year,['records'=>$records]+($inputData!==null?['inputs'=>$inputData['inputs']]:[]));$records=$sourceData['records'];if($inputData!==null)$inputData['inputs']=$sourceData['inputs'];
   $q=$conn->prepare('DELETE FROM `target unit sell out` WHERE report_year=? AND product=?');
   foreach($products as $product){$q->bind_param('is',$year,$product);$q->execute();}$q->close();
   $q=$conn->prepare('INSERT INTO `target unit sell out` (report_year,product,kind,month,units) VALUES (?,?,?,?,?)');

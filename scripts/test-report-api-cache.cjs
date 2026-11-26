@@ -15,7 +15,7 @@ function storage() { const data = new Map(); return {get length(){return data.si
  await fetch('http://localhost/upload/process.php',{method:'POST'});assert.equal(calls,3);
  await fetch(url);assert.equal(calls,4,'upload invalidates cached reads');
  await fetch(url,{cache:'reload'});assert.equal(calls,5);
- const key='corporate_api_cache_v2:'+url;
+ const key='corporate_api_cache_v3:undefined:'+url;
  const record=JSON.parse(sessionStorage.getItem(key));record.time=0;sessionStorage.setItem(key,JSON.stringify(record));
  await fetch(url);assert.equal(calls,6,'expired data is reloaded');
  fail=true;await assert.rejects(fetch(url+'?year=2027'));fail=false;await fetch(url+'?year=2027');assert.equal(calls,8);
@@ -32,7 +32,7 @@ function storage() { const data = new Map(); return {get length(){return data.si
  await fetch('http://localhost/api/report.php?endpoint=bod_kx_sell_in_api',{method:'POST'});
  assert.notEqual(localStorage.getItem('konimex_report_revision'),revision,'real report uploads still invalidate data');
  await fetch(url);const beforeStorage=calls;
- storageListener({key:'corporate_api_cache_v2:'+url,storageArea:sessionStorage});await fetch(url);assert.equal(calls,beforeStorage,'session cache events cannot invalidate their own source');
+ storageListener({key:'corporate_api_cache_v3:undefined:'+url,storageArea:sessionStorage});await fetch(url);assert.equal(calls,beforeStorage,'session cache events cannot invalidate their own source');
  storageListener({key:'konimex_api_cache_v1:'+url});await fetch(url);assert.equal(calls,beforeStorage,'legacy cache events also ignored');
  const routed='http://localhost/api/report.php?endpoint=unit_sell_out_targets_api&period=2026-09';
  const beforeRouted=calls;await fetch(routed);await fetch(routed);assert.equal(calls,beforeRouted+1,'router GET shares the same cache rules');

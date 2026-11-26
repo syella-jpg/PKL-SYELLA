@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/report_access.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -26,7 +27,7 @@ function buildTargetRevenueInputTemplate(string $period, array $history=[]): Spr
     if ($month===1) $history=[];
     $book=new Spreadsheet();$book->removeSheetByIndex(0);
     $book->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
-    foreach (range(1,6) as $gb) {
+    foreach (reportInputGbs() as $gb) {
         $sheet=new Worksheet($book,'GB '.$gb);$book->addSheet($sheet);
         $sheet->setCellValue('A1','REKAP REVENUE PER PRODUCT TAHUN '.$year)->mergeCells('A1:P1');
         $sheet->setCellValue('A2','TARGET AWAL — Rp (000)')->mergeCells('A2:P2');
@@ -78,11 +79,12 @@ function buildTargetRevenueInputTemplate(string $period, array $history=[]): Spr
 }
 /** Discover category boundaries and month columns from labels, never row offsets or cached subtotals. */
 function parseTargetRevenueInputTemplate(Spreadsheet $book, string $period): array {
+    if(reportIsPharma())foreach([2,3,5,6] as $gb)if($book->getSheetByName('GB '.$gb))throw new InvalidArgumentException('Template pharma hanya boleh memuat GB 1 dan GB 4.');
     if (!preg_match('/^(20\d{2})-(0[1-9]|1[0-2])$/D',$period,$match)) throw new InvalidArgumentException('Periode tidak valid.');
     $meta=$book->getSheetByName('_TEMPLATE');
     if (!$meta || $meta->getCell('A1')->getValue()!=='KONIMEX_TARGET_REVENUE_V1' || (int)$meta->getCell('A3')->getValue()!==(int)$match[1]) throw new InvalidArgumentException('Template atau tahun Target Revenue tidak sesuai periode upload.');
     $details=[];$rows=[];$hasValue=false;
-    foreach(range(1,6) as $gb) {
+    foreach(reportInputGbs() as $gb) {
         $sheet=$book->getSheetByName('GB '.$gb);
         if (!$sheet) throw new InvalidArgumentException('Sheet GB '.$gb.' tidak ditemukan.');
         $active=null;$columns=null;$products=[];$found=[];

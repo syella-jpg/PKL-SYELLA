@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('revenue_edp_mnj_target_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('revenue_edp_mnj_target_api');
 require_once __DIR__ . '/../includes/database.php';
@@ -8,7 +10,7 @@ if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
     header('Vary: Origin');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
     header('Access-Control-Max-Age: 600');
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
         header('Access-Control-Allow-Private-Network: true');
@@ -17,7 +19,7 @@ if ($origin === 'null') {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Vary: Origin');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
     header('Access-Control-Max-Age: 600');
 }
 
@@ -77,11 +79,12 @@ try {
     $payload = json_decode((string)file_get_contents('php://input'), true);
     $year = filter_var($payload['year'] ?? null, FILTER_VALIDATE_INT);
     $rows = $payload['rows'] ?? null;
-    if (!$year || $year < 2000 || $year > 2155 || !is_array($rows) || count($rows) !== 12) {
+    if (!$year || $year < 2000 || $year > 2155 || !is_array($rows) || count($rows) !== (reportIsPharma()?4:12)) {
         http_response_code(400);
         throw new RuntimeException('Target EDP MNJ harus memiliki tahun dan 12 baris EXIST/NP GB 1–6.');
     }
 
+    if(reportIsPharma())reportPharmaRows($rows,'code',true);
     $seen = [];
     foreach ($rows as $row) {
         $code = (string)($row['code'] ?? '');
@@ -101,7 +104,7 @@ try {
             }
         }
     }
-    for ($gb = 1; $gb <= 6; $gb++) {
+    foreach(reportInputGbs() as $gb) {
         if (!isset($seen['existing' . $gb], $seen['new' . $gb])) {
             http_response_code(400);
             throw new RuntimeException('Target EDP MNJ harus lengkap untuk EXIST dan NP GB 1–6.');
@@ -109,7 +112,7 @@ try {
     }
 
     $conn->begin_transaction();
-    $delete = $conn->prepare('DELETE FROM revenue_edp_mnj_target WHERE periode_tahun = ?');
+    $delete = $conn->prepare('DELETE FROM revenue_edp_mnj_target WHERE periode_tahun = ?'.(reportIsPharma()?" AND product IN ('EXIST GB 1','NP GB 1','EXIST GB 4','NP GB 4')":''));
     if (!$delete) throw new RuntimeException('Gagal menyiapkan penggantian target EDP MNJ: ' . $conn->error);
     $delete->bind_param('i', $year);
     if (!$delete->execute()) throw new RuntimeException('Target EDP MNJ lama gagal diganti: ' . $delete->error);

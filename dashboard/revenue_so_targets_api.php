@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('revenue_so_targets_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('revenue_so_targets_api');
 require_once __DIR__ . '/../includes/database.php';
@@ -12,7 +14,7 @@ if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
     header('Vary: Origin');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
     header('Access-Control-Max-Age: 600');
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
         header('Access-Control-Allow-Private-Network: true');
@@ -21,7 +23,7 @@ if ($origin === 'null') {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Vary: Origin');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
     header('Access-Control-Max-Age: 600');
 }
 
@@ -123,6 +125,7 @@ try {
         throw new RuntimeException('Data Target Revenue tidak lengkap atau formatnya tidak valid.');
     }
 
+    if(reportIsPharma())reportPharmaRows($rows,'code',true);
     $seen = [];
     foreach ($rows as $row) {
         $code = (string)($row['code'] ?? '');
@@ -151,7 +154,7 @@ try {
     $lock=$conn->prepare('SELECT report_year FROM target_revenue_inputs WHERE report_year=? FOR UPDATE');
     $lock->bind_param('i',$year);$lock->execute();$lock->get_result()->fetch_assoc();$lock->close();
     $prefix = $year . ' | %';
-    $delete = $conn->prepare('DELETE FROM target_revenue WHERE product LIKE ?');
+    $delete = $conn->prepare('DELETE FROM target_revenue WHERE product LIKE ?'.(reportIsPharma()?" AND (product LIKE '% | GB 1 | %' OR product LIKE '% | GB 4 | %')":''));
     if (!$delete) throw new RuntimeException('Gagal menyiapkan penggantian Target Revenue: ' . $conn->error);
     $delete->bind_param('s', $prefix);
     if (!$delete->execute()) throw new RuntimeException('Data Target Revenue lama gagal diganti: ' . $delete->error);
@@ -186,6 +189,12 @@ try {
         if (!$insert->execute()) throw new RuntimeException('Gagal menyimpan ' . $product . ': ' . $insert->error);
     }
     $insert->close();
+    if(reportIsPharma()){
+        $old=$conn->prepare('SELECT payload FROM target_revenue_inputs WHERE report_year=?');$old->bind_param('i',$year);$old->execute();$saved=$old->get_result()->fetch_assoc();$old->close();
+        $previous=!empty($saved['payload'])?json_decode(gzdecode($saved['payload']),true,512,JSON_THROW_ON_ERROR):[];
+        $details=$templateInput['details']??[];foreach(array_keys($details) as $gb)if(!in_array((int)$gb,[1,4],true))throw new InvalidArgumentException('Rincian Target Revenue hanya untuk GB 1 dan GB 4.');
+        foreach([1,4] as $gb)unset($previous[$gb]);$templateInput['details']=$details+$previous;
+    }
     $detailPayload=$templateInput ? gzencode(json_encode($templateInput['details'],JSON_THROW_ON_ERROR),6) : null;
     $detail=$conn->prepare('UPDATE target_revenue_inputs SET payload=? WHERE report_year=?');
     $detail->bind_param('si',$detailPayload,$year);

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('revenue_kx_si_download');
 require_once __DIR__ . '/../includes/database.php';
 
 require_once __DIR__ . '/../vendor/autoload.php';

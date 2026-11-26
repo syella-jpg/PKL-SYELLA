@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('tm_bod_director_notes_api');
 require_once __DIR__.'/../includes/database.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
 $origin=$_SERVER['HTTP_ORIGIN']??'';

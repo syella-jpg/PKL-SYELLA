@@ -117,6 +117,7 @@
   .note-edit { display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 7px; color: #6450bd; }
   .note-edit:hover { background: #f0edff; }
 </style>
+<script src="portal-access.js?v=pharma-20261125"></script>
 </head>
 <body>
 
@@ -195,9 +196,9 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script src="report-api-cache.js?v=no-store-20261120"></script>
+<script src="report-api-cache.js?v=account-scope-20261125"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="ratio-biaya-report.js?v=ratio-ach-simple-20261123"></script>
+<script src="ratio-biaya-report.js?v=pharma-sources-20261126"></script>
 <script src="sell-out-in-unit-report.js?v=ratios-20261102"></script>
 <script src="sell-out-in-rupiah-report.js?v=ratio-growth-20261102"></script>
 <script src="bod-kx-sell-in.js?v=sdm-current-corporate-ratio-20261120"></script>
@@ -205,7 +206,7 @@
 <script src="unit-target-layout.js?v=20261102"></script>
 <script src="mtm-contribution-report.js?v=budget-growth-20261104"></script>
 <script src="mtm-appendix.js?v=right-percent-cells-20261103"></script>
-<script src="report-templates.js?v=ratio-ach-20261123"></script>
+<script src="report-templates.js?v=pharma-sources-20261126"></script>
 <link rel="stylesheet" href="revenue-so-detail.css?v=wide-pair-20261124">
 <script src="revenue-so-detail.js?v=inline-download-20261124"></script>
 <script src="analysis-store.js?v=period-20261124"></script>
@@ -249,7 +250,7 @@
     "Complain Level": "",
     "Ratio UPB": ""
   };
-  const TABS = ["Corporate", "Pharma", "HCE", "Food", "International Business", "Ethical", "MTM"];
+  const TABS = window.PortalAccess.tabs(["Corporate", "Pharma", "HCE", "Food", "International Business", "Ethical", "MTM"]);
 
   // Data hasil upload (kosong = angka & chart belum tampil).
   // Format: DATA[laporan][tab] = { cards: ["43.3%","9.0%","43.5%","6.7%"],
@@ -309,7 +310,7 @@
   }
 
   /* ---------- Bangun menu, tab, periode ---------- */
-  REPORTS.forEach((r) => {
+  window.PortalAccess.reports(REPORTS).forEach((r) => {
     const b = document.createElement("button"); b.textContent = r; b.dataset.r = r;
     b.onclick = () => go(r);
     $("menu").appendChild(b);
@@ -839,10 +840,11 @@
   }
 
   async function buildReportWorkbook(selectedPeriod, options = {}) {
+    const pharmaOnly = window.PortalAccess.pharma();
     const reportYear = Number(selectedPeriod.slice(0, 4));
     const reportMonth = Number(selectedPeriod.slice(5, 7));
     const targetYear = reportYear - 1;
-    const upbPending = options.chartOnly ? null : prefetchUpbReportData(selectedPeriod);
+    const upbPending = options.chartOnly || pharmaOnly ? null : prefetchUpbReportData(selectedPeriod);
     const sellOutTargetHistory = (() => {
       try { return JSON.parse(localStorage.getItem("konimex_revenue_so_sellout_targets_processed") || "{}"); }
       catch (_) { return {}; }
@@ -1142,25 +1144,29 @@
     XLSX.utils.book_append_sheet(workbook, worksheet, "LAPORAN");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sourceData), "UNIT");
     workbookSheetNames.filter((name) => !["LAPORAN", "UNIT"].includes(name)).forEach((name) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), name));
-    await replaceDaftarTemplateSheet(workbook,selectedPeriod);
-    await replaceServiceLevelSheet(workbook,selectedPeriod);
-    try { await replaceLaunchTemplateSheet(workbook,selectedPeriod); }
-    catch(error) { toast(error.message || "Template sheet LAUNCH gagal dimuat."); return; }
-    try { await replaceBodJmlSdmTemplateSheet(workbook,selectedPeriod); }
-    catch(error) { toast(error.message || "Template sheet BOD JML SDM gagal dimuat."); return; }
-    try { await replaceBodBiReportSheets(workbook,selectedPeriod); }
-    catch(error) { toast(error.message || "Data laporan BOD gagal dimuat."); return; }
-    try { await replaceIBTemplateSheet(workbook, selectedPeriod); }
-    catch (error) { toast(error.message || "Template sheet IB gagal dimuat."); return; }
+    if (!pharmaOnly) {
+      await replaceDaftarTemplateSheet(workbook,selectedPeriod);
+      await replaceServiceLevelSheet(workbook,selectedPeriod);
+      try { await replaceLaunchTemplateSheet(workbook,selectedPeriod); }
+      catch(error) { toast(error.message || "Template sheet LAUNCH gagal dimuat."); return; }
+      try { await replaceBodJmlSdmTemplateSheet(workbook,selectedPeriod); }
+      catch(error) { toast(error.message || "Template sheet BOD JML SDM gagal dimuat."); return; }
+      try { await replaceBodBiReportSheets(workbook,selectedPeriod); }
+      catch(error) { toast(error.message || "Data laporan BOD gagal dimuat."); return; }
+      try { await replaceIBTemplateSheet(workbook, selectedPeriod); }
+      catch (error) { toast(error.message || "Template sheet IB gagal dimuat."); return; }
+    }
     try { await replaceUnitTemplateSheet(workbook, selectedPeriod); }
     catch (error) { toast(error.message || "Template sheet UNIT gagal dimuat."); return; }
-    try {
-      await replaceMtmTemplateSheet(workbook, selectedPeriod);
-      fillReportMtmPriorTarget(workbook, selectedPeriod);
-      fillReportMtmPriorTarget(workbook, selectedPeriod, 0);
-      fillReportMtmPriorTarget(workbook, selectedPeriod, -1, true);
+    if (!pharmaOnly) {
+      try {
+        await replaceMtmTemplateSheet(workbook, selectedPeriod);
+        fillReportMtmPriorTarget(workbook, selectedPeriod);
+        fillReportMtmPriorTarget(workbook, selectedPeriod, 0);
+        fillReportMtmPriorTarget(workbook, selectedPeriod, -1, true);
+      }
+      catch (error) { toast(error.message || "Template sheet MTM gagal dimuat."); return; }
     }
-    catch (error) { toast(error.message || "Template sheet MTM gagal dimuat."); return; }
     try {
       await replaceEdpTemplateSheet(workbook, selectedPeriod);
       fillReportAchievement(workbook, selectedPeriod);
@@ -1169,14 +1175,16 @@
       fillReportCurrentTarget(workbook, selectedPeriod, -1, true);
     }
     catch (error) { toast(error.message || "Target SELL OUT gagal dimasukkan ke sheet REVENUE EDP MNJ."); return; }
-    try {
-      const reportYear = Number(selectedPeriod.slice(0, 4));
-      const hjpData = await getEthicalHjpData(reportYear, reportYear + 1, reportYear - 1);
-      await replaceEthicalTemplateSheet(workbook, selectedPeriod, hjpData);
-      fillReportEthicalTargets(workbook, selectedPeriod);
+    if (!pharmaOnly) {
+      try {
+        const reportYear = Number(selectedPeriod.slice(0, 4));
+        const hjpData = await getEthicalHjpData(reportYear, reportYear + 1, reportYear - 1);
+        await replaceEthicalTemplateSheet(workbook, selectedPeriod, hjpData);
+        fillReportEthicalTargets(workbook, selectedPeriod);
+      }
+      catch (error) { toast(error.message || "Template Ethical gagal dimuat."); return; }
+  
     }
-    catch (error) { toast(error.message || "Template Ethical gagal dimuat."); return; }
-
     fillReportCorporateTotals(workbook);
     fillReportAchievementPercentages(workbook);
     fillReportGrowth(workbook);
@@ -1186,7 +1194,7 @@
     appendMcmReportTable(workbook, selectedPeriod);
     await replaceBodMnjTemplateSheet(workbook, selectedPeriod);
     await replaceBodKxSellInSheet(workbook, selectedPeriod);
-    fillMcmEthicalTarget(workbook, selectedPeriod);
+    if (!pharmaOnly) fillMcmEthicalTarget(workbook, selectedPeriod);
     appendSellingInReportTable(workbook, selectedPeriod);
     fillSellingInReportTargets(workbook, selectedPeriod);
     appendRatioBiayaReportTable(workbook, selectedPeriod);
@@ -1220,6 +1228,7 @@
     fillUnitSellInReportValues(workbook, selectedPeriod);
     appendAchievementGrowthReportTable(workbook, selectedPeriod);
     fillAchievementGrowthReportValues(workbook, selectedPeriod);
+    if (pharmaOnly) return workbook;
     appendSalesMnjReportTable(workbook, selectedPeriod);
     await replaceMnjReportSheet(workbook, selectedPeriod);
     fillSalesMnjPriorActual(workbook, selectedPeriod);
@@ -1263,7 +1272,7 @@
   async function buildSellingInChartWorkbook(period) {
     const workbook=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet([]),'LAPORAN');
-    await replaceIBTemplateSheet(workbook,period);
+    if (!window.PortalAccess.pharma()) await replaceIBTemplateSheet(workbook,period);
     await replaceBodKxSellInSheet(workbook,period);
     appendSellingInReportTable(workbook,period);
     fillSellingInReportTargets(workbook,period);

@@ -122,6 +122,7 @@
     .drop { padding: 20px 14px; }
   }
 </style>
+<script src="../dashboard/portal-access.js?v=pharma-20261125"></script>
 </head>
 <body>
 
@@ -289,7 +290,7 @@
   const msg = $("msg"), bar = $("bar"), barFill = $("barFill"), btn = $("submit"), btnText = $("btnText");
   let chosen = null, busy = false, detecting = false, detectionId = 0;
 
-  const sectionOptions = Array.from($("daftarBagian").options, (option) => option.value);
+  const sectionOptions = Array.from($("daftarBagian").options, (option) => option.value).filter(value=>window.PortalAccess.section(value));
   const sectionMenu = $("bagianOptions");
   let highlightedSection = -1;
   function renderSectionOptions() {
@@ -553,7 +554,7 @@
       .filter(Boolean)
       .map((match) => Number(match[1])));
     const missingGroups = [];
-    for (let gb = 1; gb <= 6; gb++) {
+    for (const gb of window.PortalAccess.gbs()) {
       if (!foundGroups.has(gb)) missingGroups.push("GB " + gb);
     }
     if (missingGroups.length) {
@@ -562,7 +563,7 @@
     // Workbook dapat tidak menampilkan baris subtotal untuk kategori yang
     // memang tidak memiliki nilai pada GB tertentu. Simpan sebagai nol agar
     // perhitungan A+B+C dan D tetap eksplisit untuk seluruh GB.
-    for (let gb = 1; gb <= 6; gb++) {
+    for (const gb of window.PortalAccess.gbs()) {
       for (const category of ["A", "B", "C", "D"]) {
         const code = "category" + gb + category;
         if (!duplicates.has(code)) {
@@ -640,7 +641,7 @@
     });
     if (!foundEdpLayout) return null;
     const rows = Array.from(rowsByCode.values());
-    if (![1, 2, 3, 4, 5, 6].every((gb) => rowsByCode.has("existing" + gb) && rowsByCode.has("new" + gb))) {
+    if (!window.PortalAccess.gbs().every((gb) => rowsByCode.has("existing" + gb) && rowsByCode.has("new" + gb))) {
       throw new Error("Target EDP MNJ harus memuat baris EXIST GB dan NP GB untuk GB 1 sampai 6.");
     }
     if (!rows.some((record) => record.months.some((value) => value !== 0))) {
@@ -709,7 +710,7 @@
       });
     });
     if (!foundTitle) return null;
-    if (!sourceYear || ![1, 2, 3, 4, 5, 6].every((gb) => rowsByCode.has("existing" + gb) && rowsByCode.has("new" + gb))) {
+    if (!sourceYear || !window.PortalAccess.gbs().every((gb) => rowsByCode.has("existing" + gb) && rowsByCode.has("new" + gb))) {
       throw new Error("TARGET SELL OUT harus memiliki EXIST GB dan NP GB 1–6 serta kolom Januari–Desember.");
     }
     if (!Array.from(rowsByCode.values()).some((record) => record.months.some((value) => value !== 0))) {

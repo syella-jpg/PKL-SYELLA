@@ -122,6 +122,7 @@
   }
   @media (max-width: 390px) { .grid { grid-template-columns: 1fr; } }
 </style>
+<script src="../dashboard/portal-access.js?v=pharma-20261125"></script>
 </head>
 <body>
 
@@ -207,7 +208,7 @@
     'RATIO SELL OUT VS SELL IN (RUPIAH)': '../dashboard/Ratio%20Sell%20Out%20Sell%20In%20(Rupiah).html',
     'RATIO SELL OUT VS SELL IN (UNIT)': '../dashboard/Ratio%20Sell%20Out%20Sell%20In%20(Unit).html',
   };
-  reports.forEach(([kategori, judul]) => {
+  reports.filter(([,judul])=>!window.PortalAccess.pharma()||window.PortalAccess.reports([judul]).length).forEach(([kategori, judul]) => {
     const a = document.createElement('a');
     a.className = 'card';
     a.href = reportPages[judul] || '#'; // ganti dengan link laporan masing-masing

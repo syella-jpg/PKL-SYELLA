@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('upb_non_bj_report_api');
 require_once __DIR__.'/../includes/report_artifact_cache.php';
 require_once __DIR__.'/../includes/database.php';require_once __DIR__.'/../includes/upb_non_bj_report.php';require_once __DIR__.'/../includes/upb_non_bj_input_store.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');

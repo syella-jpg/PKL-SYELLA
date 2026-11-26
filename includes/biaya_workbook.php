@@ -166,12 +166,13 @@ function saveBiayaProducts($conn, string $period, array $rows): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $conn->query('CREATE TABLE IF NOT EXISTS biaya_uploads (report_year SMALLINT UNSIGNED PRIMARY KEY, report_period CHAR(7) NOT NULL, uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
     $year=(int)substr($period,0,4);
+    if(reportIsPharma())$rows=reportPharmaRows($rows,'gb',true);
     $conn->begin_transaction();
     try {
         // Lock the annual upload, so concurrent uploads replace a year atomically.
         $q=$conn->prepare('INSERT INTO biaya_uploads (report_year,report_period) VALUES (?,?) ON DUPLICATE KEY UPDATE report_period=VALUES(report_period), uploaded_at=CURRENT_TIMESTAMP');
         $q->bind_param('is',$year,$period); $q->execute(); $q->close();
-        $q=$conn->prepare('DELETE FROM biaya WHERE report_year=?');
+        $q=$conn->prepare('DELETE FROM biaya WHERE report_year=?'.(reportIsPharma()?' AND gb IN (1,4)':''));
         $q->bind_param('i',$year); $q->execute(); $q->close();
         $months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
         $q=$conn->prepare('INSERT INTO biaya (report_year,jenis,gb,kategori,nomor_produk,nama_produk,'.implode(',',array_map(static fn($m)=>'`'.$m.'`',$months)).') VALUES ('.implode(',',array_fill(0,18,'?')).')');

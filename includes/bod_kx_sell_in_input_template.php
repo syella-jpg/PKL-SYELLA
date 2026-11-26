@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/report_access.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -40,7 +41,7 @@ function buildBodKxInputTemplate(string $period,array $history=[]): Spreadsheet 
         foreach([1=>'BOD KX SELL IN — '.$name.' — TAHUN '.$year,2=>'PERIODE LAPORAN: '.$months[$month-1].' '.$year,3=>$instructions,4=>'Baris produk boleh ditambah/dikurangi. Kelompok/bulan yang seluruhnya kosong tidak menimpa data tersimpan; isi 0 untuk menolkan.'] as $r=>$value){$sheet->setCellValue('A'.$r,$value);$sheet->mergeCells('A'.$r.':'.$end.$r);}
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(18);$sheet->getRowDimension(1)->setRowHeight(36);$sheet->getRowDimension(3)->setRowHeight(32);$sheet->getRowDimension(4)->setRowHeight(32);$sheet->getStyle('A2:'.$end.'4')->getFont()->getColor()->setARGB('FF64748B');$sheet->getStyle('A3:'.$end.'4')->getAlignment()->setWrapText(true);
         $title=5;
-        foreach(bodKxInputGroups($rod) as $group=>$label){
+        foreach(reportIsPharma()?array_intersect_key(bodKxInputGroups($rod),array_flip(['gb1','gb4'])):bodKxInputGroups($rod) as $group=>$label){
             $records=array_values(array_filter($history[$kind]??[],static fn($r)=>($r['product']??'')===$group));$count=$fresh?200:count($records);$header=$title+1;$first=$title+3;$last=$first+$count-1;$total=$last+1;
             $sheet->setCellValue('A'.$title,$label);$sheet->mergeCells('A'.$title.':'.$end.$title);
             $identity=$rod?['TAHUN','GROUP BRAND','KODE','NAMA PRODUK','HARGA BELI']:['BARANG'];
@@ -74,7 +75,7 @@ function buildBodKxInputTemplate(string $period,array $history=[]): Spreadsheet 
 
 /** Locate labels and paired month headers instead of fixed row/column offsets. */
 function locateBodKxInputTables(Worksheet $sheet,int $year,bool $rod): array {
-    $groups=bodKxInputGroups($rod);$titles=[];$subtotals=[];$text=[];
+    $groups=reportIsPharma()?array_intersect_key(bodKxInputGroups($rod),array_flip(['gb1','gb4'])):bodKxInputGroups($rod);$titles=[];$subtotals=[];$text=[];
     foreach($sheet->getCellCollection()->getCoordinates() as $address){$cell=$sheet->getCell($address);$value=$cell->getValue();if(!is_string($value)||$cell->isFormula())continue;[$col,$row]=Coordinate::coordinateFromString($address);$column=Coordinate::columnIndexFromString($col);$label=bodKxInputNorm($value);$text[$row][$column]=$label;
         if($label==='SUB TOTAL')$subtotals[]=$row;
         $group=bodKxInputGroupCode($label,$rod);if($group!==null&&$cell->isInMergeRange()){if(isset($titles[$group]))throw new InvalidArgumentException('Judul kelompok berulang pada '.$sheet->getTitle().'.');$titles[$group]=$row;}

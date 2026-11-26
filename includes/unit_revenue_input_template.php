@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/report_access.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -133,7 +134,7 @@ function parseUnitRevenueInputTemplate(Spreadsheet $book,string $period): array
     foreach([$unit,$revenue] as $sheet)foreach(unitRevenueInputHeaders() as $c=>$header)if(strtoupper(trim((string)$sheet->getCell([$c+1,5])->getValue()))!==$header)throw new InvalidArgumentException('Header template UNIT & Revenue berubah. Unduh template terbaru.');
     $records=[];$seen=[];$hasNumber=false;$manualRows=unitRevenueEthicalManualRows($book);
     $manualMode=$book->getSheetByName('_TEMPLATE')->getCell('A5')->getValue()==='ETHICAL_REVENUE_MANUAL_V1';
-    if($manualMode&&!$manualRows)throw new InvalidArgumentException('Bagian rupiah Ethical manual tidak ditemukan.');
+    if(!reportIsPharma()&&$manualMode&&!$manualRows)throw new InvalidArgumentException('Bagian rupiah Ethical manual tidak ditemukan.');
     $last=$manualRows?max($unit->getHighestDataRow(),min($manualRows)-6):max($unit->getHighestDataRow(),$revenue->getHighestDataRow());
     for($r=6;$r<=$last;$r++){
         $identity=[];foreach(range(1,5) as $c)$identity[]=trim((string)$unit->getCell([$c,$r])->getCalculatedValue());
@@ -167,7 +168,7 @@ function parseUnitRevenueInputTemplate(Spreadsheet $book,string $period): array
         $records[]=['gb'=>$gb,'product_code'=>$code,'principal_product_code'=>$principal,'product_name'=>$product,'kategori'=>$category,...$arrays];
         $hasNumber=$hasNumber||$rowHasNumber;
     }
-    foreach($manualRows as $kind=>$r){
+    foreach(reportIsPharma()?[]:$manualRows as $kind=>$r){
         $values=[];
         for($c=6;$c<=17;$c++){
             $cell=$revenue->getCell([$c,$r]);$value=$cell->getCalculatedValue();if(is_string($value))$value=trim($value);
@@ -218,6 +219,14 @@ function ensureUnitRevenueTemplateStore($conn): void
 }
 function saveUnitRevenueTemplateSnapshot($conn,string $period,?array $records): void
 {
+    if(reportIsPharma()){
+        if($records===null)throw new InvalidArgumentException('Upload pharma membutuhkan rincian produk.');
+        reportPharmaRows($records,'gb',true);
+        $read=$conn->prepare('SELECT payload FROM unit_revenue_input_snapshots WHERE report_period=? FOR UPDATE');$read->bind_param('s',$period);$read->execute();$saved=$read->get_result()->fetch_assoc();$read->close();
+        if(!$saved)return; // Keep legacy DB reconstruction authoritative when no snapshot exists.
+        $previous=json_decode(gzdecode($saved['payload']),true,512,JSON_THROW_ON_ERROR);
+        $records=array_merge(array_values(array_filter($previous,static fn($row)=>!in_array(reportGb($row['gb']??''),[1,4],true))),$records);
+    }
     if($records===null){$q=$conn->prepare('DELETE FROM unit_revenue_input_snapshots WHERE report_period=?');$q->bind_param('s',$period);}
     else{$payload=gzencode(json_encode($records,JSON_THROW_ON_ERROR),6);$q=$conn->prepare('INSERT INTO unit_revenue_input_snapshots (report_period,payload) VALUES (?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),updated_at=CURRENT_TIMESTAMP');$q->bind_param('ss',$period,$payload);}
     $q->execute();$q->close();

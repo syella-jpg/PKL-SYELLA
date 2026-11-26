@@ -161,6 +161,7 @@ function unitRevenueLegacyTemplateRecords(string $sourcePeriod,array $revenueRow
 function buildUnitRevenueTemplateWithHistory(string $period,array $history): \PhpOffice\PhpSpreadsheet\Spreadsheet
 {
     [$year,$month]=unitRevenueTemplatePeriod($period);$source=$history['source_period']??null;$records=$history['records']??[];
+    if(reportIsPharma())$records=reportPharmaRows($records,'gb');
     if($month===1||!is_string($source)||!preg_match('/^'.$year.'-(0[1-9]|1[0-2])$/D',$source))return buildUnitRevenueInputTemplate($period);
     if(!is_array($records)||!array_is_list($records))throw new RuntimeException('Susunan riwayat UNIT & Revenue tidak valid.');
     $manual=array_values(array_filter($records,static fn($r)=>($r['__kind']??null)==='ethical_revenue'));
@@ -184,6 +185,7 @@ function buildUnitRevenueTemplateWithHistory(string $period,array $history): \Ph
             }
         }
     }
+    if(reportIsPharma())return $book;
     // Old compact snapshots have product-level Ethical revenue only. Carry
     // those sums into the new editable summary once; later snapshots preserve
     // the independently entered Existing/New/Total values exactly.

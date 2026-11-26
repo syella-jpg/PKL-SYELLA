@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('upb_non_bj_input_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('upb_non_bj_input_api');
 require_once __DIR__.'/../includes/database.php';require_once __DIR__.'/../includes/upb_non_bj_input_store.php';

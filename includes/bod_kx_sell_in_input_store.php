@@ -48,7 +48,7 @@ function mergeBodKxInputState(array $saved,array $incoming): array {
         $touches[$kind]=$replace;
         if($rod&&!empty($incoming['_rod_template'])){
             $present=[];foreach($incoming['rod'] as $record)$present[bodKxInputKey($record,true)]=true;
-            foreach($map as $key=>$record)if(!isset($present[$key])){
+            foreach($map as $key=>$record)if(!isset($present[$key])&&(!isset($incoming['_allowed_groups'])||in_array($record['product'],$incoming['_allowed_groups'],true))){
                 foreach($record['units'] as $m=>$value)if($value!==null)$touches['rod'][$record['product']][$m]['units']=true;
                 unset($map[$key]);
             }
@@ -76,6 +76,8 @@ function bodKxInputAggregates(array $state,array $touches): array {
 }
 /** Save product detail and both canonical report sources atomically, without duplicate imports. */
 function saveBodKxCombinedInput(mysqli $conn,string $period,array $incoming): array {
+    if(reportIsPharma()){foreach(['sales','rod'] as $kind)reportPharmaRows($incoming[$kind]??[],'product',true);$incoming['_allowed_groups']=['gb1','gb4'];}
+
     [$year]=bodKxInputPeriod($period);if($incoming['year']!==$year)throw new InvalidArgumentException('Tahun template berbeda dari periode upload.');ensureBodKxInputStore($conn);
     $conn->begin_transaction();
     try{

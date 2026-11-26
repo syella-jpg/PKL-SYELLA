@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('bod_kx_sell_in_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('bod_kx_sell_in_api');
 require_once __DIR__.'/../includes/database.php';
@@ -9,7 +11,7 @@ require_once __DIR__.'/../includes/bod_kx_sell_in_input_store.php';
 require_once __DIR__.'/../includes/bod_kx_sell_in_rod_input.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
 $origin=$_SERVER['HTTP_ORIGIN']??'';
-if(in_array($origin,['null','http://127.0.0.1:8000','http://localhost:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Methods: GET, POST, OPTIONS');header('Access-Control-Allow-Headers: Content-Type');}
+if(in_array($origin,['null','http://127.0.0.1:8000','http://localhost:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Methods: GET, POST, OPTIONS');header('Access-Control-Allow-Headers: Content-Type, Authorization');}
 $method=$_SERVER['REQUEST_METHOD']??'GET';if($method==='OPTIONS'){http_response_code(204);exit;}
 $conn=null;$book=null;$combined=null;
 try{
@@ -36,6 +38,7 @@ try{
    $combined['_rod_template']=true;
   }
   else {
+   if(reportIsPharma())throw new InvalidArgumentException('Akun pharma menggunakan template BOD KX Sell In khusus GB 1 dan GB 4.');
    $rodSheets=[];foreach($book->getAllSheets() as $candidate)if(isBodKxRodSheet($candidate))$rodSheets[]=$candidate;$isTarget=(bool)$rodSheets;
    if($isTarget){
     if($sourceType==='sales')throw new InvalidArgumentException('File ini adalah ROD. Pilih jenis ROD lalu unggah kembali.');

@@ -1,15 +1,17 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('revenue_ibfm_api');
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/ib_exchange_rates.php';
 require_once __DIR__ . '/../includes/ib_template_history.php';
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null'); header('Vary: Origin');
-    header('Access-Control-Allow-Methods: GET, OPTIONS'); header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Methods: GET, OPTIONS'); header('Access-Control-Allow-Headers: Content-Type, Authorization');
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') header('Access-Control-Allow-Private-Network: true');
 } elseif ($origin === 'http://127.0.0.1:8000' || $origin === 'http://localhost:8000') {
     header('Access-Control-Allow-Origin: '.$origin); header('Vary: Origin');
-    header('Access-Control-Allow-Methods: GET, OPTIONS'); header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Methods: GET, OPTIONS'); header('Access-Control-Allow-Headers: Content-Type, Authorization');
 }
 header('Content-Type: application/json; charset=utf-8');
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') { http_response_code(204); exit; }

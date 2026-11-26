@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('upload_files_api');
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../includes/upload_file_locks.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');uploadGuardCors();
@@ -9,14 +11,16 @@ try{
  $db=openReportConnection();uploadLockSchema($db);
  if($method==='POST'&&($data['action']??'')==='login'){
   $user=$data['username']??'';$password=$data['password']??'';
-  if(!is_string($user)||!in_array($user,['admin 1','admin 2','test 1','direksi'],true)||!is_string($password)||!hash_equals($user,$password))throw new RuntimeException('Username atau password salah.',401);
+  if(!is_string($user)||!in_array($user,['admin 1','admin 2','test 1','direksi','pharma'],true)||!is_string($password)||!hash_equals($user,$password))throw new RuntimeException('Username atau password salah.',401);
   $token=bin2hex(random_bytes(32));$hash=hash('sha256',$token);
   $q=uploadLockQuery($db,'INSERT INTO report_upload_sessions(token_hash,username,expires_at) VALUES (?,?,DATE_ADD(NOW(),INTERVAL 1 DAY))','ss',[$hash,$user]);$q->close();
+  setcookie('konimex_report_session',$token,['expires'=>time()+86400,'path'=>'/','httponly'=>true,'secure'=>(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off'),'samesite'=>'Lax']);
   echo json_encode(['success'=>true,'token'=>$token]);exit;
  }
  // Session token travels in a header for GET to avoid leaking it in URLs/logs.
  $auth=$_SERVER['HTTP_AUTHORIZATION']??'';$token=preg_match('/^Bearer ([a-f0-9]{64})$/D',$auth,$m)?$m[1]:(string)($data['upload_token']??'');
  $user=uploadSessionUser($db,$token);
+ if($method==='POST'&&($data['action']??'')==='logout'){$hash=hash('sha256',$token);$q=uploadLockQuery($db,'DELETE FROM report_upload_sessions WHERE token_hash=?','s',[$hash]);$q->close();setcookie('konimex_report_session','',['expires'=>time()-3600,'path'=>'/','httponly'=>true,'samesite'=>'Lax']);echo json_encode(['success'=>true]);exit;}
  if(!uploadCanManage($user))throw new RuntimeException('Kelola File hanya tersedia untuk admin 2.',403);
  $period=$data['period']??'';if(!is_string($period)||!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$period))throw new InvalidArgumentException('Pilih periode laporan yang valid.');
  foreach(uploadFileCatalog() as $section)uploadSeedLegacy($db,$section,$period);

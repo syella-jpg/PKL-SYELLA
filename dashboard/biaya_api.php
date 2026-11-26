@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('biaya_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('biaya_api');
 require_once __DIR__.'/../includes/database.php';
@@ -9,7 +11,7 @@ header('Cache-Control: no-store');
 $origin=$_SERVER['HTTP_ORIGIN']??'';
 if(in_array($origin,['null','http://localhost:8000','http://127.0.0.1:8000'],true)) {
     header('Access-Control-Allow-Origin: '.$origin); header('Vary: Origin');
-    header('Access-Control-Allow-Methods: GET, POST, OPTIONS'); header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS'); header('Access-Control-Allow-Headers: Content-Type, Authorization');
     if(($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK']??'')==='true') header('Access-Control-Allow-Private-Network: true');
 }
 $method=$_SERVER['REQUEST_METHOD']??'GET';
@@ -24,7 +26,7 @@ try {
         if(($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||($file['size']??0)>50*1024*1024) throw new InvalidArgumentException('File biaya gagal diterima atau terlalu besar.');
         $reader=\PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($file['tmp_name']);
         if(!$reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Ods && !$reader instanceof \PhpOffice\PhpSpreadsheet\Reader\Xlsx) throw new InvalidArgumentException('Gunakan file ODS atau XLSX.');
-        $book=$reader->load($file['tmp_name']); $rows=parseBiayaProducts($book,(int)substr($period,0,4)); $book->disconnectWorksheets();
+        $book=$reader->load($file['tmp_name']); $rows=parseBiayaProducts($book,(int)substr($period,0,4));if(reportIsPharma())reportPharmaRows($rows,'gb',true); $book->disconnectWorksheets();
     }
     $conn=openReportConnection();
     if($method==='POST') {

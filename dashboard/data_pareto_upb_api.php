@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('data_pareto_upb_api');
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../includes/upb_distr_input_store.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');

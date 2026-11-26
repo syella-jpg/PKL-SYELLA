@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('bod_jml_sdm_input_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('bod_jml_sdm_input_api');
 require_once __DIR__.'/../vendor/autoload.php';

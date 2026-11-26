@@ -16,6 +16,7 @@ function buildBiayaTemplateWithHistory(string $period,array $records): \PhpOffic
 {
     if(!preg_match('/^(20\d{2})-(0[1-9]|1[0-2])$/D',$period,$parts))throw new InvalidArgumentException('Periode template BIAYA tidak valid.');
     $year=(int)$parts[1];$month=(int)$parts[2];
+    if(reportIsPharma())$records=reportPharmaRows($records,'gb');
     if($month===1)return buildBiayaInputTemplate($period);
     $records=array_values(array_filter($records,static fn($r)=>(int)($r['report_year']??0)===$year&&in_array($r['jenis']??'',['target','actual'],true)));
     $products=[];
@@ -29,7 +30,7 @@ function buildBiayaTemplateWithHistory(string $period,array $records): \PhpOffic
     $book=buildBiayaInputTemplate($period,$slots);if(!$products)return $book;
     $targetName=$year===2025?'TARGET ROLLING':'TARGET';$target=$book->getSheetByName($targetName);$actual=$book->getSheetByName('REALISASI');
     $available=[];
-    for($r=6;$r<=$target->getHighestDataRow();$r++)$available[(int)$target->getCell('A'.$r)->getValue()][]=$r;
+    foreach(locateBiayaInputTables($target,true) as $layout)for($r=$layout['first'];$r<=$layout['last'];$r++)$available[$layout['gb']][]=$r;
     $positions=[];
     foreach($products as $key=>$record){
         $r=array_shift($available[(int)$record['gb']]);$positions[$key]=$r;
@@ -52,5 +53,6 @@ function buildBiayaTemplateWithHistory(string $period,array $records): \PhpOffic
         }
     }
     $book->getSheetByName('_TEMPLATE')->setCellValue('A6',$source);
+    refreshBiayaConclusion($book,$period);
     return $book;
 }

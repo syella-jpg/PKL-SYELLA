@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('mtm_api');
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/mtm_template_history.php';
 
@@ -7,7 +9,7 @@ if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
     header('Vary: Origin');
     header('Access-Control-Allow-Methods: GET, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
     header('Access-Control-Max-Age: 600');
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
         header('Access-Control-Allow-Private-Network: true');
@@ -16,7 +18,7 @@ if ($origin === 'null') {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Vary: Origin');
     header('Access-Control-Allow-Methods: GET, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
     header('Access-Control-Max-Age: 600');
 }
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {

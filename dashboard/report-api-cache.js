@@ -1,7 +1,7 @@
 /* Share successful report API reads across menus in this browser tab. */
 (() => {
   const nativeFetch = window.fetch.bind(window);
-  const prefix = 'corporate_api_cache_v2:';
+  const prefix = 'corporate_api_cache_v3:'+JSON.parse(sessionStorage.getItem('konimex_login_user')||'null')?.username+':';
   const revisionKey = 'konimex_report_revision';
   const ttl = 5 * 60 * 1000;
   const pending = new Map();

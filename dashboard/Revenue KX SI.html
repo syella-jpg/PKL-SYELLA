@@ -118,6 +118,7 @@
   .note-edit { display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 7px; color: #6450bd; }
   .note-edit:hover { background: #f0edff; }
 </style>
+<script src="portal-access.js?v=pharma-20261125"></script>
 </head>
 <body>
 
@@ -195,7 +196,7 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script src="report-api-cache.js?v=no-store-20261120"></script>
+<script src="report-api-cache.js?v=account-scope-20261125"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="shared-report-download.js?v=reuse-builder-20261113"></script>
 <script src="selling-in-chart.js?v=report-source-20261102"></script>
@@ -240,7 +241,7 @@
     "Complain Level": "",
     "Ratio UPB": ""
   };
-  const TABS = ["PHARMA", "HCE", "Biskuit", "Candy", "Ethical", "Ekstraksi Solonat", "KODC", "Toll In"];
+  const TABS = window.PortalAccess.tabs(["PHARMA", "HCE", "Biskuit", "Candy", "Ethical", "Ekstraksi Solonat", "KODC", "Toll In"]);
 
   // Data hasil upload (kosong = angka & chart belum tampil).
   // Format: DATA[laporan][tab] = { cards: ["43.3%","9.0%","43.5%","6.7%"],
@@ -271,7 +272,7 @@
   }
 
   /* ---------- Bangun menu, tab, periode ---------- */
-  REPORTS.forEach((r) => {
+  window.PortalAccess.reports(REPORTS).forEach((r) => {
     const b = document.createElement("button"); b.textContent = r; b.dataset.r = r;
     b.onclick = () => go(r);
     $("menu").appendChild(b);

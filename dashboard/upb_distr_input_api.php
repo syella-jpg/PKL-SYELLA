@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('upb_distr_input_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('upb_distr_input_api');
 require_once __DIR__.'/../includes/database.php';

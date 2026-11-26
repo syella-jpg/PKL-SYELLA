@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('analysis_api');
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../includes/analysis_locks.php';
 require_once __DIR__.'/../includes/analysis_period.php';
@@ -7,7 +9,7 @@ header('Cache-Control: no-store');
 $origin=$_SERVER['HTTP_ORIGIN']??'';
 if(in_array($origin,['null','http://localhost:8000','http://127.0.0.1:8000'],true)) {
     header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');
-    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');header('Access-Control-Allow-Headers: Content-Type, Authorization');
 }
 if(($_SERVER['REQUEST_METHOD']??'GET')==='OPTIONS'){http_response_code(204);exit;}
 $conn=null;
@@ -73,6 +75,7 @@ try {
         $originalDate=isset($data['originalDate'])&&is_string($data['originalDate'])?substr($data['originalDate'],0,150):null;
         $name=is_array($user)&&is_string($user['username']??null)?substr($user['username'],0,150):null;
         $role=is_array($user)&&is_string($user['role']??null)?substr($user['role'],0,80):null;
+        if(reportIsPharma()){$name='pharma';$role='Pharma';}
         if($action==='create') {
             $q=$conn->prepare('INSERT INTO report_analysis (id,report_name,tab_name,analysis_text,analysis_html,created_by,created_role,original_created_label,report_period) VALUES (?,?,?,?,?,?,?,?,?)');$q->bind_param('sssssssss',$id,$report,$tab,$text,$html,$name,$role,$originalDate,$period);
         } else {

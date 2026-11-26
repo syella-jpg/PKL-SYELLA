@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('report_input_template');
 require_once __DIR__.'/../vendor/autoload.php';
 require_once __DIR__.'/../includes/report_input_templates.php';
 require_once __DIR__.'/../includes/mtm_template_history.php';
@@ -143,7 +145,8 @@ try {
                 $query=$conn->prepare('SELECT report_year,product,payload FROM unit_sell_out_target_inputs WHERE report_year=?');
                 $query->bind_param('i',$year);$query->execute();
                 $history=$query->get_result()->fetch_all(MYSQLI_ASSOC);$query->close();
-                $master=loadEthicalSourceMonthly($conn,$year);
+                if(reportIsPharma())$history=reportPharmaRows($history,'product');
+                $master=reportIsPharma()?[]:loadEthicalSourceMonthly($conn,$year);
                 if($master){
                     $history=array_values(array_filter($history,fn($r)=>$r['product']!=='ethical'));
                     $history[]=['report_year'=>$year,'product'=>'ethical','payload'=>json_encode(ethicalSourceUnitInputs($master),JSON_THROW_ON_ERROR)];
@@ -178,6 +181,7 @@ try {
             }
         } finally { $conn->close(); }
     }
+    if(reportIsPharma()&&$section==='TARGET UNIT SELL OUT'){foreach($book->getAllSheets() as $sheet){$name=$sheet->getTitle();if(preg_match('/^GB ([2356])$/D',$name))$book->removeSheetByIndex($book->getIndex($sheet));elseif(in_array($name,['ETHICAL','IB'],true))$sheet->setSheetState('veryHidden');}}
     $stream = fopen('php://temp', 'w+b');
     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book);
     if (in_array($section,['MNJ','TARGET REVENUE','TARGET UNIT SELL OUT','ETHICAL','UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In'],true)) {

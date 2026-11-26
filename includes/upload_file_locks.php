@@ -161,8 +161,9 @@ function guardReportFileUpload(string $endpoint): void {
         $scope=uploadEndpointScope($endpoint,$data);if(!$scope)return;
         require_once __DIR__.'/database.php';$db=openReportConnection();uploadLockSchema($db);
         $user=uploadSessionUser($db,(string)($data['upload_token']??''));
-        if(!in_array($user,['admin 1','admin 2','test 1'],true))throw new RuntimeException('Akun ini tidak diizinkan mengunggah file.',403);
+        if(!in_array($user,['admin 1','admin 2','test 1','pharma'],true))throw new RuntimeException('Akun ini tidak diizinkan mengunggah file.',403);
         [$section,$period]=$scope;
+        if($user==='pharma'&&!in_array($section,reportPharmaUploads(),true))throw new RuntimeException('Upload akun pharma hanya untuk data GB 1 dan GB 4.',403);
         $filename=basename(str_replace('\\','/',(string)($_FILES['file']['name']??$data['upload_filename']??$data['source']??'Upload '.$section)));
         $filename=mb_substr($filename,0,255);
         uploadSeedLegacy($db,$section,$period);

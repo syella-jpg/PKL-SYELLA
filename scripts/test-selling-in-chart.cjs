@@ -20,7 +20,7 @@ console.log('PASS Selling In scoped YTD series, nonduplicated division/corporate
 
 const divisionTabs=['PHARMA','HCE','Biskuit','Candy','Ethical','Ekstraksi Solonat','KODC','Toll In'];
 const page=fs.readFileSync('dashboard/Revenue KX SI.html','utf8');
-assert.deepEqual(JSON.parse(page.match(/const TABS = (\[[^;]+\]);/)[1]),divisionTabs);
+assert.deepEqual(JSON.parse(page.match(/const TABS = window\.PortalAccess\.tabs\((\[[^;]+\])\);/)[1]),divisionTabs);
 for(const tab of divisionTabs){
  const row=data.find(row=>String(row[1]).toUpperCase()===tab.toUpperCase());
  const actual=context.window.sellingInChartData(book,tab,'2027-09');

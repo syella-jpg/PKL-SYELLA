@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('tm_bod_analysis_api');
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../includes/analysis_period.php';
 require_once __DIR__.'/../includes/tm_bod_analysis_map.php';

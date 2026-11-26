@@ -5,7 +5,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 /** Group tables retain the same columns and units as the original compact template. */
 function unitRevenueGroupBlocks(int $capacity=7,array $slots=[]): array {
-    $groups=['1','2','3','4','5','6','ET'];$base=max(1,intdiv(max(7,$capacity),7));$extra=max(7,$capacity)%7;$title=5;$blocks=[];
+    $groups=reportIsPharma()?['1','4']:['1','2','3','4','5','6','ET'];$base=max(1,intdiv(max(7,$capacity),7));$extra=max(7,$capacity)%7;$title=5;$blocks=[];
     foreach($groups as $i=>$gb){$count=max($base+($i<$extra?1:0),(int)($slots[$gb]??0));$summary=$title+2+$count;$blocks[$gb]=['title'=>$title,'header'=>$title+1,'first'=>$title+2,'last'=>$summary-1,'total'=>$summary+($gb==='ET'?0:2)];if($gb!=='ET'){$blocks[$gb]['existing']=$summary;$blocks[$gb]['new']=$summary+1;}$title=$blocks[$gb]['total']+3;}return $blocks;
 }
 function buildUnitRevenueInputTemplate(string $period,?int $capacity=null,array $slots=[]): Spreadsheet {
@@ -30,10 +30,12 @@ function buildUnitRevenueInputTemplate(string $period,?int $capacity=null,array 
             if($name==='UNIT'){$category=(new DataValidation())->setType('list')->setFormula1('"A,B,C,ABC,D,E,KAT E,NP"')->setAllowBlank(true)->setShowDropDown(true);$s->setDataValidation('E'.$b['first'].':E'.$b['last'],$category);}
             $number=(new DataValidation())->setType('decimal')->setOperator('between')->setFormula1('-999999999999999')->setFormula2('999999999999999')->setAllowBlank(true)->setShowErrorMessage(true)->setErrorStyle('stop')->setError('Isi angka atau biarkan kosong.');$s->setDataValidation('F'.$b['first'].':Q'.$b['last'],$number);
         }
-        foreach(['A'=>12,'B'=>20,'C'=>24,'D'=>40,'E'=>14] as $col=>$width)$s->getColumnDimension($col)->setWidth($width);foreach(range('F','R') as $col)$s->getColumnDimension($col)->setWidth(16);$s->freezePane('F7');$s->getDefaultRowDimension()->setRowHeight(24);$s->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(0)->setPrintArea('A1:R'.$blocks['ET']['total']);
+        foreach(['A'=>12,'B'=>20,'C'=>24,'D'=>40,'E'=>14] as $col=>$width)$s->getColumnDimension($col)->setWidth($width);foreach(range('F','R') as $col)$s->getColumnDimension($col)->setWidth(16);$s->freezePane('F7');$s->getDefaultRowDimension()->setRowHeight(24);$s->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(0)->setPrintArea('A1:R'.(end($blocks)['total']));
     }
+    if(!reportIsPharma()){
     $s=$book->getSheetByName('REVENUE');$title=$blocks['ET']['total']+3;$s->setCellValue('A'.$title,'ETHICAL — REVENUE MANUAL');$s->mergeCells('A'.$title.':R'.$title);$s->getStyle('A'.$title)->getFont()->setBold(true)->setSize(13);$header=$title+2;$s->setCellValue('A'.$header,'PARAMETER');foreach($months as $i=>$v)$s->setCellValue([$i+6,$header],$v);$s->setCellValue('R'.$header,'TOTAL');$s->getStyle('A'.$header.':R'.$header)->getFill()->setFillType('solid')->getStartColor()->setARGB('FF29354A');$s->getStyle('A'.$header.':R'.$header)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
     foreach(['existing'=>'EXIST','new'=>'NP','total'=>'TOTAL'] as $i=>$label){$r=$title+3+array_search($i,['existing','new','total'],true);$s->setCellValue('A'.$r,$label);$s->mergeCells('A'.$r.':E'.$r);foreach(range('F','Q') as $col){if($i==='total')$formula='='.$col.($r-2).'+'.$col.($r-1);else{$terms=[];foreach($i==='existing'?['E','KAT E','A','B','C','ABC']:['NP','D'] as $cat)$terms[]='SUMIF($E$'.$blocks['ET']['first'].':$E$'.$blocks['ET']['last'].',"'.$cat.'",'.$col.'$'.$blocks['ET']['first'].':'.$col.'$'.$blocks['ET']['last'].')';$formula='='.implode('+',$terms);}$s->setCellValue($col.$r,$formula);}$s->setCellValue('R'.$r,'=SUM(F'.$r.':Q'.$r.')');}$s->getStyle('F'.($title+3).':Q'.($title+5))->getFill()->setFillType('solid')->getStartColor()->setARGB('FFFFF8DD');$s->getStyle('F'.($title+3).':R'.($title+5))->getNumberFormat()->setFormatCode('#,##0;[Red](#,##0);0');$s->getPageSetup()->setPrintArea('A1:R'.($title+5));
+    }
     $meta=new Worksheet($book,'_TEMPLATE');$book->addSheet($meta);$meta->fromArray([['KONIMEX_UNIT_REVENUE_V2'],['UNIT & Revenue'],[$year],[$period],['ETHICAL_REVENUE_MANUAL_V1']]);$meta->setSheetState('hidden');$book->setActiveSheetIndex(0);return $book;
 }
 function unitRevenueGroupNorm($value): string {return strtoupper(trim(preg_replace('/\s+/u',' ',str_replace("\xc2\xa0",' ',(string)$value))));}
@@ -58,8 +60,9 @@ function locateUnitRevenueGroupTables(Worksheet $s): array {
             }
         }
     }
+    if(reportIsPharma()&&array_diff(array_keys($titles),['1','4']))throw new InvalidArgumentException('Template pharma hanya boleh memuat GB 1 dan GB 4.');
     $out=[];
-    foreach(['1','2','3','4','5','6','ET'] as $gb){
+    foreach(reportIsPharma()?['1','4']:['1','2','3','4','5','6','ET'] as $gb){
         $title=$titles[$gb]??null;
         if($title===null)throw new InvalidArgumentException('Judul '.($gb==='ET'?'ETHICAL':'GB '.$gb).' tidak ditemukan pada '.$s->getTitle().'.');
         $end=$s->getHighestRow()+1;foreach($titles as $row)if($row>$title)$end=min($end,$row);
@@ -115,7 +118,7 @@ function parseUnitRevenueGroupTemplate(Spreadsheet $book,string $period): array 
             $products[$key][$field]=$values;$hasInput=$hasInput||$has;
         }
     }
-    $manual=locateUnitRevenueManualTable($book->getSheetByName('REVENUE'));$manualValues=[];$formulaFlags=[];foreach($manual['rows'] as $kind=>$r)foreach($manual['months'] as $m=>$column){$cell=$book->getSheetByName('REVENUE')->getCell([$column,$r]);$v=$cell->getCalculatedValue();if($v===null||$v==='')$v=null;elseif(!is_numeric($v)||!is_finite((float)$v))throw new InvalidArgumentException('Nilai Ethical manual tidak valid pada '.$cell->getCoordinate().'.');else{$v=(float)$v;if(!$cell->isFormula()||$v!=0)$hasInput=true;}$manualValues[$kind][$m]=$v;$formulaFlags[$kind][$m]=$cell->isFormula();}
+    $manual=reportIsPharma()?['rows'=>[],'months'=>[]]:locateUnitRevenueManualTable($book->getSheetByName('REVENUE'));$manualValues=[];$formulaFlags=[];foreach($manual['rows'] as $kind=>$r)foreach($manual['months'] as $m=>$column){$cell=$book->getSheetByName('REVENUE')->getCell([$column,$r]);$v=$cell->getCalculatedValue();if($v===null||$v==='')$v=null;elseif(!is_numeric($v)||!is_finite((float)$v))throw new InvalidArgumentException('Nilai Ethical manual tidak valid pada '.$cell->getCoordinate().'.');else{$v=(float)$v;if(!$cell->isFormula()||$v!=0)$hasInput=true;}$manualValues[$kind][$m]=$v;$formulaFlags[$kind][$m]=$cell->isFormula();}
     if(!$hasInput)throw new InvalidArgumentException('Template UNIT & Revenue masih kosong. Isi minimal satu nilai unit atau rupiah sebelum upload.');
     $normalized=buildUnitRevenueLegacyInputTemplate($period,max(1,count($products)));$i=6;foreach($products as $product){foreach($product['identity'] as $c=>$value)$normalized->getSheetByName('UNIT')->setCellValueExplicit([$c+1,$i],$value,\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);foreach(['qty'=>'UNIT','rev'=>'REVENUE'] as $field=>$name)foreach($product[$field] as $m=>$v)if($v!==null)$normalized->getSheetByName($name)->setCellValue([$m+6,$i],$v);$i++;}
     $dest=unitRevenueEthicalManualRows($normalized);foreach($manualValues as $kind=>$values)foreach($values as $m=>$v)$normalized->getSheetByName('REVENUE')->setCellValue([$m+6,$dest[$kind]],$v);

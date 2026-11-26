@@ -538,6 +538,20 @@
   global.replaceBodMnjTemplateSheet = async function (workbook, period) {
     if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period)) throw new Error("Periode BOD MNJ tidak valid.");
     const year = Number(period.slice(0, 4));
+    if (global.PortalAccess?.pharma()) {
+      const rows = [];
+      for (const sourcePeriod of [period, (year - 1) + "-12"]) {
+        // Request prior-year YTD for the selected month, rather than December.
+        const selected = sourcePeriod.slice(0,4) + period.slice(4);
+        const response = await fetchReportApi(new URL("bod_mnj_api.php?period=" + sourcePeriod + "&ytd=" + selected, apiBase).href, {cache:"no-store"});
+        const payload = await response.json();
+        if (!response.ok || !payload.success || !Array.isArray(payload.data?.rows)) throw new Error(payload.message || "Biaya Pharma BOD MNJ gagal dimuat.");
+        rows.push(...payload.data.rows, []);
+      }
+      workbook.Sheets["BOD MNJ"] = global.XLSX.utils.aoa_to_sheet(rows);
+      if (!workbook.SheetNames.includes("BOD MNJ")) workbook.SheetNames.push("BOD MNJ");
+      return;
+    }
     async function readYear(targetYear, targetPeriod) {
       let base64 = targetYear === 2025 ? BOD_MNJ_2025_BASE64 : targetYear === 2026 ? BOD_MNJ_2026_BASE64 : null;
       let uploaded = null;
@@ -1561,7 +1575,7 @@
   // SheetJS memakai ! secara internal dan mengubahnya menjadi titik saat ekspor ODS.
   // Kutip nama sheet sesuai nama sebenarnya agar referensi Calc tetap konsisten.
   // Subtotal raw dipetakan berdasarkan label, bukan urutan baris kategori.
-  global.aggregateTargetCategories = function (rows) {
+  global.aggregateTargetCategories = function (rows, allowedGbs = [1, 2, 3, 4, 5, 6]) {
     const groups = new Map();
     for (const record of rows || []) {
       const match = String(record.code || "").match(/^category([1-6])([ABCD])$/);
@@ -1575,7 +1589,7 @@
     }
     if (!groups.size) return null;
     const result = new Map();
-    for (let gb = 1; gb <= 6; gb++) {
+    for (const gb of allowedGbs) {
       const group = groups.get(gb);
       if (!group) throw new Error("Kategori target GB " + gb + " tidak ditemukan.");
       result.set(gb, Array.from({ length: 12 }, (_, month) => {
@@ -3842,7 +3856,7 @@
     const sum = (row, rows) => write(row, "SUM(" + rows.map((r) => "I" + r).join(",") + ")",
       rows.reduce((total, r) => total + (Number(report["I" + r]?.v) || 0), 0));
     const gbRows = new Map();
-    for (let gb = 1; gb <= 6; gb++) {
+    for (const gb of (global.PortalAccess?.pharma() ? [1,4] : [1,2,3,4,5,6])) {
       const row = findRow("GB " + gb);
       if (!row) throw new Error("Baris GB " + gb + " tidak ditemukan pada LAPORAN.");
       link(row + 1, "EXIST GB " + gb);
@@ -3851,11 +3865,13 @@
       gbRows.set(gb, row);
     }
     for (const [name, members] of [["PHARMA", [1, 4]], ["HCE", [2, 3]], ["FOOD", [5, 6]]]) {
+      if (global.PortalAccess?.pharma() && name !== "PHARMA") continue;
       const row = findRow(name);
       sum(row + 1, members.map((gb) => gbRows.get(gb) + 1));
       sum(row + 2, members.map((gb) => gbRows.get(gb) + 2));
       sum(row, [row + 1, row + 2]);
     }
+    if (global.PortalAccess?.pharma()) return;
     const ethical = findRow("ETHICAL");
     link(ethical + 1, "EXIST ETHICAL");
     link(ethical + 2, "NP ETHICAL");
@@ -3931,6 +3947,7 @@
   };
 
   global.replaceEdpTemplateSheet = async function (workbook, period, revenueAchievement) {
+    const allowedGbs = global.PortalAccess?.pharma() ? [1, 4] : [1, 2, 3, 4, 5, 6];
     if (!global.XLSX) throw new Error("Komponen spreadsheet belum dimuat.");
     const templateWorkbook = readStaticReportLayout("EDP",await readTemplate(), {
       type: "array",
@@ -4067,7 +4084,7 @@
             if (!records.has(code)) records.set(code, { code, months: Array(12).fill(0) });
             records.get(code).months[month - 1] = Number(row.target) || 0;
           }
-          if (records.size === 12) return Array.from(records.values());
+          if (allowedGbs.every(gb => records.has("existing" + gb) && records.has("new" + gb))) return Array.from(records.values());
         }
       } catch (_) { /* Embedded 2025 source below remains available. */ }
       return null;
@@ -4170,7 +4187,7 @@
         ? processedTarget2025
         : await readTargetCategories(targetYear);
       if (Array.isArray(uploadedRows) && uploadedRows.length) {
-        monthlyByGb = global.aggregateTargetCategories(uploadedRows);
+        monthlyByGb = global.aggregateTargetCategories(uploadedRows, allowedGbs);
         const processed = new Map();
         uploadedRows.forEach((record) => {
           const match = String(record.code || "").match(/^(existing|new)([1-6])$/);
@@ -4179,13 +4196,13 @@
           group[match[1]] = Array.from({ length: 12 }, (_, index) => Number(record.months?.[index]) || 0);
           processed.set(Number(match[2]), group);
         });
-        const hasCompleteProcessed = Array.from({ length: 6 }, (_, index) => {
-          const group = processed.get(index + 1);
+        const hasCompleteProcessed = allowedGbs.map((gb) => {
+          const group = processed.get(gb);
           return Boolean(group && group.existing && group.new);
         }).every(Boolean);
         if (!monthlyByGb && hasCompleteProcessed) {
           monthlyByGb = new Map();
-          for (let gb = 1; gb <= 6; gb++) {
+          for (const gb of allowedGbs) {
             const group = processed.get(gb);
             monthlyByGb.set(gb, Array.from({ length: 12 }, (_, month) => ({
               existing: group.existing[month], newProduct: group.new[month], total: group.existing[month] + group.new[month]
@@ -4195,7 +4212,7 @@
       }
       if (!monthlyByGb && targetYear === 2025) {
         monthlyByGb = new Map();
-        for (let gb = 1; gb <= 6; gb++) {
+        for (const gb of allowedGbs) {
           const existing = processedTarget2025.find((record) => record.code === "existing" + gb).months;
           const newProduct = processedTarget2025.find((record) => record.code === "new" + gb).months;
           monthlyByGb.set(gb, Array.from({ length: 12 }, (_, month) => ({
@@ -4214,7 +4231,7 @@
           if (match) targetRows.set(match[1] + match[2], row);
         }
       }
-      for (let gb = 1; gb <= 6; gb++) {
+      for (const gb of allowedGbs) {
         const monthly = monthlyByGb.get(gb);
         const output = [
           ["EXIST", monthly.map((value) => value.existing)],
@@ -4273,7 +4290,7 @@
           if (label) rowIndexes.set(label, r);
         }
         // Isi posisi standar template bila label tidak terbaca saat konversi ODS.
-        for (let gb = 1; gb <= 6; gb++) {
+        for (const gb of allowedGbs) {
           const base = headerIndex + 1 + (gb - 1) * 4;
           rowIndexes.set("EXIST GB " + gb, rowIndexes.get("EXIST GB " + gb) ?? base);
           rowIndexes.set("NP GB " + gb, rowIndexes.get("NP GB " + gb) ?? base + 1);
@@ -4301,7 +4318,7 @@
           return matches.length ? Array.from({ length: 12 }, (_, i) => matches.reduce((sum, values) => sum + (Number(values[i]) || 0), 0)) : null;
         };
         const outputRows = [];
-        for (let gb = 1; gb <= 6; gb++) {
+        for (const gb of allowedGbs) {
           outputRows.push(["EXIST GB " + gb, readMonths("existing" + gb, [])]);
           outputRows.push(["NP GB " + gb, readMonths("new" + gb, [])]);
           outputRows.push(["TOTAL GB " + gb, sumMonths(["existing" + gb, "new" + gb])]);
@@ -4390,7 +4407,7 @@
             if (/^(?:(?:BIAYA|MCM|TARGET|REVENUE) TAHUN|TARGET BIAYA) \d{4}/.test(label)) break;
             if (label) rowIndexes.set(label, r);
           }
-          for (let gb = 1; gb <= 6; gb++) {
+          for (const gb of allowedGbs) {
             const base = headerIndex + 1 + (gb - 1) * 4;
             rowIndexes.set("EXIST GB " + gb, rowIndexes.get("EXIST GB " + gb) ?? base);
             rowIndexes.set("NP GB " + gb, rowIndexes.get("NP GB " + gb) ?? base + 1);
@@ -4408,7 +4425,7 @@
             monthly.set(record.code, aggregate);
           });
           const rows = [];
-          for (let gb = 1; gb <= 6; gb++) {
+          for (const gb of allowedGbs) {
             rows.push(["EXIST GB " + gb, monthly.get("existing" + gb)]);
             rows.push(["NP GB " + gb, monthly.get("new" + gb)]);
             const parts = [monthly.get("existing" + gb), monthly.get("new" + gb)].filter(Boolean);

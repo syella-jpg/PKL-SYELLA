@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/report_access.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;

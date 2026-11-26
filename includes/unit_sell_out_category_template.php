@@ -53,9 +53,10 @@ function buildUnitSellOutProductTemplate(string $period,int $gbCapacity=1000,int
 }
 /** Normalize editable product rows only; ignore displayed subtotal caches. */
 function parseUnitSellOutCategoryTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,int $year): array {
+    if(reportIsPharma())foreach([2,3,5,6] as $gb)if($book->getSheetByName('GB '.$gb))throw new InvalidArgumentException('Template pharma hanya boleh memuat GB 1 dan GB 4.');
     if((int)$book->getSheetByName('_TEMPLATE')->getCell('A3')->getValue()!==$year)throw new InvalidArgumentException('Tahun template berbeda dari periode upload.');
     $normalized=new \PhpOffice\PhpSpreadsheet\Spreadsheet();$s=$normalized->getActiveSheet();$s->setTitle('GB 1-6');foreach(unitSellOutProductHeaders() as $c=>$label)$s->setCellValue([$c+1,5],$label);$next=6;
-    foreach(range(1,6) as $gb){$sheet=$book->getSheetByName('GB '.$gb);if(!$sheet)throw new InvalidArgumentException('Sheet GB '.$gb.' tidak ditemukan.');
+    foreach(reportInputGbs() as $gb){$sheet=$book->getSheetByName('GB '.$gb);if(!$sheet)throw new InvalidArgumentException('Sheet GB '.$gb.' tidak ditemukan.');
         foreach(locateUnitSellOutCategoryTables($sheet) as $cat=>$b){
             for($r=$b['first'];$r<=$b['last'];$r++){$name=trim((string)$sheet->getCell([$b['columns']['name'],$r])->getValue());$unit=isset($b['columns']['unit'])?trim((string)$sheet->getCell([$b['columns']['unit'],$r])->getValue()):'';$values=[];$hasValue=false;
                 for($m=0;$m<12;$m++){$cell=$sheet->getCell([$b['columns']['months'][$m],$r]);try{$v=$cell->getCalculatedValue();}catch(Throwable $e){throw new InvalidArgumentException('Rumus GB '.$gb.' tidak valid pada '.$cell->getCoordinate().'.');}if($v!==null&&$v!==''&&!in_array(trim((string)$v),['-','–','—'],true))$hasValue=true;$values[$m]=$v;}

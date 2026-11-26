@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('upload');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('upload');
 require_once __DIR__ . '/../includes/database.php';
@@ -35,7 +37,7 @@ if ($origin === 'null') {
     header('Access-Control-Allow-Origin: null');
     header('Vary: Origin');
     header('Access-Control-Allow-Methods: POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
     header('Access-Control-Max-Age: 600');
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') {
         header('Access-Control-Allow-Private-Network: true');
@@ -897,9 +899,10 @@ try {
         $unitRevenueTemplateRecords = null;
         if (isUnitRevenueInputTemplate($spreadsheet)) {
             $unitRevenueTemplateRecords = parseUnitRevenueInputTemplate($spreadsheet, $period);
+            if(reportIsPharma())reportPharmaRows($unitRevenueTemplateRecords,'gb',true);
             $spreadsheet->disconnectWorksheets();
             $spreadsheet = normalizeUnitRevenueInputTemplate($unitRevenueTemplateRecords);
-        }
+        }elseif(reportIsPharma())throw new InvalidArgumentException('Akun pharma harus memakai template UNIT & Revenue khusus GB 1 dan GB 4.');
     }
     $sheet = $spreadsheet->getActiveSheet();
 
@@ -1073,7 +1076,7 @@ try {
         if ($lockPeriod->num_rows !== 1) throw new Exception('Pengunci periode upload tidak tersedia.');
         $lockPeriod->close();
 
-        $tagLegacyRows = $conn->prepare("UPDATE `{$tableName}` SET report_period = ? WHERE report_period IS NULL");
+        $tagLegacyRows = $conn->prepare("UPDATE `{$tableName}` SET report_period = ? WHERE report_period IS NULL".(reportIsPharma()?" AND gb IN ('1','4','GB 1','GB 4')":""));
         if (!$tagLegacyRows) throw new Exception('Gagal menandai periode data EDP lama: ' . $conn->error);
         $tagLegacyRows->bind_param('s', $period);
         if (!$tagLegacyRows->execute()) throw new Exception('Gagal menandai periode data EDP lama: ' . $tagLegacyRows->error);
@@ -1085,7 +1088,7 @@ try {
     // EDP uploads always replace both tables after acquiring the period lock.
     // Do not use the row count observed before another request committed.
     if ($unitStmt || ($existingRows > 0 && $replaceExistingPeriod)) {
-        $deletePeriod = $conn->prepare("DELETE FROM `{$tableName}` WHERE report_period = ?");
+        $deletePeriod = $conn->prepare("DELETE FROM `{$tableName}` WHERE report_period = ?".(reportIsPharma()?" AND gb IN ('1','4','GB 1','GB 4')":""));
         if (!$deletePeriod) {
             throw new Exception('Gagal menyiapkan penggantian data periode: ' . $conn->error);
         }
@@ -1095,7 +1098,7 @@ try {
         }
         $deletePeriod->close();
         if ($unitStmt) {
-            $deleteUnit = $conn->prepare('DELETE FROM `UNIT` WHERE report_period = ?');
+            $deleteUnit = $conn->prepare('DELETE FROM `UNIT` WHERE report_period = ?'.(reportIsPharma()?" AND gb IN ('1','4','GB 1','GB 4')":''));
             if (!$deleteUnit) throw new Exception('Gagal menyiapkan penggantian periode UNIT: ' . $conn->error);
             $deleteUnit->bind_param('s', $period);
             if (!$deleteUnit->execute()) throw new Exception('Gagal mengganti data UNIT: ' . $deleteUnit->error);

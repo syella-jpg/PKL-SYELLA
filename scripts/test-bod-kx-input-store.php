@@ -57,6 +57,9 @@ check(in_array('SELECT payload FROM `BOD KX SELL IN TEMPLATE` WHERE report_year=
 $conn->begin_transaction();\invalidateBodKxInputState($conn,'2026-10',false);$conn->commit();$state=\loadBodKxInputHistory($conn,'2026-11');check($state['sales'][0]['units'][9]===null&&$state['sales'][0]['units'][0]===2&&$state['rod'][0]['units'][0]===2,'Legacy monthly replacement invalidates only its month detail');
 $conn->begin_transaction();\invalidateBodKxInputState($conn,'2026-10',true);$conn->commit();$state=\loadBodKxInputHistory($conn,'2026-11');check($state['rod']===[]&&$state['sales'][0]['units'][0]===2,'Legacy ROD replacement invalidates only target detail');
 
+// The handler test supplies an authenticated admin; separate tests cover authorization.
+function enforceReportAccess(string $endpoint):void {}
+function guardReportFileUpload(string $endpoint):void {}
 // Exercise the actual upload/read handler using a real generated XLSX and this connection double.
 $apiConn=new Connection();$connections=0;
 function openReportConnection():Connection {global $apiConn,$connections;$connections++;return $apiConn;}

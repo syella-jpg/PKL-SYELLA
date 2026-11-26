@@ -27,7 +27,7 @@ assert.equal(c.window.upbMnjChartData({Sheets:{}},'Ethical','2026-10'),null);
 const html=fs.readFileSync('dashboard/UPB MNJ.html','utf8');
 for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))if(m[1].trim())new vm.Script(m[1]);
 assert.ok(html.includes('const CURRENT = "UPB MNJ (RP)"'));
-assert.ok(html.includes('const TABS = ["Total UPB MNJ", "GB 1 S/D GB 6", "Ethical", "Non Konimex"]'));
+assert.ok(html.includes('const TABS = window.PortalAccess.tabs(["Total UPB MNJ", "GB 1 S/D GB 6", "Ethical", "Non Konimex"])'));
 assert.ok(html.indexOf('shared-report-download.js')<html.indexOf('async function loadData'));
 assert.ok(html.includes('window.upbMnjChartData'));assert.ok(html.includes('window.upbMnjChartSvg'));
 const cardRenderer=html.match(/function renderCards\(\) \{([\s\S]*?)\n  \}/)[1];

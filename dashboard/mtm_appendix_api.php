@@ -1,9 +1,11 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('mtm_appendix_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('mtm_appendix_api');
 require_once __DIR__.'/../includes/database.php';require_once __DIR__.'/../includes/mtm_appendix_store.php';require_once __DIR__.'/../vendor/autoload.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
-$origin=$_SERVER['HTTP_ORIGIN']??'';if(in_array($origin,['null','http://localhost:8000','http://127.0.0.1:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Methods: GET, POST, OPTIONS');header('Access-Control-Allow-Headers: Content-Type');}
+$origin=$_SERVER['HTTP_ORIGIN']??'';if(in_array($origin,['null','http://localhost:8000','http://127.0.0.1:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Methods: GET, POST, OPTIONS');header('Access-Control-Allow-Headers: Content-Type, Authorization');}
 $method=$_SERVER['REQUEST_METHOD']??'GET';if($method==='OPTIONS'){http_response_code(204);exit;}$conn=null;$book=null;
 try{
  if(!in_array($method,['GET','POST'],true))throw new InvalidArgumentException('Metode tidak didukung.');

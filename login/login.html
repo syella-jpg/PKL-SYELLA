@@ -237,7 +237,8 @@
     const validAccount = (user === 'test 1' && pass.value === 'test 1')
       || (user === 'admin 2' && pass.value === 'admin 2')
       || (user === 'admin 1' && pass.value === 'admin 1')
-      || (user === 'direksi' && pass.value === 'direksi');
+      || (user === 'direksi' && pass.value === 'direksi')
+      || (user === 'pharma' && pass.value === 'pharma');
     if (!validAccount) {
       error.textContent = 'Username atau password salah.';
       return;
@@ -260,7 +261,8 @@
       const result=await response.json();if(!response.ok||!result.success)throw new Error(result.message||'Sesi upload gagal dibuat.');uploadToken=result.token;
     } catch(failure){error.textContent=failure.message||'Server login tidak dapat dihubungi.';return;}
     try {
-      sessionStorage.setItem('konimex_login_user', JSON.stringify({username: user, role: user === 'direksi' ? 'Direksi' : 'Administrator', transferToken, uploadToken}));
+      for(let i=sessionStorage.length-1;i>=0;i--){const key=sessionStorage.key(i);if(key.startsWith('corporate_api_cache_')||key.startsWith('konimex_'))sessionStorage.removeItem(key);}
+      sessionStorage.setItem('konimex_login_user', JSON.stringify({username: user, role: user === 'pharma' ? 'Pharma' : user === 'direksi' ? 'Direksi' : 'Administrator', transferToken, uploadToken}));
     } catch (_) {
       error.textContent = 'Sesi login tidak dapat disimpan. Izinkan penyimpanan browser lalu coba lagi.';
       return;

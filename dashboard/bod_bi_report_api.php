@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('bod_bi_report_api');
 require_once __DIR__.'/../includes/database.php';
 require_once __DIR__.'/../includes/bod_bi_report.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');

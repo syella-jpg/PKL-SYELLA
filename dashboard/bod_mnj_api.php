@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__.'/../includes/report_access.php';
+enforceReportAccess('bod_mnj_api');
 require_once __DIR__.'/../includes/upload_file_locks.php';
 guardReportFileUpload('bod_mnj_api');
 require_once __DIR__ . '/../includes/database.php';
@@ -13,7 +15,7 @@ if (in_array($origin, ['null', 'http://127.0.0.1:8000', 'http://localhost:8000']
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Vary: Origin');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
     if (($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK'] ?? '') === 'true') header('Access-Control-Allow-Private-Network: true');
 }
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -41,6 +43,22 @@ try {
         echo json_encode(['success' => true, 'period' => $period]);
     } else {
         $record = findBodMnjRecord($conn, $period);
+        if (reportIsPharma()) {
+            $rows = [];
+            if ($record) {
+                $book = decodeBodMnjWorkbook($record['base64'], (int)substr($period, 0, 4));
+                try {
+                    $ytd = $_GET['ytd'] ?? $period;
+                    validateBodMnjPeriod($ytd);
+                    if (substr($ytd,0,4) !== substr($period,0,4)) throw new InvalidArgumentException('Tahun YTD berbeda dari sumber.');
+                    populateBodMnjYtd(getBodMnjSheet($book), $ytd);
+                    require_once __DIR__.'/../includes/bod_mnj_pharma_scope.php';
+                    $rows = bodMnjPharmaRows(getBodMnjSheet($book));
+                } finally { $book->disconnectWorksheets(); }
+            }
+            echo json_encode(['success'=>true,'data'=>['rows'=>$rows]]);
+            return;
+        }
         if ($record && !isset($record['formulas'])) {
             $key=reportArtifactKey([$record['base64'],substr($period,0,4)],[__DIR__.'/../includes/bod_mnj_workbook.php',__DIR__.'/../composer.lock']);
             $json=cachedReportArtifact('bod-mnj-formulas',$key,static function()use($record,$period){
