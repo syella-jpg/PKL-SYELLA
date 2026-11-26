@@ -44,6 +44,7 @@ function buildUpbBjInputTemplateOds(string $period, ?string $historyBytes=null, 
    $prior=upbBjPriorSource($priorBytes,(int)$parts[1]-1,$doc,$names);
    if($prior){$parent->appendChild($prior['table']);upbBjFillConclusion($conclusion,$prior['monthly'],12,array_fill(0,12,$prior['name']),-7,(int)$parts[2]);}
   }
+  require_once __DIR__.'/raw_template_protection.php';protectRawRekapOds($conclusion);
   $zip->addFromString('content.xml',$doc->saveXML());$zip->close();$raw->close();return file_get_contents($temp);
  }finally{if(is_file($temp))unlink($temp);}
 }
@@ -70,7 +71,7 @@ function upbBjConclusionTable(int $year): string
         return '<table:table-cell table:style-name="'.$style.'" office:value-type="string"'.$extra.'><text:p>'.htmlspecialchars($text,ENT_XML1|ENT_QUOTES,'UTF-8').'</text:p></table:table-cell>';
     };
     $covered='<table:covered-table-cell/>';
-    $xml='<table:table table:name="KESIMPULAN"><table:table-column table:style-name="UPBSummaryWide"/><table:table-column table:style-name="UPBSummaryMonth"/><table:table-column table:style-name="UPBSummaryGap"/><table:table-column table:style-name="UPBSummaryMonth" table:number-columns-repeated="13"/>';
+    $xml='<table:table table:name="REKAP"><table:table-column table:style-name="UPBSummaryWide"/><table:table-column table:style-name="UPBSummaryMonth"/><table:table-column table:style-name="UPBSummaryGap"/><table:table-column table:style-name="UPBSummaryMonth" table:number-columns-repeated="13"/>';
     $names=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
     foreach([$year-1,$year] as $index=>$tableYear){
         if($index)$xml.='<table:table-row><table:table-cell table:number-columns-repeated="16"/></table:table-row>';

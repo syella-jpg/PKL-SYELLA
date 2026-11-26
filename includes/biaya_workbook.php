@@ -172,6 +172,10 @@ function saveBiayaProducts($conn, string $period, array $rows): void
         // Lock the annual upload, so concurrent uploads replace a year atomically.
         $q=$conn->prepare('INSERT INTO biaya_uploads (report_year,report_period) VALUES (?,?) ON DUPLICATE KEY UPDATE report_period=VALUES(report_period), uploaded_at=CURRENT_TIMESTAMP');
         $q->bind_param('is',$year,$period); $q->execute(); $q->close();
+        require_once __DIR__.'/raw_actual_period.php';
+        $read=$conn->prepare('SELECT * FROM biaya WHERE report_year=?'.(reportIsPharma()?' AND gb IN (1,4)':'').' FOR UPDATE');
+        $read->bind_param('i',$year);$read->execute();$previous=$read->get_result()->fetch_all(MYSQLI_ASSOC);$read->close();
+        assertRawActualPeriod($period,biayaActualPeriodValues($previous,true),biayaActualPeriodValues($rows));
         $q=$conn->prepare('DELETE FROM biaya WHERE report_year=?'.(reportIsPharma()?' AND gb IN (1,4)':''));
         $q->bind_param('i',$year); $q->execute(); $q->close();
         $months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];

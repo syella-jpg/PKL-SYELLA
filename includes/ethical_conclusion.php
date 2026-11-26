@@ -4,8 +4,8 @@ function refreshEthicalConclusion(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,st
     $year=(int)substr($period,0,4);$month=(int)substr($period,5,2);$source=$book->getSheetByName('PRODUK NAS');
     if(!$source)throw new InvalidArgumentException('Sheet PRODUK NAS tidak ditemukan.');
     $layouts=locateEthicalProductTables($source,$year,true,true);
-    $old=$book->getSheetByName('KESIMPULAN');if($old)$book->removeSheetByIndex($book->getIndex($old));
-    $s=new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($book,'KESIMPULAN');$book->addSheet($s);
+    foreach (['REKAP', 'KESIMPULAN'] as $name) { $old=$book->getSheetByName($name);if($old)$book->removeSheetByIndex($book->getIndex($old)); }
+    $s=new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($book,'REKAP');$book->addSheet($s);
     $s->setCellValue('A1','KESIMPULAN ETHICAL '.$year);$s->mergeCells('A1:O1');$s->setCellValue('A2','PERIODE '.$period.' · UNIT dan HNA (Rupiah penuh) · Nilai bulanan, bukan kumulatif.');$s->mergeCells('A2:O2');
     $labels=ethicalProductLabels($year);$months=unitSellOutInputMonths();$r=4;
     foreach(['unit'=>'TARGET UNIT','hna'=>'TARGET HNA','actual_unit'=>'REAL UNIT','actual_hna'=>'REAL HNA'] as $metric=>$title){
@@ -43,4 +43,6 @@ function refreshEthicalConclusion(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,st
     $s->getColumnDimension('A')->setWidth(32);foreach(range('B','O') as $col)$s->getColumnDimension($col)->setWidth(18);
     $s->getStyle('A1')->getFont()->setBold(true)->setSize(18);$s->getStyle('B4:O'.$r)->getNumberFormat()->setFormatCode('#,##0.00;[Red](#,##0.00);0');
     $s->getStyle('A4:O'.$r)->getBorders()->getAllBorders()->setBorderStyle('thin')->getColor()->setARGB('FFDDE4EE');$s->setShowGridlines(false);$s->freezePane('B6');$s->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(0);
+    require_once __DIR__.'/raw_template_protection.php';
+    protectRawTemplate($book, $period, 'ETHICAL');
 }

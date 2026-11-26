@@ -11,7 +11,7 @@ class ScopeQuery {
   if(str_starts_with($this->sql,'INSERT INTO unit_revenue_input_snapshots'))$this->db->snapshot=$this->args[1];
   return true;
  }
- function get_result(){return new class($this->db->snapshot){private $payload;function __construct($payload){$this->payload=$payload;}function fetch_assoc(){return $this->payload?['payload'=>$this->payload]:null;}};}
+ function get_result(){if(str_starts_with($this->sql,'SELECT * FROM biaya'))return new class($this->db->rows){private $rows;function __construct($rows){$this->rows=$rows;}function fetch_all($mode){return array_values(array_filter($this->rows,fn($r)=>in_array($r['gb'],[1,4])));}};return new class($this->db->snapshot){private $payload;function __construct($payload){$this->payload=$payload;}function fetch_assoc(){return $this->payload?['payload'=>$this->payload]:null;}};}
  function close(){}
 }
 class ScopeDb{public $rows=[['gb'=>1,'value'=>1],['gb'=>2,'value'=>999],['gb'=>4,'value'=>4],['gb'=>6,'value'=>666]],$queries=[],$snapshot;function query($sql){return true;}function prepare($sql){return new ScopeQuery($this,$sql);}function begin_transaction(){}function commit(){}function rollback(){}}

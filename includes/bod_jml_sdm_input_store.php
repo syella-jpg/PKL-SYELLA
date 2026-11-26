@@ -67,6 +67,7 @@ function validateBodJmlSdmInputBytes(string $bytes): void {
 }
 function saveBodJmlSdmInput(mysqli $conn,string $period,string $bytes,string $filename): void {
     bodJmlSdmInputPeriod($period);validateBodJmlSdmInputBytes($bytes);$bytes=reviseBodJmlSdmDifference($bytes);ensureBodJmlSdmInputStore($conn);
+    require_once __DIR__.'/raw_native_period.php';guardStoredNativePeriod($conn,'bod_jml_sdm_input',$period,$bytes);
     $filename=mb_substr(basename($filename),0,255);$base64=base64_encode($bytes);
     $q=$conn->prepare('INSERT INTO `bod_jml_sdm_input` (report_period,filename,base64) VALUES (?,?,?) ON DUPLICATE KEY UPDATE filename=VALUES(filename),base64=VALUES(base64)');
     $q->bind_param('sss',$period,$filename,$base64);$q->execute();$q->close();

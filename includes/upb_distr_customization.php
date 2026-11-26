@@ -1,6 +1,7 @@
 <?php
 /** Rewrite native ODS references without touching quoted text or cached results. */
 function distrFormulaRefs(string $formula,string $sheet,callable $map): string {
+ $formula=upbRekapFormula($formula);
  $segments=preg_split('/("(?:[^"]|"")*")/',$formula,-1,PREG_SPLIT_DELIM_CAPTURE);
  foreach($segments as $index=>&$segment){if($index%2)continue;
   $segment=preg_replace_callback('/\[([^\[\]]+)\]/',static function($match)use($sheet,$map){
@@ -20,7 +21,7 @@ function distrFormulaRefs(string $formula,string $sheet,callable $map): string {
  }unset($segment);return implode('',$segments);
 }
 function distrFormulaKey(string $formula): string {
- $formula=distrFormulaRefs($formula,'KESIMPULAN',static fn($s,$r,$c)=>[$s,$r,$c]);
+ $formula=distrFormulaRefs($formula,'REKAP',static fn($s,$r,$c)=>[$s,$r,$c]);
  $parts=preg_split('/("(?:[^"]|"")*")/',$formula,-1,PREG_SPLIT_DELIM_CAPTURE);
  foreach($parts as $i=>&$part)if($i%2===0)$part=strtoupper(preg_replace('/\s+/','',$part));unset($part);return implode('',$parts);
 }
@@ -87,7 +88,7 @@ function distrCaptureFormulaState(DOMDocument $doc,array $state,string $period):
  // Cumulative summary rules belong to the old input format. Replace them once
  // with direct monthly formulas; preserve the month-specific raw table formulas.
  if(($state['input_basis']??null)!=='monthly'){$state['input_basis']='monthly';$state['rules']=[];$state['baseline']=[];return $state;}
- $tables=upbBjTables($doc);$old=$tables['KESIMPULAN']??null;if(!$old)return $state+['rules'=>[],'baseline'=>[]];$monthly=distrSnapshotInfo($doc);if(!$monthly)return $state;
+ $tables=upbBjTables($doc);$old=$tables['REKAP']??null;if(!$old)return $state+['rules'=>[],'baseline'=>[]];$monthly=distrSnapshotInfo($doc);if(!$monthly)return $state;
  $last=max(array_keys($monthly));$year=(int)substr($period,0,4);$oldPeriod=$year.'-'.sprintf('%02d',$last);
  $complete=true;foreach($monthly as $parts)if(empty($parts['GB 1']['month_total']))$complete=false;
  $expectedTable=$complete?distrConclusion($doc,$old,$monthly,$oldPeriod):null;$expected=$expectedTable?upbBjCells($expectedTable):[];$actual=upbBjCells($old);$rules=$state['rules']??[];$baseline=[];
@@ -140,7 +141,7 @@ function distrCompactRows(DOMDocument $doc,array &$state): void {
  // Stored custom rules may reference otherwise blank product cells too.
  foreach(['baseline','rules'] as $key)foreach($state[$key]??[] as $rows)foreach($rows as $value){
   $formula=$key==='baseline'?$value:($value['formula']??'');
-  distrFormulaRefs($formula,'KESIMPULAN',static function($s,$r,$c,$role)use($protect){if($role==='single')$protect($s,$r);return [$s,$r,$c];});
+  distrFormulaRefs($formula,'REKAP',static function($s,$r,$c,$role)use($protect){if($role==='single')$protect($s,$r);return [$s,$r,$c];});
  }
  $deleted=[];
  foreach($info as $month=>$parts){$name=DISTR_MONTHS[$month-1];$table=$tables[$name];$r=1;
@@ -169,8 +170,8 @@ function distrCompactRows(DOMDocument $doc,array &$state): void {
  foreach($tables as $sheet=>$table)foreach(distrFormulaCells($table) as $cell)$cell->setAttributeNS(UPB_T,'table:formula',distrFormulaRefs($cell->getAttributeNS(UPB_T,'formula'),$sheet,$map));
  foreach(DISTR_MONTHS as $i=>$name)if(isset($tables[$name]))$state['raw_baseline'][$i+1]=distrRawFormulaSnapshot($tables[$name]);
  foreach(['baseline','rules'] as $key)foreach($state[$key]??[] as $month=>$rows)foreach($rows as $row=>$value){
-  if($key==='baseline')$state[$key][$month][$row]=distrFormulaRefs($value,'KESIMPULAN',$map);
-  elseif(isset($value['formula']))$state[$key][$month][$row]['formula']=distrFormulaRefs($value['formula'],'KESIMPULAN',$map);
+  if($key==='baseline')$state[$key][$month][$row]=distrFormulaRefs($value,'REKAP',$map);
+  elseif(isset($value['formula']))$state[$key][$month][$row]['formula']=distrFormulaRefs($value['formula'],'REKAP',$map);
  }
 }
 /** Restore full input capacity only for the selected unfilled month. */
@@ -190,14 +191,14 @@ function distrExpandEmptyMonths(DOMDocument $doc,array &$state,int $selectedMont
  foreach($tables as $sheet=>$table)foreach(distrFormulaCells($table) as $cell)$cell->setAttributeNS(UPB_T,'table:formula',distrFormulaRefs($cell->getAttributeNS(UPB_T,'formula'),$sheet,$map));
  foreach(DISTR_MONTHS as $i=>$name)if(isset($tables[$name]))$state['raw_baseline'][$i+1]=distrRawFormulaSnapshot($tables[$name]);
  foreach(['baseline','rules'] as $key)foreach($state[$key]??[] as $month=>$rows)foreach($rows as $row=>$value){
-  if($key==='baseline')$state[$key][$month][$row]=distrFormulaRefs($value,'KESIMPULAN',$map);
-  elseif(isset($value['formula']))$state[$key][$month][$row]['formula']=distrFormulaRefs($value['formula'],'KESIMPULAN',$map);
+  if($key==='baseline')$state[$key][$month][$row]=distrFormulaRefs($value,'REKAP',$map);
+  elseif(isset($value['formula']))$state[$key][$month][$row]['formula']=distrFormulaRefs($value['formula'],'REKAP',$map);
  }
 }
 /** Shift monthly summary rules using group anchors, not hard-coded subtotal rows. */
 function distrMoveSummaryFormula(string $formula,int $from,int $to,array $monthly): string {
  $delta=$to-$from;
- return distrFormulaRefs($formula,'KESIMPULAN',static function($sheet,$r,$c,$role,$locked,$explicit)use($from,$to,$delta,$monthly){
+ return distrFormulaRefs($formula,'REKAP',static function($sheet,$r,$c,$role,$locked,$explicit)use($from,$to,$delta,$monthly){
   $old=array_search(strtoupper($sheet),DISTR_MONTHS,true);
   if($old!==false&&!$locked){$next=$old+$delta;if($next>=0&&$next<12){
     $oldInfo=$monthly[$old+1]??[];$newInfo=$monthly[$next+1]??[];
@@ -229,11 +230,11 @@ function distrCalculateSummary(DOMDocument $doc,array $custom): void {
  if(!$custom)return;require_once __DIR__.'/../vendor/autoload.php';$book=new \PhpOffice\PhpSpreadsheet\Spreadsheet();$book->removeSheetByIndex(0);$tables=upbBjTables($doc);
  try{foreach($tables as $name=>$table){$sheet=$book->createSheet();$sheet->setTitle($name);foreach(upbBjCells($table) as $r=>$row)foreach($row as $c=>$cell){
     $formula=$cell->getAttributeNS(UPB_T,'formula');$value=$cell->hasAttributeNS(UPB_O,'value')?(float)$cell->getAttributeNS(UPB_O,'value'):($cell->getAttributeNS(UPB_O,'string-value')?:$cell->textContent);
-    if($name==='KESIMPULAN'&&$formula!=='')$sheet->setCellValue([$c,$r],\PhpOffice\PhpSpreadsheet\Reader\Ods\FormulaTranslator::convertToExcelFormulaValue(substr($formula,3)));
+    if($name==='REKAP'&&$formula!=='')$sheet->setCellValue([$c,$r],\PhpOffice\PhpSpreadsheet\Reader\Ods\FormulaTranslator::convertToExcelFormulaValue(substr($formula,3)));
     elseif(is_float($value))$sheet->setCellValueExplicit([$c,$r],$value,\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
     else $sheet->setCellValueExplicit([$c,$r],$value,\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
    }}
-  $summary=$book->getSheetByName('KESIMPULAN');$native=upbBjCells($tables['KESIMPULAN']);
+  $summary=$book->getSheetByName('REKAP');$native=upbBjCells($tables['REKAP']);
   foreach($native as $r=>$row)foreach($row as $c=>$cell)if($cell->hasAttributeNS(UPB_T,'formula')){
    try{$value=$summary->getCell([$c,$r])->getCalculatedValue();if(is_numeric($value))distrNumber($cell,substr($cell->getAttributeNS(UPB_T,'formula'),4),(float)$value);elseif($value==='')distrNumber($cell,substr($cell->getAttributeNS(UPB_T,'formula'),4),null);}catch(Throwable $e){/* Calc will recalculate unsupported custom functions on open. */}
   }

@@ -22,13 +22,13 @@ function distrFixture($year){
    }
   }
  });
- $path=tempnam(sys_get_temp_dir(),'distr-fixture-');file_put_contents($path,$bytes);$zip=new ZipArchive();$zip->open($path);$doc=upbBjXml($zip->getFromName('content.xml'));$tables=upbBjTables($doc);foreach(DISTR_MONTHS as $name)if(isset($tables[$name]))distrMonthTotal($tables[$name],distrMonthInfo($tables[$name]));$summary=distrConclusion($doc,$tables['KESIMPULAN'],distrSnapshotInfo($doc),$year.'-03');$tables['KESIMPULAN']->parentNode->replaceChild($summary,$tables['KESIMPULAN']);$zip->addFromString('content.xml',$doc->saveXML());$state=distrCaptureFormulaState($doc,['input_basis'=>'monthly'],$year.'-03');distrWriteFormulaState($zip,$state);$zip->close();$bytes=file_get_contents($path);unlink($path);return $bytes;
+ $path=tempnam(sys_get_temp_dir(),'distr-fixture-');file_put_contents($path,$bytes);$zip=new ZipArchive();$zip->open($path);$doc=upbBjXml($zip->getFromName('content.xml'));$tables=upbBjTables($doc);foreach(DISTR_MONTHS as $name)if(isset($tables[$name]))distrMonthTotal($tables[$name],distrMonthInfo($tables[$name]));$summary=distrConclusion($doc,$tables['REKAP'],distrSnapshotInfo($doc),$year.'-03');$tables['REKAP']->parentNode->replaceChild($summary,$tables['REKAP']);$zip->addFromString('content.xml',$doc->saveXML());$state=distrCaptureFormulaState($doc,['input_basis'=>'monthly'],$year.'-03');distrWriteFormulaState($zip,$state);$zip->close();$bytes=file_get_contents($path);unlink($path);return $bytes;
 }
 $blank=buildUpbDistrInputTemplateOds('2026-03');validateUpbDistrInput($blank,'2026-03','UPB DISTR');
-$tables=upbBjTables(distrReadOds($blank));distrCheck(array_keys($tables)===['JANUARI','FEBRUARI','MARET','KESIMPULAN'],'Monthly tabs through selected period');
+$tables=upbBjTables(distrReadOds($blank));distrCheck(array_keys($tables)===['JANUARI','FEBRUARI','MARET','REKAP'],'Monthly tabs through selected period');
 foreach(DISTR_MONTHS as $i=>$name)if($i<3){$parts=distrMonthInfo($tables[$name]);distrCheck(array_keys($parts)===DISTR_GROUPS,'Eight separate group tables');foreach($parts as $part)distrCheck($part['last']-$part['start']+1===($i===2?2500:1),'Selected month has 2500 rows; historical blanks compact');}
 
-$fixture=distrFixture('2026');$rebuilt=buildUpbDistrInputTemplateOds('2026-03',$fixture);$tables=upbBjTables(distrReadOds($rebuilt));$summary=upbBjCells($tables['KESIMPULAN']);
+$fixture=distrFixture('2026');$rebuilt=buildUpbDistrInputTemplateOds('2026-03',$fixture);$tables=upbBjTables(distrReadOds($rebuilt));$summary=upbBjCells($tables['REKAP']);
 $value=static fn($row,$col)=>(float)$summary[$row][$col]->getAttributeNS(UPB_O,'value');
 distrCheck($value(5,5)===1.0&&$value(5,6)===2.5,'Monthly input directly scaled /1000');
 distrCheck(!$summary[5][7]->hasAttributeNS(UPB_O,'value'),'New empty month does not negate cumulative history');
@@ -41,7 +41,7 @@ distrCheck(distrMonthInfo($tables['JANUARI'])['GB 1']['value']===1000.0,'Existin
 foreach(upbBjCells($tables['APRIL']) as $row)foreach($row as $cell)distrCheck(!str_contains($cell->textContent,'TEST GROUP'),'New month input blank');
 // Move a complete table without hard-coded row assumptions; preserve a custom subtotal.
 $moved=distrEdit($fixture,function($doc){$all=upbBjTables($doc);$all['MARET']->parentNode->removeChild($all['MARET']);$table=$all['FEBRUARI'];$rows=iterator_to_array($table->getElementsByTagNameNS(UPB_T,'table-row'));$part=distrMonthInfo($table)['NON KONIMEX'];$productRow=distrTestRow($table,$part['start']);$table->insertBefore($productRow->cloneNode(true),$productRow);$part=distrMonthInfo($table)['NON KONIMEX'];$rows=iterator_to_array($table->getElementsByTagNameNS(UPB_T,'table-row'));distrNumber(upbBjColumnCell(distrTestRow($table,$part['row']),5),'SUM([.E'.$part['start'].':.E'.$part['last'].'])*2',40000);});
-$moved=buildUpbDistrInputTemplateOds('2026-04',$moved);$tables=upbBjTables(distrReadOds($moved));$part=distrMonthInfo($tables['FEBRUARI'])['NON KONIMEX'];$summary=upbBjCells($tables['KESIMPULAN']);
+$moved=buildUpbDistrInputTemplateOds('2026-04',$moved);$tables=upbBjTables(distrReadOds($moved));$part=distrMonthInfo($tables['FEBRUARI'])['NON KONIMEX'];$summary=upbBjCells($tables['REKAP']);
 distrCheck(str_contains($summary[12][6]->getAttributeNS(UPB_T,'formula'),'.E'.$part['row'].']'),'Moved group subtotal found by label');
 $april=upbBjCells($tables['APRIL']);$lastPart=distrMonthInfo($tables['APRIL'])['NON KONIMEX'];distrCheck(str_ends_with($april[$lastPart['row']][5]->getAttributeNS(UPB_T,'formula'),'*2'),'Custom formula carries to new month');
 foreach([1,-1] as $change){
@@ -53,9 +53,9 @@ foreach([1,-1] as $change){
  $resized=buildUpbDistrInputTemplateOds('2026-03',$resized);$tabs=upbBjTables(distrReadOds($resized));$part=distrMonthInfo($tabs['FEBRUARI'])['GB 1'];$cells=upbBjCells($tabs['FEBRUARI']);
  distrCheck($part['last']-$part['start']+1<=3,'Edited historical tables compact unused rows');
  distrCheck($cells[$part['row']][5]->getAttributeNS(UPB_T,'formula')==='of:=SUM([.E'.$part['start'].':.E'.$part['last'].'])','Ordinary subtotal range follows edited row count');
- $summary=upbBjCells($tabs['KESIMPULAN']);distrCheck(str_contains($summary[5][6]->getAttributeNS(UPB_T,'formula'),"'FEBRUARI'.E".$part['row'].']'),'Conclusion follows moved subtotal');
+ $summary=upbBjCells($tabs['REKAP']);distrCheck(str_contains($summary[5][6]->getAttributeNS(UPB_T,'formula'),"'FEBRUARI'.E".$part['row'].']'),'Conclusion follows moved subtotal');
 }
-$fresh=upbBjTables(distrReadOds(buildUpbDistrInputTemplateOds('2027-01')));distrCheck(array_keys($fresh)===['JANUARI','KESIMPULAN'],'Fresh-year template');
+$fresh=upbBjTables(distrReadOds(buildUpbDistrInputTemplateOds('2027-01')));distrCheck(array_keys($fresh)===['JANUARI','REKAP'],'Fresh-year template');
 $pareto=buildDataParetoUpbTemplateOds('2026-03');validateUpbDistrInput($pareto,'2026-03','DATA PARETO UPB');
 $pareto=distrEdit($pareto,function($doc){$rows=iterator_to_array(upbBjTables($doc)['DATA PARETO UPB']->getElementsByTagNameNS(UPB_T,'table-row'));distrText(upbBjColumnCell($rows[7],2),'TEST PARETO');});
 $savedTable=upbBjTables(distrReadOds($pareto))['DATA PARETO UPB'];$outTable=upbBjTables(distrReadOds(buildDataParetoUpbTemplateOds('2026-03',$pareto)))['DATA PARETO UPB'];distrCheck($savedTable->C14N()===$outTable->C14N(),'Direct Pareto sheet copy');

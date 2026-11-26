@@ -90,7 +90,7 @@ function distrMergeLayout(DOMDocument $doc,ZipArchive $zip,ZipArchive $layout): 
  $zip->addFromString('styles.xml',$styles->saveXML());return $native;
 }
 function distrConclusion(DOMDocument $doc,DOMElement $layout,array $monthly,string $period): DOMElement {
- [$year,$last]=distrPeriod($period);$table=$layout->ownerDocument===$doc?$layout->cloneNode(true):$doc->importNode($layout,true);$table->setAttributeNS(UPB_T,'table:name','KESIMPULAN');$rows=[];$r=1;
+ [$year,$last]=distrPeriod($period);$table=$layout->ownerDocument===$doc?$layout->cloneNode(true):$doc->importNode($layout,true);$table->setAttributeNS(UPB_T,'table:name','REKAP');$rows=[];$r=1;
  foreach(iterator_to_array($table->childNodes) as $row)if($row instanceof DOMElement&&$row->localName==='table-row'){if($r>13)$table->removeChild($row);else $rows[$r]=$row;$r+=max(1,(int)$row->getAttributeNS(UPB_T,'number-rows-repeated'));}
  distrText(upbBjColumnCell($rows[1],1),DISTR_SHORT[$last-1]);distrText(upbBjColumnCell($rows[2],1),'UPB DISTRIBUTOR TH. '.$year.' - YTD '.DISTR_SHORT[$last-1]);
  $values=[];$map=array_combine(DISTR_GROUPS,[5,6,7,8,9,10,11,12]);
@@ -132,6 +132,7 @@ function buildUpbDistrInputTemplateOds(string $period,?string $history=null,bool
   if($layout->open(__DIR__.'/../dashboard/assets/input-templates/upb-distr-report.ods')!==true)throw new RuntimeException('Kerangka ringkasan UPB DISTR tidak tersedia.');$layoutOpened=true;$native=distrMergeLayout($doc,$zip,$layout);
   $conclusion=distrConclusion($doc,array_values(upbBjTables($native))[0],$monthly,$period);$parent->appendChild($conclusion);
   $custom=distrApplySummaryRules($doc,$conclusion,$monthly,$formulaState,$last);distrCalculateSummary($doc,$custom);distrWriteFormulaState($zip,$formulaState);
+  require_once __DIR__.'/raw_template_protection.php';protectRawRekapOds($conclusion);
   // Serialize to disk and let ZIP stream it; saveXML/addFromString duplicates hundreds of MB.
   $contentPath=tempnam(sys_get_temp_dir(),'distr-content-');
   if($contentPath===false||$doc->save($contentPath)===false||!$zip->addFile($contentPath,'content.xml'))throw new RuntimeException('File ODS UPB DISTR gagal ditulis.');
@@ -160,14 +161,14 @@ function distrSavedMonthlySummary(string $path,int $year): ?array {
   while($reader->read()){
    if($reader->nodeType===XMLReader::DOC_TYPE)throw new InvalidArgumentException('DTD tidak diizinkan dalam ODS.');
    if($reader->nodeType!==XMLReader::ELEMENT||$reader->namespaceURI!==UPB_T||$reader->localName!=='table')continue;
-   if($reader->getAttributeNs('name',UPB_T)!=='KESIMPULAN'){
+   if(!in_array($reader->getAttributeNs('name',UPB_T),['REKAP','KESIMPULAN'],true)){
     // next() skips raw detail nodes in native XML code rather than creating PHP objects.
     while($reader->next()){
      if($reader->nodeType!==XMLReader::ELEMENT||$reader->namespaceURI!==UPB_T||$reader->localName!=='table')continue;
-     if($reader->getAttributeNs('name',UPB_T)==='KESIMPULAN')break;
+     if(in_array($reader->getAttributeNs('name',UPB_T),['REKAP','KESIMPULAN'],true))break;
     }
    }
-   if($reader->nodeType!==XMLReader::ELEMENT||$reader->localName!=='table'||$reader->getAttributeNs('name',UPB_T)!=='KESIMPULAN')continue;
+   if($reader->nodeType!==XMLReader::ELEMENT||$reader->localName!=='table'||!in_array($reader->getAttributeNs('name',UPB_T),['REKAP','KESIMPULAN'],true))continue;
    $doc=upbBjXml($reader->readOuterXml());$cells=upbBjCells($doc->documentElement);
    if(!preg_match('/UPB DISTRIBUTOR TH\.?\s*'.$year.'(?: |$)/i',$cells[2][1]->textContent??''))return null;
    $result=[];
@@ -189,7 +190,7 @@ function distrMonthlyValues(?string $bytes,int $year): array {
             $saved=distrSavedMonthlySummary($path,$year);if($saved!==null)return $saved;
         }
         $tables=upbBjTables(loadOdsUploadDocument($path));$monthly=[];
-$customSummary=($state['input_basis']??null)==='monthly'&&!empty($state['rules']);$summary=$customSummary&&isset($tables['KESIMPULAN'])?upbBjCells($tables['KESIMPULAN']):[];
+$customSummary=($state['input_basis']??null)==='monthly'&&!empty($state['rules']);$summary=$customSummary&&isset($tables['REKAP'])?upbBjCells($tables['REKAP']):[];
         foreach(DISTR_MONTHS as $i=>$name){if(!isset($tables[$name]))continue;
             $valid=false;foreach(upbBjCells($tables[$name]) as $row)foreach($row as $cell)if(trim($cell->textContent)==='DATABASE JAN SD '.DISTR_SHORT[$i].' '.$year)$valid=true;
             if($valid)$monthly[$i+1]=distrMonthInfo($tables[$name]);

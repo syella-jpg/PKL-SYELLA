@@ -340,6 +340,11 @@ try {
         $spreadsheet = IOFactory::load($file);
         validateReportInputTemplate($spreadsheet, 'MTM', $period);
         $mtmData = parseMtmWorkbook($spreadsheet);
+        require_once __DIR__.'/../includes/raw_actual_period.php';
+        $first=substr($period,0,4).'-01';$read=$conn->prepare("SELECT metric_code,month_number,amount FROM mtm_monthly_values WHERE report_period=(SELECT MAX(report_period) FROM mtm_monthly_values WHERE report_period BETWEEN ? AND ? AND value_type='ACTUAL') AND value_type='ACTUAL'");
+        $read->bind_param('ss',$first,$period);$read->execute();$old=[];foreach($read->get_result()->fetch_all(MYSQLI_ASSOC) as $r)$old[$r['metric_code']][(int)$r['month_number']-1]=$r['amount'];$read->close();
+        $new=[];foreach($mtmData as $metric=>$types)foreach($types['ACTUAL']??[] as $m=>$v)$new[$metric][(int)$m-1]=$v;
+        assertRawActualPeriod($period,$old,$new);
 
         $conn->begin_transaction();
         $delete = $conn->prepare('DELETE FROM mtm_monthly_values WHERE report_period = ? AND metric_code <> \'APPENDIX\'');
@@ -400,6 +405,13 @@ try {
                 }
             }
         }
+        require_once __DIR__.'/../includes/raw_actual_period.php';
+        $year=substr($period,0,4);$first=$year.'-01';
+        $read=$conn->prepare("SELECT report_period,month_number,metric_code,business_unit,amount FROM ib_monthly_values WHERE report_period BETWEEN ? AND ? AND value_type='ACTUAL' AND metric_code IN ('revenue_exist_cum','revenue_new_cum','mcm_cum') ORDER BY report_period DESC");
+        $read->bind_param('ss',$first,$period);$read->execute();$old=[];
+        foreach($read->get_result()->fetch_all(MYSQLI_ASSOC) as $r){$key=$r['metric_code'].':'.$r['business_unit'];$m=(int)$r['month_number']-1;if(!array_key_exists($m,$old[$key]??[]))$old[$key][$m]=$r['amount'];}$read->close();$new=$old;
+        foreach([['revenue_exist_cum','IB_FM',$monthlyFm],['revenue_exist_cum','IB_FD',$monthlyFd],['revenue_new_cum','IB_FM',$monthlyNewFm],['revenue_new_cum','IB_FD',$monthlyNewFd],['mcm_cum','GROUP',$monthlyMcm]] as [$metric,$unit,$source])foreach($source['cumulative']['actual']??[] as $m=>$v)if($v!==null)$new[$metric.':'.$unit][(int)$m-1]=$v;
+        assertRawActualPeriod($period,$old,$new);
         $conn->begin_transaction();
         // Upload sheet IAP saja tidak boleh menghapus nilai IB FM yang sudah
         // tersimpan (dan sebaliknya). Nilai NULL mempertahankan nilai lama.
@@ -900,6 +912,12 @@ try {
         if (isUnitRevenueInputTemplate($spreadsheet)) {
             $unitRevenueTemplateRecords = parseUnitRevenueInputTemplate($spreadsheet, $period);
             if(reportIsPharma())reportPharmaRows($unitRevenueTemplateRecords,'gb',true);
+            require_once __DIR__.'/../includes/unit_revenue_template_history.php';
+            require_once __DIR__.'/../includes/raw_actual_period.php';
+            $oldHistory=loadUnitRevenueTemplateHistory($conn,$period);
+            $oldRecords=$oldHistory['records']??[];
+            if(reportIsPharma())$oldRecords=array_values(array_filter($oldRecords,static fn($r)=>in_array(reportGb($r['gb']??''),[1,4],true)));
+            assertRawActualPeriod($period,unitRevenueActualPeriodValues($oldRecords),unitRevenueActualPeriodValues($unitRevenueTemplateRecords));
             $spreadsheet->disconnectWorksheets();
             $spreadsheet = normalizeUnitRevenueInputTemplate($unitRevenueTemplateRecords);
         }elseif(reportIsPharma())throw new InvalidArgumentException('Akun pharma harus memakai template UNIT & Revenue khusus GB 1 dan GB 4.');

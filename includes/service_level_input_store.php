@@ -88,6 +88,7 @@ function validateServiceLevelInput(string $bytes,string $period): void {
 }
 function saveServiceLevelInput(mysqli $conn,string $period,string $bytes,string $filename): void {
     validateServiceLevelInput($bytes,$period);$bytes=buildServiceLevelInputOds($period,$bytes);ensureServiceLevelInputStore($conn);
+    require_once __DIR__.'/raw_native_period.php';guardStoredNativePeriod($conn,'service_level_input',$period,$bytes);
     $filename=mb_substr(basename($filename),0,255);$base64=base64_encode($bytes);
     $q=$conn->prepare('INSERT INTO service_level_input (report_period,filename,base64) VALUES (?,?,?) ON DUPLICATE KEY UPDATE filename=VALUES(filename),base64=VALUES(base64)');
     $q->bind_param('sss',$period,$filename,$base64);$q->execute();$q->close();

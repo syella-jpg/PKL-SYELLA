@@ -4,7 +4,6 @@ require_once __DIR__.'/biaya_input_template.php';
 function loadBiayaTemplateHistory(mysqli $conn,string $period): array
 {
     if(!preg_match('/^(20\d{2})-(0[1-9]|1[0-2])$/D',$period,$parts))throw new InvalidArgumentException('Periode template BIAYA tidak valid.');
-    if($parts[2]==='01')return [];
     $year=(int)$parts[1];
     try {
         $q=$conn->prepare('SELECT b.*,u.report_period FROM biaya b LEFT JOIN biaya_uploads u ON u.report_year=b.report_year WHERE b.report_year=? ORDER BY b.gb,b.nomor_produk,b.jenis');
@@ -17,7 +16,7 @@ function buildBiayaTemplateWithHistory(string $period,array $records): \PhpOffic
     if(!preg_match('/^(20\d{2})-(0[1-9]|1[0-2])$/D',$period,$parts))throw new InvalidArgumentException('Periode template BIAYA tidak valid.');
     $year=(int)$parts[1];$month=(int)$parts[2];
     if(reportIsPharma())$records=reportPharmaRows($records,'gb');
-    if($month===1)return buildBiayaInputTemplate($period);
+    if($month===1&&!$records)return buildBiayaInputTemplate($period);
     $records=array_values(array_filter($records,static fn($r)=>(int)($r['report_year']??0)===$year&&in_array($r['jenis']??'',['target','actual'],true)));
     $products=[];
     foreach($records as $record){

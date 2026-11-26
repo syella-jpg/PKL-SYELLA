@@ -16,7 +16,9 @@ try{
     if(!$file||$file['error']!==UPLOAD_ERR_OK)throw new InvalidArgumentException('Upload file ODS gagal.');
     $bytes=file_get_contents($file['tmp_name']);if($bytes===false)throw new InvalidArgumentException('File tidak dapat dibaca.');if($section==='UPB DISTR')$bytes=prepareUpbDistrInputOds($bytes,$period);
     else {validateUpbDistrInput($bytes,$period,$section);$bytes=buildDataParetoUpbTemplateOds($period,$bytes);}
-    $conn=openReportConnection();ensureUpbDistrInputStore($conn);$base64=base64_encode($bytes);
+    $conn=openReportConnection();ensureUpbDistrInputStore($conn);
+    if($section==='UPB DISTR'){require_once __DIR__.'/../includes/raw_native_period.php';guardStoredNativePeriod($conn,'upb distr',$period,$bytes);}
+    $base64=base64_encode($bytes);
     $q=$conn->prepare("INSERT INTO `$table` (report_period,base64) VALUES (?,?) ON DUPLICATE KEY UPDATE base64=VALUES(base64)");$q->bind_param('ss',$period,$base64);$q->execute();$q->close();
     echo json_encode(['success'=>true,'period'=>$period,'section'=>$section]);
 }catch(InvalidArgumentException $e){http_response_code(400);echo json_encode(['success'=>false,'message'=>$e->getMessage()]);}

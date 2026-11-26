@@ -93,6 +93,14 @@ function ethicalSourceUnitInputs(array $rows): array {
     $parts=['existing'=>array_fill(0,12,null),'new'=>array_fill(0,12,null)];foreach($rows as $row){if(isset($parts[$row['kind']])&&(int)$row['month']>=1&&(int)$row['month']<=12)$parts[$row['kind']][(int)$row['month']-1]=$row['unit_target']===null?null:(float)$row['unit_target'];}return $parts;
 }
 function saveEthicalSource(mysqli $conn,string $period,array $data): void {
+    require_once __DIR__.'/raw_actual_period.php';
+    $read=$conn->prepare('SELECT payload FROM `template ethical` WHERE report_year=? FOR UPDATE');
+    $year=(int)$data['year'];$read->bind_param('i',$year);$read->execute();$saved=$read->get_result()->fetch_assoc();$read->close();
+    if($saved){
+        $previous=json_decode($saved['payload'],true,512,JSON_THROW_ON_ERROR);$incoming=$data['inputs'];
+        if(!isset($previous['_products']))unset($incoming['_products']);
+        assertRawActualPeriod($period,ethicalActualPeriodValues($previous),ethicalActualPeriodValues($incoming));
+    }
     $year=$data['year'];$payload=json_encode($data['inputs'],JSON_THROW_ON_ERROR|JSON_PRESERVE_ZERO_FRACTION);
     $q=$conn->prepare('INSERT INTO `template ethical` (report_year,payload,source_period) VALUES (?,?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),source_period=VALUES(source_period)');$q->bind_param('iss',$year,$payload,$period);$q->execute();$q->close();
     $q=$conn->prepare('DELETE FROM `ethical HNA dan UNIT` WHERE report_year=?');$q->bind_param('i',$year);$q->execute();$q->close();

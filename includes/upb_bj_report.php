@@ -12,7 +12,7 @@ function buildUpbBjReportOds(string $period,?string $current=null,?string $prior
  $bytes=buildUpbBjInputTemplateOds($period,$current,$prior);$temp=tempnam('/tmp','upb-report-');$zip=new ZipArchive();$native=new ZipArchive();
  try{
   file_put_contents($temp,$bytes);if($zip->open($temp)!==true||$native->open(__DIR__.'/../dashboard/assets/input-templates/upb-bj-kx-report.ods')!==true)throw new RuntimeException('Tabel laporan UPB BJ tidak dapat dibaca.');
-  $doc=upbBjXml($zip->getFromName('content.xml'));$tables=upbBjTables($doc);$summary=upbBjCells($tables['KESIMPULAN']);
+  $doc=upbBjXml($zip->getFromName('content.xml'));$tables=upbBjTables($doc);$summary=upbBjCells($tables['REKAP']);
   $prefix=static fn($xml)=>preg_replace('/((?:style:name|style:parent-style-name|style:next-style-name|style:apply-style-name|style:data-style-name|style:master-page-name|style:page-layout-name|style:font-name(?:-asian|-complex)?|table:style-name|table:default-cell-style-name|text:style-name)=")/','$1UPBREPORT_',$xml);
   $layout=upbBjXml($prefix($native->getFromName('content.xml')));
   foreach(['automatic-styles','font-face-decls'] as $section){$to=$doc->getElementsByTagNameNS(UPB_O,$section)->item(0);$from=$layout->getElementsByTagNameNS(UPB_O,$section)->item(0);if($to&&$from)upbBjMergeStyles($to,$from,$doc);}

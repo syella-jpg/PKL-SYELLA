@@ -12,5 +12,6 @@ try{
  $period=$_POST['period']??'';if(!is_string($period)||!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$period))throw new InvalidArgumentException('Periode UPB BJ tidak valid.');
  $file=$_FILES['file']??null;if(!$file||$file['error']!==UPLOAD_ERR_OK)throw new InvalidArgumentException('Upload file ODS UPB BJ gagal.');$bytes=file_get_contents($file['tmp_name']);if($bytes===false)throw new InvalidArgumentException('File tidak dapat dibaca.');validateUpbBjOds($bytes,$period);
  $conn=openReportConnection();ensureUpbBjInputStore($conn);
+ require_once __DIR__.'/../includes/raw_native_period.php';guardStoredNativePeriod($conn,'upb bj kx',$period,$bytes);
  $base64=base64_encode($bytes);$q=$conn->prepare('INSERT INTO `upb bj kx` (report_period,base64) VALUES (?,?) ON DUPLICATE KEY UPDATE base64=VALUES(base64)');$q->bind_param('ss',$period,$base64);$q->execute();$q->close();echo json_encode(['success'=>true,'period'=>$period]);
 }catch(InvalidArgumentException $e){http_response_code(400);echo json_encode(['success'=>false,'message'=>$e->getMessage()]);}catch(Throwable $e){error_log('UPB BJ input: '.$e->getMessage());http_response_code(500);echo json_encode(['success'=>false,'message'=>'UPB BJ gagal disimpan. Periksa koneksi database.']);}finally{if($conn)$conn->close();}

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/../includes/raw_native_period.php';
 require_once __DIR__.'/../includes/report_access.php';
 enforceReportAccess('report_input_template');
 require_once __DIR__.'/../vendor/autoload.php';
@@ -30,7 +31,7 @@ try {
         try{$bytes=loadBodMnjInputTemplateOds($conn,$period);}finally{$conn->close();}
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_BOD MNJ_'.$period.'.ods"');
-        header('Cache-Control: no-store');echo $bytes;return;
+        header('Cache-Control: no-store');echo protectRawNativePeriod($bytes,$period);return;
     }
     if($section==='BOD JML SDM'){
         require_once __DIR__.'/../includes/bod_jml_sdm_input_store.php';
@@ -38,13 +39,13 @@ try {
         $conn=openReportConnection();try{$bytes=loadBodJmlSdmInputOds($conn,$period);}finally{$conn->close();}
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_BOD JML SDM_'.$period.'.ods"');
-        header('Cache-Control: no-store');echo $bytes;return;
+        header('Cache-Control: no-store');echo protectRawNativePeriod($bytes,$period);return;
     }
     reportInputTemplateSpec($section, $period);
     if($section==='SERVICE LEVEL'){
         require_once __DIR__.'/../includes/service_level_input_store.php';require_once __DIR__.'/../includes/database.php';
         $conn=openReportConnection();try{$bytes=loadServiceLevelInputOds($conn,$period,true);}finally{$conn->close();}
-        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');header('Content-Disposition: attachment; filename="Template_SERVICE LEVEL_'.$period.'.ods"');header('Cache-Control: no-store');echo $bytes;return;
+        header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');header('Content-Disposition: attachment; filename="Template_SERVICE LEVEL_'.$period.'.ods"');header('Cache-Control: no-store');echo protectRawNativePeriod($bytes,$period);return;
     }
     if($section==='DAFTAR'){
         require_once __DIR__.'/../includes/daftar_input_store.php';
@@ -53,7 +54,7 @@ try {
         try{$bytes=loadDaftarInputTemplateOds($conn,$period);}finally{$conn->close();}
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_DAFTAR_'.$period.'.ods"');
-        header('Cache-Control: no-store');echo $bytes;return;
+        header('Cache-Control: no-store');echo protectRawNativePeriod($bytes,$period);return;
     }
     if($section==='LAUNCH'){
         require_once __DIR__.'/../includes/launch_input_store.php';
@@ -61,7 +62,7 @@ try {
         $conn=openReportConnection();try{$bytes=loadLaunchInputOds($conn,$period);}finally{$conn->close();}
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_LAUNCH_'.$period.'.ods"');
-        header('Cache-Control: no-store');echo $bytes;return;
+        header('Cache-Control: no-store');echo protectRawNativePeriod($bytes,$period);return;
     }
     if(in_array($section,['BOD BI.Opr & BOD BI.SDM'],true)){
         require_once __DIR__.'/../includes/bod_bi_input_store.php';
@@ -72,7 +73,7 @@ try {
         $bytes=bodBiAddPriorYear($bytes,$period,$prior?base64_decode($prior['base64'],true):null);
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_'.$section.'_'.$period.'.ods"');
-        header('Cache-Control: no-store');echo $bytes;return;
+        header('Cache-Control: no-store');echo protectRawNativePeriod($bytes,$period);return;
     }
 
     if (in_array($section,['UPB DISTR','DATA PARETO UPB'],true)) {
@@ -84,7 +85,7 @@ try {
         $bytes=$section==='UPB DISTR'?buildUpbDistrInputTemplateOds($period,$saved?:null):buildDataParetoUpbTemplateOds($period,$saved?:null);
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_'.$section.'_'.$period.'.ods"');
-        header('Cache-Control: no-store');echo $bytes;return;
+        header('Cache-Control: no-store');echo protectRawNativePeriod($bytes,$period);return;
     }
     if ($section === 'UPB non BJ') {
         require_once __DIR__.'/../includes/upb_non_bj_input_template.php';
@@ -98,7 +99,7 @@ try {
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_UPB non BJ_'.$period.'.ods"');
         header('Cache-Control: no-store');
-        echo $bytes;
+        echo protectRawNativePeriod($bytes,$period);
         return;
     }
     if ($section === 'UPB BJ kx') {
@@ -110,18 +111,18 @@ try {
         }
         require_once __DIR__.'/../includes/report_artifact_cache.php';
         $key=reportArtifactKey([$period,$historyBytes??'',$priorBytes??''],[
-            __DIR__.'/../includes/upb_bj_input_template.php',__DIR__.'/../includes/upb_bj_template_history.php',
+            __DIR__.'/../includes/upb_bj_input_template.php',__DIR__.'/../includes/upb_bj_template_history.php',__DIR__.'/../includes/raw_template_protection.php',
             __DIR__.'/assets/input-templates/upb-bj-kx.ods'
         ]);
         $bytes=cachedReportArtifact('upb-bj-input',$key,static fn()=>buildUpbBjInputTemplateOds($period,$historyBytes,$priorBytes));
         header('Content-Type: application/vnd.oasis.opendocument.spreadsheet');
         header('Content-Disposition: attachment; filename="Template_UPB BJ kx_'.$period.'.ods"');
         header('Cache-Control: no-store');
-        echo $bytes;
+        echo protectRawNativePeriod($bytes,$period);
         return;
     }
 
-    $rebuildFromHistory = in_array($section,['TARGET REVENUE','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL','BOD KX Sell In'],true) && (substr($period,5,2) !== '01' || in_array($section,['TARGET UNIT SELL OUT','BOD KX Sell In'],true));
+    $rebuildFromHistory = in_array($section,['TARGET REVENUE','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL','BOD KX Sell In'],true) && (substr($period,5,2) !== '01' || in_array($section,['TARGET UNIT SELL OUT','BOD KX Sell In','BIAYA','ETHICAL'],true));
     $book = $rebuildFromHistory ? null : buildReportInputTemplate($section, $period);
     if ($section === 'MTM' || $section === 'TARGET UNIT SELL OUT' || $section === 'BOD KX Sell In' || (in_array($section,['TARGET REVENUE','IB','BIAYA','UNIT & Revenue','REVENUE VERSI EDP MNJ','TARGET UNIT SELL OUT','ETHICAL','BOD KX Sell In'],true) && substr($period,5,2) !== '01')) {
         require_once __DIR__.'/../includes/database.php';
@@ -182,6 +183,9 @@ try {
         } finally { $conn->close(); }
     }
     if(reportIsPharma()&&$section==='TARGET UNIT SELL OUT'){foreach($book->getAllSheets() as $sheet){$name=$sheet->getTitle();if(preg_match('/^GB ([2356])$/D',$name))$book->removeSheetByIndex($book->getIndex($sheet));elseif(in_array($name,['ETHICAL','IB'],true))$sheet->setSheetState('veryHidden');}}
+    require_once __DIR__.'/../includes/raw_template_protection.php';
+    protectRawTemplate($book, $period, $section);
+    addRawTemplateInstructions($book);
     $stream = fopen('php://temp', 'w+b');
     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book);
     if (in_array($section,['MNJ','TARGET REVENUE','TARGET UNIT SELL OUT','ETHICAL','UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In'],true)) {

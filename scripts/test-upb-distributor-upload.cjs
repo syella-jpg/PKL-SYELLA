@@ -3,7 +3,7 @@ const savedWarn=console.error;console.error=(...args)=>{if(!String(args[0]).star
 (async()=>{
  for(const [path,section,month]of [['/tmp/distr-input-test.ods','UPB DISTR',3],['/tmp/distr-input-extended-test.ods','UPB DISTR',4],['/tmp/pareto-input-test.ods','DATA PARETO UPB',3]]){
   const book=X.read(fs.readFileSync(path),{type:'buffer',cellFormula:true});const found=detect(book,'renamed-file-2099-12.ods');assert.deepEqual(found,{choices:[{section,label:section}],year:2026,month});
-  if(section==='UPB DISTR'){assert.equal(book.SheetNames.length,month+1);assert.equal(book.Sheets.KESIMPULAN.B5.v,3.5);assert.equal(book.Sheets.KESIMPULAN.F5.v,2.5);}
+  if(section==='UPB DISTR'){assert.equal(book.SheetNames.length,month+1);assert.equal(book.Sheets.REKAP.B5.v,3.5);assert.equal(book.Sheets.REKAP.F5.v,2.5);}
  }
  const pareto=fs.readFileSync('/tmp/pareto-input-test.ods').toString('base64'),distr=fs.readFileSync('/tmp/distr-data-report-test.ods').toString('base64');
  const c={window:{XLSX:X},location:{protocol:'file:',hostname:''},document:{},URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,fetch:async url=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({success:true,base64:url.includes('data_pareto_upb')?pareto:distr})})};

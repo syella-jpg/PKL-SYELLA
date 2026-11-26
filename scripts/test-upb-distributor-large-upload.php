@@ -11,7 +11,7 @@ try{
  }
  $zip->addFromString('content.xml',$doc->saveXML());$zip->close();$source=file_get_contents($path);unset($doc,$table);
  $start=microtime(true);$compacted=prepareUpbDistrInputOds($source,'2025-01');$result=buildUpbDistrInputTemplateOds('2025-04',$compacted);validateUpbDistrInput($result,'2025-04','UPB DISTR');$elapsed=microtime(true)-$start;
- $tables=upbBjTables(distrReadOds($result));largeDistrCheck(array_keys($tables)===['JANUARI','FEBRUARI','MARET','APRIL','KESIMPULAN'],'Both months and conclusion retained');
+ $tables=upbBjTables(distrReadOds($result));largeDistrCheck(array_keys($tables)===['JANUARI','FEBRUARI','MARET','APRIL','REKAP'],'Both months and conclusion retained');
  foreach(['JANUARI','FEBRUARI','MARET','APRIL'] as $name){$info=distrMonthInfo($tables[$name]);largeDistrCheck(array_keys($info)===DISTR_GROUPS,'All GB/group labels and matching subtotals retained');foreach($info as $part)largeDistrCheck($part['last']-$part['start']+1===($name==='APRIL'?2500:1),'Selected month retains 2500 rows; previous empty months compact');}
  largeDistrCheck($elapsed<8,'Large-upload generation exceeded regression time limit');
  echo 'PASS: expanded formatted rows compact and download with all groups in '.round($elapsed,3)."s.\n";

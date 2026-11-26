@@ -205,6 +205,7 @@
       <button type="button" id="downloadTemplate">Unduh Template Excel</button>
     </div>
 
+    <p class="hint">Realisasi bulan sebelumnya dikunci. Untuk koreksi, minta admin 2 membuka periode tersebut di Kelola File, lalu unduh dan upload template periode yang dikoreksi.</p>
     <span class="label" id="fileLabel">File Dokumen</span>
     <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
       <input type="file" id="file" accept=".xlsx,.ods" hidden>
@@ -373,13 +374,13 @@
       : ["BOD BI.Opr & BOD BI.SDM"].includes(section)
       ? "Template ODS sesuai draft, dengan sheet Januari sampai bulan pilihan. Baris rincian boleh ditambah/dikurangi; pertahankan label subtotal dan total. Isi kumulatif dalam ribuan Rupiah. Dilengkapi sheet BOD BI.Opr dan BOD BI.SDM; tahun serta YTD mengikuti periode unduhan. Upload menyimpan data ke database; unduhan berikutnya melanjutkan data tahun yang sama, dengan bulan baru kosong mengikuti kerangka dan rumus bulan sebelumnya."
       : section === "UPB DISTR"
-      ? "Sheet Januari sampai bulan pilihan, masing-masing dengan tabel GB 1–6, Ethical, dan Non Konimex; template awal menyediakan 2.500 baris per kelompok. Isi data masing-masing bulan dalam Rupiah, bukan kumulatif. KESIMPULAN mengambil total bulan tersebut /1000, lalu menghitung YTD dan kontribusi. Data tersimpan diteruskan; bulan baru mengikuti kerangka dan rumus bulan sebelumnya dengan isian kosong. Perubahan rumus tabel bulanan dan kolom bulan di KESIMPULAN menjadi acuan bulan berikutnya setelah upload. Baris input kosong dirapikan; data, rumus, dan sel yang dirujuk rumus dipertahankan. Baris produk boleh ditambah/dihapus; pertahankan judul, header, dan subtotal."
+      ? "Sheet Januari sampai bulan pilihan, masing-masing dengan tabel GB 1–6, Ethical, dan Non Konimex; template awal menyediakan 2.500 baris per kelompok. Isi data masing-masing bulan dalam Rupiah, bukan kumulatif. REKAP mengambil total bulan tersebut /1000, lalu menghitung YTD dan kontribusi. Data tersimpan diteruskan; bulan baru mengikuti kerangka dan rumus bulan sebelumnya dengan isian kosong. Perubahan rumus tabel bulanan dan kolom bulan di REKAP menjadi acuan bulan berikutnya setelah upload. Baris input kosong dirapikan; data, rumus, dan sel yang dirujuk rumus dipertahankan. Baris produk boleh ditambah/dihapus; pertahankan judul, header, dan subtotal."
       : section === "DATA PARETO UPB"
       ? "Dua tabel sesuai sheet sumber: berdasarkan unit produk dan Rupiah produk. Isi atau tempel data pada template ini, lalu upload. Sheet beserta formatnya masuk langsung ke DATA PARETO UPB pada laporan untuk periode yang sama."
       : section === "UPB non BJ"
       ? "Tabel ringkasan, Bahan Baku, Bahan Kemas, dan WIP mengikuti contoh ODS. Isi nilai bulanan dalam Rupiah; ringkasan dalam (000). Tahun dan YTD mengikuti periode unduhan. Baris rincian boleh ditambah/dihapus di dalam tabel; pertahankan judul, header BAGIAN, dan baris TOTAL."
       : section === "UPB BJ kx"
-      ? "Sheet Januari sampai bulan pilihan berisi data kumulatif. KESIMPULAN menghitung nilai bulanan dengan selisih kumulatif. Upload ODS untuk menyimpan isian; unduhan berikutnya melanjutkan data tahun yang sama, dengan bulan baru menyalin kerangka dan rumus bulan sebelumnya; identitas produk, kategori, kuantiti, satuan, dan nilai inputnya kosong. Januari kosong jika belum ada upload pada tahun tersebut."
+      ? "Sheet Januari sampai bulan pilihan berisi data kumulatif. REKAP menghitung nilai bulanan dengan selisih kumulatif. Upload ODS untuk menyimpan isian; unduhan berikutnya melanjutkan data tahun yang sama, dengan bulan baru menyalin kerangka dan rumus bulan sebelumnya; identitas produk, kategori, kuantiti, satuan, dan nilai inputnya kosong. Januari kosong jika belum ada upload pada tahun tersebut."
       : section === "MNJ"
       ? "Satu tabel DCM, Revenue, dan Biaya untuk tahun yang dipilih. Isi Target Awal, Target Rolling, dan Aktual bulanan dalam (000.000); YTD, Full Year, dan persentase dihitung otomatis."
       : section === "TARGET REVENUE"
@@ -1038,7 +1039,7 @@
         const endpoint=LOCAL_FILE_MODE?"http://127.0.0.1:8000/api/report.php?endpoint=upb_bj_input_api":"../api/report.php?endpoint=upb_bj_input_api";
         const response=await fetch(endpoint,{method:"POST",body:form});const result=await response.json();
         if(!response.ok||!result.success)throw new Error(result.message||"UPB BJ gagal disimpan.");
-        barFill.style.width="100%";setMsg("UPB BJ tersimpan di database. Unduh template bulan berikutnya untuk melanjutkan isian; KESIMPULAN menghitung nilai per bulan dari selisih kumulatif.","ok");clearFile();return;
+        barFill.style.width="100%";setMsg("UPB BJ tersimpan di database. Unduh template bulan berikutnya untuk melanjutkan isian; REKAP menghitung nilai per bulan dari selisih kumulatif.","ok");clearFile();return;
       }
       if (sectionSelect.value === "MNJ") {
         const base64 = await new Promise((resolve,reject) => { const reader=new FileReader(); reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=()=>reject(new Error("File MNJ gagal dibaca."));reader.readAsDataURL(chosen); });

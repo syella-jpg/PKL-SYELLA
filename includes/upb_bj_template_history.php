@@ -2,7 +2,18 @@
 const UPB_T='urn:oasis:names:tc:opendocument:xmlns:table:1.0';
 const UPB_O='urn:oasis:names:tc:opendocument:xmlns:office:1.0';
 const UPB_X='urn:oasis:names:tc:opendocument:xmlns:text:1.0';
-function upbBjXml(string $xml): DOMDocument {$d=new DOMDocument();if(!@$d->loadXML($xml,LIBXML_NONET))throw new InvalidArgumentException('File ODS UPB BJ tidak valid.');return $d;}
+function upbRekapFormula(string $formula): string {
+ $parts=preg_split('/("(?:[^"]|"")*")/',$formula,-1,PREG_SPLIT_DELIM_CAPTURE);
+ foreach($parts as $i=>&$part)if($i%2===0)$part=preg_replace("/(?<![A-Z0-9_])(?:'KESIMPULAN'|KESIMPULAN)(?=\\.)/i","'REKAP'",$part);
+ unset($part);return implode('',$parts);
+}
+function upbBjXml(string $xml): DOMDocument {
+ $d=new DOMDocument();if(!@$d->loadXML($xml,LIBXML_NONET))throw new InvalidArgumentException('File ODS UPB BJ tidak valid.');
+ foreach($d->getElementsByTagNameNS(UPB_T,'table') as $table)if($table->getAttributeNS(UPB_T,'name')==='KESIMPULAN')$table->setAttributeNS(UPB_T,'table:name','REKAP');
+ $xp=new DOMXPath($d);$xp->registerNamespace('t',UPB_T);
+ foreach($xp->query('//*[@t:formula]') as $cell){$formula=$cell->getAttributeNS(UPB_T,'formula');if(stripos($formula,'KESIMPULAN')!==false)$cell->setAttributeNS(UPB_T,'table:formula',upbRekapFormula($formula));}
+ return $d;
+}
 function upbBjTables(DOMDocument $doc): array {$out=[];foreach($doc->getElementsByTagNameNS(UPB_T,'table') as $t)$out[$t->getAttributeNS(UPB_T,'name')]=$t;return $out;}
 /** Sparse cell positions: added/deleted product rows do not change label-based lookup. */
 function upbBjCells(DOMElement $table): array {

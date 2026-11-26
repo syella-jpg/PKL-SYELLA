@@ -83,7 +83,7 @@ function parseEthicalProductSource(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,s
     $inputs['_products']=$products;return ['year'=>$year,'inputs'=>$inputs,'summary'=>ethicalSourceSummary($inputs)];
 }
 function buildEthicalSourceWithHistory(string $period,?array $record): \PhpOffice\PhpSpreadsheet\Spreadsheet {
-    $eligible=substr($period,5,2)!=='01'&&$record&&(int)$record['report_year']===(int)substr($period,0,4);
+    $eligible=$record&&(int)$record['report_year']===(int)substr($period,0,4);
     $inputs=$eligible?json_decode($record['payload'],true,512,JSON_THROW_ON_ERROR):[];$capacities=[];
     foreach(($inputs['_products']??[]) as $kind=>$products)$capacities[$kind]=max($kind==='existing'?100:50,count($products));
     $book=buildEthicalSourceTemplate($period,$capacities);if(!$eligible)return $book;$s=$book->getSheetByName('PRODUK NAS');

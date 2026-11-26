@@ -2,8 +2,8 @@
 /** Rebuild a derived summary; source product records remain authoritative. */
 function refreshBiayaConclusion(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,string $period): void {
     $year=(int)substr($period,0,4);$month=(int)substr($period,5,2);
-    $old=$book->getSheetByName('KESIMPULAN');if($old)$book->removeSheetByIndex($book->getIndex($old));
-    $sheet=new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($book,'KESIMPULAN');$book->addSheet($sheet);
+    foreach (['REKAP', 'KESIMPULAN'] as $name) { $old=$book->getSheetByName($name);if($old)$book->removeSheetByIndex($book->getIndex($old)); }
+    $sheet=new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($book,'REKAP');$book->addSheet($sheet);
     $sheet->setCellValue('A1','KESIMPULAN BIAYA '.$year.' — Rp (000)');$sheet->mergeCells('A1:Q1');
     $sheet->setCellValue('A2','PERIODE '.$period.' · Existing = EXIS · NP = D · Total mengikuti tabel produk per GB.');$sheet->mergeCells('A2:Q2');
     $months=['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGS','SEP','OKT','NOV','DES'];$r=4;
@@ -40,4 +40,6 @@ function refreshBiayaConclusion(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,stri
     $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(17);$sheet->getColumnDimension('A')->setWidth(9);$sheet->getColumnDimension('B')->setWidth(16);
     foreach(range('C','P') as $col)$sheet->getColumnDimension($col)->setWidth(17);
     $sheet->setShowGridlines(false);$sheet->freezePane('C6');$sheet->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(0);
+    require_once __DIR__.'/raw_template_protection.php';
+    protectRawTemplate($book, $period, 'BIAYA');
 }

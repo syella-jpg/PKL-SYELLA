@@ -88,7 +88,7 @@
     if(upbSignature){
       const monthly=book.SheetNames.filter(name=>upbNames.includes(normalize(name)));
       const periods=[];let mismatch=false;
-      for(const name of (monthly.length?monthly:book.SheetNames.filter(name=>normalize(name)!=='KESIMPULAN'))){
+      for(const name of (monthly.length?monthly:book.SheetNames.filter(name=>!['REKAP','KESIMPULAN'].includes(normalize(name))))){
         const headings=Object.entries(book.Sheets[name]).filter(([address,cell])=>/^[A-Z]+\d+$/.test(address)&&typeof cell?.v==='string').map(([,cell])=>normalize(cell.v));
         const matches=headings.map(value=>value.match(/^MULAI\s+01\/(20\d{2})\s+HINGGA\s+(0?[1-9]|1[0-2])\/(20\d{2})$/)).filter(Boolean);
         if(matches.length!==1){mismatch=true;continue;}

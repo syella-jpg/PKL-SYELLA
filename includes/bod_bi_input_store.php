@@ -27,7 +27,7 @@ function validateBodBiInputBytes(string $bytes,string $period): void {
  try{file_put_contents($path,$bytes);validateBodBiInputDocument(loadOdsUploadDocument($path),$period);}finally{@unlink($path);}
 }
 function saveBodBiInput(mysqli $conn,string $period,string $bytes): void {
- validateBodBiInputBytes($bytes,$period);ensureBodBiInputStore($conn);$base64=base64_encode($bytes);$q=$conn->prepare('INSERT INTO `bod bi opr sdm` (report_period,base64) VALUES (?,?) ON DUPLICATE KEY UPDATE base64=VALUES(base64)');$q->bind_param('ss',$period,$base64);$q->execute();$q->close();
+ validateBodBiInputBytes($bytes,$period);ensureBodBiInputStore($conn);require_once __DIR__.'/raw_native_period.php';guardStoredNativePeriod($conn,'bod bi opr sdm',$period,$bytes);$base64=base64_encode($bytes);$q=$conn->prepare('INSERT INTO `bod bi opr sdm` (report_period,base64) VALUES (?,?) ON DUPLICATE KEY UPDATE base64=VALUES(base64)');$q->bind_param('ss',$period,$base64);$q->execute();$q->close();
 }
 /** Continue the saved native monthly structure; clear inputs only in new months. */
 function buildBodBiStoredInputTemplateOds(string $period,?string $saved): string {

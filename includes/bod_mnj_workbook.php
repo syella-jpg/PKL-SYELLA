@@ -135,6 +135,9 @@ function saveBodMnjRecord($conn, string $period, string $base64): void
 {
     validateBodMnjPeriod($period);
     ensureBodMnjStore($conn);
+    require_once __DIR__.'/raw_native_period.php';
+    $previous=findBodMnjRecord($conn,$period);
+    if($previous)assertRawNativePeriod($period,base64_decode($previous['base64'],true),base64_decode($base64,true));
     $book=decodeBodMnjWorkbook($base64,(int)substr($period,0,4));
     try { $nonProduct=parseBodMnjNonProduct($book,(int)substr($period,0,4));$formulas=getBodMnjFormulaMap($book); }
     finally { $book->disconnectWorksheets(); }

@@ -39,7 +39,10 @@ function mergeIbUnitParts(array $incoming,array $prior=[]): array {
 }
 /** Caller owns transaction; blank uploads do not erase previously supplied cumulative cells. */
 function saveIbUnitInputs(mysqli $conn,int $year,string $period,array $incoming): void {
-    $parts=mergeIbUnitParts($incoming,loadIbUnitHistory($conn,$year,true)??[]);
+    $previous=loadIbUnitHistory($conn,$year,true)??[];$parts=mergeIbUnitParts($incoming,$previous);
+    require_once __DIR__.'/raw_actual_period.php';
+    $old=[];$new=[];foreach(['actual_A','actual_B'] as $key){if(isset($previous[$key]))$old[$key]=$previous[$key];$new[$key]=$parts[$key];}
+    assertRawActualPeriod($period,$old,$new);
     saveUnitSellOutInputs($conn,$year,$period,['ib'],['ib'=>$parts]);
     $q=$conn->prepare("DELETE FROM `target unit sell out` WHERE report_year=? AND product='ib'");$q->bind_param('i',$year);$q->execute();$q->close();$q=$conn->prepare("INSERT INTO `target unit sell out` (report_year,product,kind,month,units) VALUES (?,'ib','total',?,?)");foreach(ibUnitMonthlyRecords($year,$parts) as $row){$month=$row['month'];$units=$row['units'];$q->bind_param('iis',$year,$month,$units);$q->execute();}$q->close();
 }
