@@ -405,12 +405,18 @@ try {
                 }
             }
         }
+        // Empty cells clear only the selected month of series containing input.
+        $ibSeries=[];$ibSelectedMonth=(int)substr($period,5,2);
+        foreach([['revenue_exist','IB_FM','actual_ib_fm',$monthlyFm],['revenue_exist','IB_FD','actual_ib_fd',$monthlyFd],['revenue_new','IB_FM','actual_new_ib_fm',$monthlyNewFm],['revenue_new','IB_FD','actual_new_ib_fd',$monthlyNewFd],['mcm','GROUP','actual_mcm',$monthlyMcm]] as [$metric,$unit,$field,$data]){
+            if(count(array_filter(array_merge($data['cumulative']['target'],$data['cumulative']['actual']),static fn($v)=>$v!==null))>0)$ibSeries[$field]=[$metric,$unit,$data];
+        }
         require_once __DIR__.'/../includes/raw_actual_period.php';
         $year=substr($period,0,4);$first=$year.'-01';
         $read=$conn->prepare("SELECT report_period,month_number,metric_code,business_unit,amount FROM ib_monthly_values WHERE report_period BETWEEN ? AND ? AND value_type='ACTUAL' AND metric_code IN ('revenue_exist_cum','revenue_new_cum','mcm_cum') ORDER BY report_period DESC");
         $read->bind_param('ss',$first,$period);$read->execute();$old=[];
         foreach($read->get_result()->fetch_all(MYSQLI_ASSOC) as $r){$key=$r['metric_code'].':'.$r['business_unit'];$m=(int)$r['month_number']-1;if(!array_key_exists($m,$old[$key]??[]))$old[$key][$m]=$r['amount'];}$read->close();$new=$old;
         foreach([['revenue_exist_cum','IB_FM',$monthlyFm],['revenue_exist_cum','IB_FD',$monthlyFd],['revenue_new_cum','IB_FM',$monthlyNewFm],['revenue_new_cum','IB_FD',$monthlyNewFd],['mcm_cum','GROUP',$monthlyMcm]] as [$metric,$unit,$source])foreach($source['cumulative']['actual']??[] as $m=>$v)if($v!==null)$new[$metric.':'.$unit][(int)$m-1]=$v;
+        foreach($ibSeries as [$metric,$unit,$data])$new[$metric.'_cum:'.$unit][$ibSelectedMonth-1]=$data['cumulative']['actual'][$ibSelectedMonth];
         assertRawActualPeriod($period,$old,$new);
         $conn->begin_transaction();
         // Upload sheet IAP saja tidak boleh menghapus nilai IB FM yang sudah
@@ -428,6 +434,13 @@ try {
                 target_mcm = COALESCE(VALUES(target_mcm), target_mcm),
                 actual_mcm = COALESCE(VALUES(actual_mcm), actual_mcm)');
         if (!$insert) throw new Exception('Gagal menyiapkan penyimpanan IB FM/IB FD: ' . $conn->error);
+        foreach($ibSeries as $field=>[$metric,$unit,$data]){
+            // Field names come from the fixed allowlist, never from request data.
+            $clear=$conn->prepare('UPDATE revenue_ibfm SET `'.$field.'`=NULL WHERE report_period=? AND month_number=?');
+            $clear->bind_param('si',$period,$ibSelectedMonth);$clear->execute();$clear->close();
+            $clear=$conn->prepare("UPDATE ib_monthly_values SET amount=NULL WHERE report_period=? AND month_number=? AND business_unit=? AND value_type='ACTUAL' AND metric_code IN (?,?)");
+            $cumMetric=$metric.'_cum';$clear->bind_param('sisss',$period,$ibSelectedMonth,$unit,$metric,$cumMetric);$clear->execute();$clear->close();
+        }
         $insertCanonical = $conn->prepare('INSERT INTO `ib_monthly_values` (report_period, month_number, metric_code, business_unit, value_type, amount) VALUES (?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE amount = COALESCE(VALUES(amount), amount)');
         if (!$insertCanonical) throw new Exception('Gagal menyiapkan penyimpanan tabel IB baru: ' . $conn->error);

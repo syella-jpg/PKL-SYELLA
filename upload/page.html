@@ -205,7 +205,7 @@
       <button type="button" id="downloadTemplate">Unduh Template Excel</button>
     </div>
 
-    <p class="hint">Realisasi bulan sebelumnya dikunci. Untuk koreksi, minta admin 2 membuka periode tersebut di Kelola File, lalu unduh dan upload template periode yang dikoreksi.</p>
+    <p class="hint">Realisasi bulan sebelumnya dikunci. Untuk koreksi, hubungi pihak CSPPM untuk membuka periode tersebut, lalu unduh dan upload template periode yang dikoreksi.</p>
     <span class="label" id="fileLabel">File Dokumen</span>
     <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
       <input type="file" id="file" accept=".xlsx,.ods" hidden>
@@ -406,18 +406,28 @@
     if (!["BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
     const button = $("downloadTemplate");
     button.disabled = true;
+    const downloadController = new AbortController();
+    const downloadTimeout = setTimeout(() => downloadController.abort(), 120000);
     try {
       const base = LOCAL_FILE_MODE ? "http://127.0.0.1:8000/api/report.php" : "../api/report.php";
-      const response = await fetch(base + "?" + new URLSearchParams({ endpoint: "report_input_template", section, period }));
+      const response = await fetch(base + "?" + new URLSearchParams({ endpoint: "report_input_template", section, period }), { signal: downloadController.signal });
       if (!response.ok) {
         const result = await response.json();
         throw new Error(result.message || "Template gagal diunduh.");
       }
-      const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
+      const blob = await response.blob();
+      // An error response must never be saved with an ODS/XLSX filename.
+      const signature = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+      if (signature[0] !== 0x50 || signature[1] !== 0x4b || signature[2] !== 3 || signature[3] !== 4) {
+        let message = "Template belum berhasil dibuat. Silakan coba kembali.";
+        try { message = JSON.parse(await blob.text()).message || message; } catch (_) {}
+        throw new Error(message);
+      }
+      const url = URL.createObjectURL(blob), link = document.createElement("a");
       link.href = url; link.download = "Template_" + section + "_" + period + (["BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? ".ods" : ".xlsx");
       link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (error) { setMsg(error.message || "Template gagal diunduh.", "error"); }
-    finally { button.disabled = false; }
+    } catch (error) { setMsg(error.name === "AbortError" ? "Unduhan melewati batas waktu 2 menit. Periksa server lokal, lalu coba kembali." : (error.message || "Template gagal diunduh."), "error"); }
+    finally { clearTimeout(downloadTimeout); button.disabled = false; }
   });
 
   // Header

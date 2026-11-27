@@ -33,8 +33,9 @@ function reportPharmaFilter(string $endpoint,array $payload): array {
  if(isset($payload['total'],$payload['data'])&&is_array($payload['data']))$payload['total']=count($payload['data']);return $payload;
 }
 function enforceReportAccess(string $endpoint): void {
- $origin=$_SERVER['HTTP_ORIGIN']??'';if(in_array($origin,['null','http://localhost:8000','http://127.0.0.1:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Headers: Content-Type, Authorization');}
- if(isset($GLOBALS['reportAccessUser'])||($_SERVER['REQUEST_METHOD']??'GET')==='OPTIONS')return;
+ $origin=$_SERVER['HTTP_ORIGIN']??'';if(in_array($origin,['null','http://localhost:8000','http://127.0.0.1:8000'],true)){header('Access-Control-Allow-Origin: '.$origin);header('Vary: Origin');header('Access-Control-Allow-Headers: Content-Type, Authorization');header('Access-Control-Allow-Methods: GET, POST, OPTIONS');}
+ if(($_SERVER['REQUEST_METHOD']??'GET')==='OPTIONS'){http_response_code(204);exit;}
+ if(isset($GLOBALS['reportAccessUser']))return;
  $json=str_contains(strtolower($_SERVER['CONTENT_TYPE']??''),'application/json')?json_decode(file_get_contents('php://input'),true):[];
  $data=array_merge($_GET,is_array($json)?$json:[],$_POST);
  if(in_array($endpoint,['upload_files_api','tm_bod_analysis_api'],true)&&($data['action']??'')==='login')return;

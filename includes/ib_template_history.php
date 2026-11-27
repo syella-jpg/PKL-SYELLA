@@ -84,6 +84,28 @@ function loadIbCumulativeHistory(mysqli $conn,string $sourcePeriod): array
     }
 }
 
+/** For editable downloads, a month's own upload is authoritative, including explicit blanks. */
+function loadIbEditableCumulativeHistory(mysqli $conn,string $period): array {
+    [$year]=ibHistoryPeriod($period);
+    try {
+        $q=$conn->prepare('SELECT report_period,month_number,metric_code,business_unit,value_type,amount FROM ib_monthly_values WHERE report_period LIKE CONCAT(?,"-%") AND report_period<=? AND metric_code IN ("revenue_exist_cum","revenue_new_cum","mcm_cum") ORDER BY report_period DESC,month_number');
+        $q->bind_param('ss',$year,$period);$q->execute();$rows=$q->get_result()->fetch_all(MYSQLI_ASSOC);$q->close();return $rows;
+    }catch(mysqli_sql_exception $e){if($e->getCode()===1146)return [];throw $e;}
+}
+function ibEditableCumulativeValues(array $rows,string $period): array {
+    $chosen=[];
+    foreach($rows as $row){
+        $p=(string)($row['report_period']??'');$m=(int)$row['month_number'];$type=$row['value_type'];
+        if(substr($p,0,4)!==substr($period,0,4)||$p>$period||$m<1||$m>12)continue;
+        if($type==='ACTUAL'&&$m>(int)substr($p,5,2))continue;
+        $key=$row['metric_code'].'|'.$row['business_unit'].'|'.$type.'|'.$m;
+        $owner=$type==='ACTUAL'&&$m===(int)substr($p,5,2);
+        $old=$chosen[$key]??null;
+        if($old===null||($owner&&!$old['owner'])||($owner===$old['owner']&&$p>$old['row']['report_period']))$chosen[$key]=['owner'=>$owner,'row'=>$row];
+    }
+    $out=[];foreach($chosen as $item){$r=$item['row'];$out[$r['metric_code']][$r['business_unit']][$r['value_type']][(int)$r['month_number']]=$r['amount'];}return $out;
+}
+
 function fillIbTemplateHistory(Spreadsheet $book,string $period,array $records,array $cumulative=[]): ?string
 {
     [$year,$month]=ibHistoryPeriod($period);
@@ -93,10 +115,7 @@ function fillIbTemplateHistory(Spreadsheet $book,string $period,array $records,a
     $past=array_filter($eligible,static fn($r)=>$r['report_period']<=$period);
     $source=$past?max(array_column($past,'report_period')):min(array_column($eligible,'report_period'));$byMonth=[];
     foreach($eligible as $row)if($row['report_period']===$source)$byMonth[(int)$row['month_number']]=$row;
-    $raw=[];
-    foreach($cumulative as $row)if(($row['report_period']??null)===$source){
-        $raw[$row['metric_code']][$row['business_unit']][$row['value_type']][(int)$row['month_number']]=$row['amount'];
-    }
+    $raw=ibEditableCumulativeValues($cumulative,$period);
     $mapping=[
         ['YFR - IBFM',6,'target_ib_fm','revenue_exist_cum','IB_FM','TARGET'],['YFR - IBFM',7,'actual_ib_fm','revenue_exist_cum','IB_FM','ACTUAL'],
         ['YFR - IBFM',9,'target_new_ib_fm','revenue_new_cum','IB_FM','TARGET'],['YFR - IBFM',10,'actual_new_ib_fm','revenue_new_cum','IB_FM','ACTUAL'],
@@ -110,6 +129,10 @@ function fillIbTemplateHistory(Spreadsheet $book,string $period,array $records,a
         $sum=0.0;$complete=true;
         for($m=1;$m<=12;$m++){
             if($source>$period && $m>$month)continue;
+            // A source uploaded in October cannot supply November/December actuals.
+            if($type==='ACTUAL' && $m>min($month,(int)substr($source,5,2))){
+                $sheet->setCellValue(Coordinate::stringFromColumnIndex($m+4).$row,null);continue;
+            }
             $value=$byMonth[$m][$key]??null;
             if($value===null||$value==='')$complete=false;
             elseif(!is_numeric($value)||!is_finite((float)$value))throw new RuntimeException('Nilai IB tersimpan tidak valid.');

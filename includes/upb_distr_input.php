@@ -12,6 +12,15 @@ function distrNumber(DOMElement $cell,string $formula,?float $value): void {
  upbBjSetFormula($cell,$formula,$value??0);
  if($value===null){$cell->setAttributeNS(UPB_O,'office:value-type','string');$cell->removeAttributeNS(UPB_O,'value');$cell->setAttributeNS(UPB_O,'office:string-value','');while($cell->firstChild)$cell->removeChild($cell->firstChild);$cell->appendChild($cell->ownerDocument->createElementNS(UPB_X,'text:p',''));}
 }
+/** Find the group heading and stop immediately above the subtotal itself. */
+function distrFlexibleSubtotal(string $group,string $column): string {
+ $match='MATCH("'.$group.'";INDIRECT("A1:A"&(ROW()-1));0)';
+ return 'IF(ROW()-'.$match.'<=2;0;SUM(INDIRECT("'.$column.'"&('.$match.'+2)&":'.$column.'"&(ROW()-1))))';
+}
+function distrIsStandardSubtotal(string $formula,string $group,string $column): bool {
+ return $formula===''||$formula==='of:=0'||preg_match('/^of:=SUM\(\[\.\$?'.$column.'\$?\d+:\.\$?'.$column.'\$?\d+\]\)$/i',$formula)
+     ||preg_replace('/(?<=[A-Z]\$)\d+/','#',distrFormulaKey($formula))===preg_replace('/(?<=[A-Z]\$)\d+/','#',distrFormulaKey('of:='.distrFlexibleSubtotal($group,$column)));
+}
 /** Detect groups and totals by their labels; product rows are never tied to fixed addresses. */
 function distrMonthInfo(DOMElement $table,bool $repair=false): array {
  $out=[];$group=null;$start=null;$r=1;$sum=0;$qty=0;$count=0;
@@ -26,8 +35,9 @@ function distrMonthInfo(DOMElement $table,bool $repair=false): array {
   elseif($group&&$start!==null&&$label==='SUB TOTAL '.$group){
    $total=$columns[5]??upbBjColumnCell($node,5);
    if($repair)foreach([3=>$qty,5=>$sum] as $column=>$value){$cell=$columns[$column]??upbBjColumnCell($node,$column);$letter=chr(64+$column);
-    if($cell->getAttributeNS(UPB_T,'formula')==='')distrNumber($cell,$r>$start?'SUM([.'.$letter.$start.':.'.$letter.($r-1).'])':'0',$value);
+    if(distrIsStandardSubtotal($cell->getAttributeNS(UPB_T,'formula'),$group,$letter))distrNumber($cell,distrFlexibleSubtotal($group,$letter),$value);
    }
+   $total=$columns[5]??upbBjColumnCell($node,5);
    $out[$group]=['row'=>$r,'ref'=>'E'.$r,'value'=>$total->hasAttributeNS(UPB_O,'value')?(float)$total->getAttributeNS(UPB_O,'value'):$sum,'start'=>$start,'last'=>$r-1,'count'=>$count];$group=null;$start=null;
   }elseif($group&&$start!==null){
    $value=$columns[5]??null;if($value&&$value->hasAttributeNS(UPB_O,'value')){$sum+=(float)$value->getAttributeNS(UPB_O,'value')*$repeat;if($label!=='')$count+=$repeat;}
@@ -128,7 +138,9 @@ function buildUpbDistrInputTemplateOds(string $period,?string $history=null,bool
    $totalRef=distrMonthTotal($table,$monthly[$month]);$formulaState['raw_baseline'][$month]=distrRawFormulaSnapshot($table);foreach($monthly[$month] as &$part)$part['month_total']=$totalRef;unset($part);$previous=$table;
   }
   distrCompactRows($doc,$formulaState);
-  distrExpandEmptyMonths($doc,$formulaState,$last);$monthly=distrSnapshotInfo($doc);
+  distrExpandEmptyMonths($doc,$formulaState,$last);
+  foreach(upbBjTables($doc) as $name=>$monthTable)if(in_array($name,DISTR_MONTHS,true)){distrMonthInfo($monthTable,true);$formulaState['raw_baseline'][array_search($name,DISTR_MONTHS,true)+1]=distrRawFormulaSnapshot($monthTable);}
+  $monthly=distrSnapshotInfo($doc);
   if($layout->open(__DIR__.'/../dashboard/assets/input-templates/upb-distr-report.ods')!==true)throw new RuntimeException('Kerangka ringkasan UPB DISTR tidak tersedia.');$layoutOpened=true;$native=distrMergeLayout($doc,$zip,$layout);
   $conclusion=distrConclusion($doc,array_values(upbBjTables($native))[0],$monthly,$period);$parent->appendChild($conclusion);
   $custom=distrApplySummaryRules($doc,$conclusion,$monthly,$formulaState,$last);distrCalculateSummary($doc,$custom);distrWriteFormulaState($zip,$formulaState);

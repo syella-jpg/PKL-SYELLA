@@ -16,7 +16,8 @@ function buildUpbNonBjInputTemplateOds(string $period, ?string $templateBytes=nu
         if($zip->open($temp)!==true)throw new RuntimeException('Template UPB NON BJ tidak dapat dibaca.');
         $opened=true;
         $doc=upbBjXml($zip->getFromName('content.xml'));
-        foreach(upbBjTables($doc) as $table){
+        foreach(upbBjTables($doc) as $name=>$table){
+            if(strtoupper($name)==='PETUNJUK')continue;
             $rows=[];$r=1;
             foreach($table->childNodes as $row)if($row instanceof DOMElement&&$row->localName==='table-row'){
                 $rows[$r]=$row;$r+=max(1,(int)$row->getAttributeNS(UPB_T,'number-rows-repeated'));

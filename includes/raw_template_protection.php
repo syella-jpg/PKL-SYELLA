@@ -15,7 +15,7 @@ function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string 
             $sheet->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet($summary || !$january);
         }
     }
-    if (in_array($section, ['UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In','MNJ','MTM','IB'], true)) {
+    if (in_array($section, ['UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In','MNJ','MTM'], true)) {
         $aliases=[['JAN','JANUARI'],['FEB','FEBRUARI'],['MAR','MARET'],['APR','APRIL'],['MEI','MAY'],['JUN','JUNI'],['JUL','JULI'],['AGS','AGT','AGU','AUG','AGUSTUS'],['SEP','SEPT','SEPTEMBER'],['OKT','OCT','OKTOBER'],['NOV','NOP','NOVEMBER'],['DES','DEC','DESEMBER']];
         foreach($book->getAllSheets() as $sheet){
             if(in_array(strtoupper($sheet->getTitle()),['_TEMPLATE','REKAP','KESIMPULAN'],true)||str_starts_with(strtoupper($sheet->getTitle()),'TARGET')||($section==='BOD KX Sell In'&&$sheet->getTitle()==='ROD'))continue;
@@ -30,6 +30,30 @@ function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string 
             foreach($months as $column=>$month)if($month<$selectedMonth-1)$sheet->getStyle($column.'1:'.$column.$sheet->getHighestRow())->getProtection()->setLocked('protected');
             if(!$january)foreach($sheet->getCellCollection()->getCoordinates() as $address){$cell=$sheet->getCell($address);if(!$cell->isFormula()&&is_string($cell->getValue())&&preg_match('/^(?:TARGET(?: |$)|T\.\s*(?:AWAL|ROLLING))/i',trim($cell->getValue()))){$r=$cell->getRow();$sheet->getStyle('A'.$r.':'.$sheet->getHighestColumn().$r)->getProtection()->setLocked('protected');}}
             $sheet->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet(!$january);
+        }
+    }
+    if ($section === 'IB') {
+        // USD and UNIT tables have different month offsets; resolve each header separately.
+        foreach ($book->getAllSheets() as $sheet) {
+            if (in_array(strtoupper($sheet->getTitle()),['_TEMPLATE','PETUNJUK','REKAP'],true)) continue;
+            $sheet->getStyle($sheet->calculateWorksheetDimension())->getProtection()->setLocked('protected');
+            $months=[];
+            for($row=1;$row<=$sheet->getHighestRow();$row++){
+                $headers=[];
+                for($col=1;$col<=\PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestColumn());$col++){
+                    $v=$sheet->getCell([$col,$row])->getValue();
+                    if(!is_string($v))continue;
+                    $label=strtoupper(trim($v));$label=preg_replace('/^S\/D /','',$label);
+                    $m=array_search($label,['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGS','SEP','OKT','NOV','DES'],true);
+                    if($m!==false)$headers[$col]=$m;
+                }
+                if(count($headers)===12){$months=$headers;continue;}
+                if(!$months)continue;
+                $kind='';foreach(range(1,min(array_keys($months))-1) as $col){$v=$sheet->getCell([$col,$row])->getValue();if(is_string($v)&&in_array(strtoupper(trim($v)),['TARGET','REALISASI'],true))$kind=strtoupper(trim($v));}
+                if($kind==='')continue;
+                foreach($months as $col=>$m){$editable=$kind==='TARGET'?$january:$m>=$selectedMonth-1;$sheet->getStyle([$col,$row])->getProtection()->setLocked($editable?'unprotected':'protected');}
+            }
+            $sheet->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet(true);
         }
     }
     if ($section === 'BIAYA' && ($actual = $book->getSheetByName('REALISASI'))) {

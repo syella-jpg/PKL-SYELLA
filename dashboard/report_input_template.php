@@ -164,10 +164,10 @@ try {
                 $book?->disconnectWorksheets();
                 $book=buildBiayaTemplateWithHistory($period,$records);
             } else {
-                $records=loadIbPeriodHistory($conn,$period);
+                $records=loadIbPeriodHistory($conn,$period,true);
                 $source=$records[0]['report_period']??null;
-                fillIbTemplateHistory($book,$period,$records,$source?loadIbCumulativeHistory($conn,$source):[]);
-                $unitParts=loadIbUnitHistory($conn,(int)substr($period,0,4));if($unitParts)fillIbUnitTable(getIbInputSheet($book,'GM IB'),true,$unitParts);
+                fillIbTemplateHistory($book,$period,$records,loadIbEditableCumulativeHistory($conn,$period));
+                $unitParts=loadIbUnitHistory($conn,(int)substr($period,0,4),false,$period);if($unitParts)fillIbUnitTable(getIbInputSheet($book,'GM IB'),true,$unitParts,$period);
             }
         } finally { $conn->close(); }
     }

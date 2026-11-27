@@ -85,13 +85,20 @@ function protectRawNativePeriod(string $bytes,string $period): string {
         if(in_array(strtoupper($name),['REKAP','KESIMPULAN'],true)){protectRawRekapOds($table);continue;}
         $sheetMonth=rawPeriodMonth($name);
         if($sheetMonth!==null){
-            if($sheetMonth<$selected){protectRawRekapOds($table);foreach($table->getElementsByTagNameNS(UPB_T,'table-cell') as $cell)$apply($cell,true);}
+            if($sheetMonth<$selected){protectRawRekapOds($table);
+                $xpath=new DOMXPath($doc);$xpath->registerNamespace('raw',UPB_T);
+                foreach($xpath->query('.//raw:table-cell',$table) as $cell)$apply($cell,true);}
             else{$table->removeAttributeNS(UPB_T,'protected');$table->removeAttributeNS(UPB_T,'protection-key');}
             continue;
         }
         $active=[];$hasMonthly=false;$sparse=upbBjCells($table);$rowNumber=1;
+        // Leave nonmonthly sheets and the huge repeated empty ODS tail untouched.
+        $hasHeaders=false;
+        foreach($sparse as $row){$found=[];foreach($row as $cell){$m=rawPeriodMonth($cell->textContent);if($m!==null)$found[$m]=true;}if(count($found)>=2){$hasHeaders=true;break;}}
+        if(!$hasHeaders)continue;
         foreach(iterator_to_array($table->childNodes) as $node){
             if(!$node instanceof DOMElement||$node->localName!=='table-row')continue;
+            if(!isset($sparse[$rowNumber])){$rowNumber+=max(1,(int)$node->getAttributeNS(UPB_T,'number-rows-repeated'));continue;}
             $headers=[];foreach($sparse[$rowNumber]??[] as $c=>$cell){$month=rawPeriodMonth($cell->textContent);if($month!==null)for($span=0;$span<max(1,(int)$cell->getAttributeNS(UPB_T,'number-columns-spanned'));$span++)$headers[$c+$span]=$month;}
             if(count(array_unique($headers))>=2){$active=$headers;$hasMonthly=true;}
             $column=1;
@@ -103,7 +110,7 @@ function protectRawNativePeriod(string $bytes,string $period): string {
                     $points=array_values(array_unique($points));sort($points);
                     for($i=0;$i<count($points)-1;$i++){
                         $copy=$cell->cloneNode(true);$repeat=$points[$i+1]-$points[$i];if($repeat>1)$copy->setAttributeNS(UPB_T,'table:number-columns-repeated',(string)$repeat);else $copy->removeAttributeNS(UPB_T,'number-columns-repeated');
-                        if(!$copy->hasAttributeNS(UPB_O,'value-type')){$copy->setAttributeNS(UPB_O,'office:value-type','string');if(!$copy->firstChild)$copy->appendChild($doc->createElementNS(UPB_X,'text:p'));}
+                        if(isset($active[$points[$i]])&&!$copy->hasAttributeNS(UPB_O,'value-type')){$copy->setAttributeNS(UPB_O,'office:value-type','string');if(!$copy->firstChild)$copy->appendChild($doc->createElementNS(UPB_X,'text:p'));}
                         $apply($copy,isset($active[$points[$i]])&&$active[$points[$i]]<$selected);$node->insertBefore($copy,$cell);
                     }
                     $node->removeChild($cell);

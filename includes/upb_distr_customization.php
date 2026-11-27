@@ -76,8 +76,8 @@ function distrCaptureRawState(DOMDocument $doc,array $state): array {
    foreach($current as $a=>$f)if(!isset($old[$a])||distrFormulaKey($old[$a])!==distrFormulaKey($f)){$changed=true;break;}
    if($changed)$edits[$month]=true;
   }else{
-   $standard=[];foreach(distrMonthInfo($tables[$name]) as $part)foreach([3,5] as $c)$standard[$c.':'.$part['row']]='of:='.($part['last']>=$part['start']?'SUM([.'.chr(64+$c).$part['start'].':.'.chr(64+$c).$part['last'].'])':'0');
-   foreach($current as $a=>$f)if(!isset($standard[$a])||distrFormulaKey($standard[$a])!==distrFormulaKey($f)){$edits[$month]=true;break;}
+   $standard=[];foreach(distrMonthInfo($tables[$name]) as $group=>$part)foreach([3,5] as $c)$standard[$c.':'.$part['row']]=[$group,chr(64+$c)];
+   foreach($current as $a=>$f)if(!isset($standard[$a])||!distrIsStandardSubtotal($f,...$standard[$a])){$edits[$month]=true;break;}
   }
   $baseline[$month]=$current;
  }$state['raw_baseline']=$baseline;$state['raw_edits']=$edits;return $state;

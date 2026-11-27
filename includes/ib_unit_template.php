@@ -25,14 +25,16 @@ function readIbUnitTable(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $s,bool $
         foreach(['JAN','S/D FEB','S/D MAR','S/D APR','S/D MEI','S/D JUN','S/D JUL','S/D AGS','S/D SEP','S/D OKT','S/D NOV','S/D DES'] as $m=>$month){if($s->getCell([$m+6,$r['header']])->getValue()!==$month)throw new InvalidArgumentException('Kolom bulan UNIT IB berubah.');$cell=$s->getCell([$m+6,$row]);try{$v=$cell->getCalculatedValue();}catch(Throwable $e){throw new InvalidArgumentException('Rumus UNIT IB tidak valid pada '.$cell->getCoordinate().'.');}if($v===null||$v===''||in_array(trim((string)$v),['-','–','—'],true))$v=null;elseif(!is_numeric($v)||!is_finite((float)$v)||(float)$v<0||abs((float)$v)>=1e17)throw new InvalidArgumentException('Isi angka UNIT IB nol atau positif pada '.$cell->getCoordinate().'.');else $v=(float)$v;$parts[$key][$m]=$v;}
     }return $parts;
 }
-function fillIbUnitTable(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $s,bool $hru,array $parts): void {
+function fillIbUnitTable(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $s,bool $hru,array $parts, ?string $period=null): void {
+    if($period!==null)foreach(['actual_A','actual_B'] as $key)for($m=(int)substr($period,5,2);$m<12;$m++)$parts[$key][$m]=null;
     $r=ibUnitTemplateRows($hru);foreach(['A','B','actual_A','actual_B'] as $key)foreach(($parts[$key]??array_fill(0,12,null)) as $m=>$v)if($v!==null)$s->setCellValue([$m+6,$r[$key]],(float)$v);
 }
 function ibUnitMonthlyRecords(int $year,array $parts): array {
     $records=[];$prior=0.0;for($m=0;$m<12;$m++){$total=$parts['A'][$m]===null||$parts['B'][$m]===null?null:$parts['A'][$m]+$parts['B'][$m];$value=$total===null||$prior===null?null:$total-$prior;$records[]=['report_year'=>$year,'product'=>'ib','kind'=>'total','month'=>$m+1,'units'=>$value===null?null:number_format($value,6,'.','')];$prior=$total;}return $records;
 }
-function loadIbUnitHistory(mysqli $conn,int $year,bool $lock=false): ?array {
-    try{$q=$conn->prepare("SELECT payload FROM unit_sell_out_target_inputs WHERE report_year=? AND product='ib'".($lock?" FOR UPDATE":""));$q->bind_param('i',$year);$q->execute();$row=$q->get_result()->fetch_assoc();$q->close();return $row?json_decode($row['payload'],true,512,JSON_THROW_ON_ERROR):null;}catch(mysqli_sql_exception $e){if($e->getCode()===1146)return null;throw $e;}
+function loadIbUnitHistory(mysqli $conn,int $year,bool $lock=false,?string $period=null): ?array {
+    try{$q=$conn->prepare("SELECT payload,source_period FROM unit_sell_out_target_inputs WHERE report_year=? AND product='ib'".($lock?" FOR UPDATE":""));$q->bind_param('i',$year);$q->execute();$row=$q->get_result()->fetch_assoc();$q->close();if(!$row)return null;$parts=json_decode($row['payload'],true,512,JSON_THROW_ON_ERROR);
+        if($period!==null){$last=min((int)substr($period,5,2),(int)substr($row['source_period']??$period,5,2));foreach(['actual_A','actual_B'] as $key)for($m=$last;$m<12;$m++)$parts[$key][$m]=null;}return $parts;}catch(mysqli_sql_exception $e){if($e->getCode()===1146)return null;throw $e;}
 }
 function mergeIbUnitParts(array $incoming,array $prior=[]): array {
     $parts=[];foreach(['A','B','actual_A','actual_B'] as $key)for($m=0;$m<12;$m++)$parts[$key][$m]=$incoming[$key][$m]??$prior[$key][$m]??null;return $parts;
@@ -40,6 +42,7 @@ function mergeIbUnitParts(array $incoming,array $prior=[]): array {
 /** Caller owns transaction; blank uploads do not erase previously supplied cumulative cells. */
 function saveIbUnitInputs(mysqli $conn,int $year,string $period,array $incoming): void {
     $previous=loadIbUnitHistory($conn,$year,true)??[];$parts=mergeIbUnitParts($incoming,$previous);
+    foreach(['actual_A','actual_B'] as $key){$m=(int)substr($period,5,2)-1;if(array_key_exists($m,$incoming[$key]??[]))$parts[$key][$m]=$incoming[$key][$m];}
     require_once __DIR__.'/raw_actual_period.php';
     $old=[];$new=[];foreach(['actual_A','actual_B'] as $key){if(isset($previous[$key]))$old[$key]=$previous[$key];$new[$key]=$parts[$key];}
     assertRawActualPeriod($period,$old,$new);

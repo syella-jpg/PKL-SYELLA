@@ -32,6 +32,7 @@ function validateDaftarInputBytes(string $bytes, string $period): void {
         for ($i=0;$i<$zip->numFiles;$i++) if (str_starts_with($zip->getNameIndex($i),'Basic/')) throw new InvalidArgumentException('Gunakan template DAFTAR terbaru dengan isian V/X tanpa makro.');
         $zip->close(); $opened = false;
         $doc = loadOdsUploadDocument($path); $tables = upbBjTables($doc);
+        unset($tables['PETUNJUK']);
         if (array_keys($tables) !== ['DAFTAR']) throw new InvalidArgumentException('Upload template raw data dengan sheet DAFTAR saja.');
         $labels = [];
         foreach ($tables['DAFTAR']->getElementsByTagNameNS(UPB_X,'p') as $p) $labels[] = preg_replace('/\s+/u',' ',trim($p->textContent));
