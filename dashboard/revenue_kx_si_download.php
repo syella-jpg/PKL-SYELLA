@@ -272,7 +272,7 @@ foreach (array_unique([$periodYear, $periodYear - 1]) as $targetYear) {
 
 $output = new Spreadsheet();
 $output->getActiveSheet()->setTitle('LAPORAN');
-$workbookSheetNames = ['LAPORAN', 'SERVICE LEVEL', 'IB', 'ETHICAL', 'MNJ', 'MTM', 'UNIT', 'REVENUE EDP MNJ', 'BIAYA', 'TARGET REVENUE', 'DAFTAR', 'LAUNCH', 'BOD KX Sell In', 'BOD MNJ', 'BOD JML SDM', 'BOD BI.SDM', 'BOD BI.Opr', 'RATIO UPB', 'UP BJ kx', 'UPB non BJ', 'UPB DISTR', 'PARETO UPB DISTR AGT 26', 'complaint - Accident', 'NEAR ED', 'TOP 10 NEAR ED'];
+$workbookSheetNames = ['LAPORAN', 'SERVICE LEVEL', 'IB', 'ETHICAL', 'MNJ', 'MTM', 'UNIT', 'REVENUE EDP MNJ', 'DAFTAR', 'LAUNCH', 'BOD KX Sell In', 'BOD MNJ', 'BOD JML SDM', 'BOD BI.SDM', 'BOD BI.Opr', 'RATIO UPB', 'UP BJ kx', 'UPB non BJ', 'UPB DISTR', 'PARETO UPB DISTR AGT 26', 'complaint - Accident', 'NEAR ED', 'TOP 10 NEAR ED'];
 $edpTemplateSource = file_get_contents(__DIR__ . '/report-templates.js');
 if ($edpTemplateSource === false || !preg_match('/const TEMPLATE_BASE64 = "([A-Za-z0-9+\/=]+)";/', $edpTemplateSource, $edpTemplateMatch)) {
     throw new RuntimeException('Template REVENUE EDP MNJ tertanam tidak ditemukan.');

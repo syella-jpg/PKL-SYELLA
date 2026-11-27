@@ -66,7 +66,7 @@ function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string 
                 $actual->getStyle($letter.$layout['first'].':'.$letter.$layout['last'])->getProtection()->setLocked('protected');
             }
         }
-        $actual->setCellValue('A4', rawActualLockNote());
+        $actual->setCellValue('A4', null);
         $actual->getProtection()->setPassword(rawTemplatePassword())->setSheet(!$january);
     }
     if ($section === 'ETHICAL' && !$january && ($sheet = $book->getSheetByName('PRODUK NAS'))) {
@@ -82,12 +82,9 @@ function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string 
             }
         }
         $sheet->getProtection()->setPassword(rawTemplatePassword())->setSheet(true);
-        $sheet->setCellValue('A4', rawActualLockNote());
+        $sheet->setCellValue('A4', null);
         $sheet->getProtection()->setInsertRows(false)->setDeleteRows(false);
     }
-}
-function rawActualLockNote(): string {
-    return 'Realisasi bulan sebelumnya dikunci. Koreksi: hubungi pihak CSPPM untuk membuka periode, lalu unduh dan upload template periode yang dikoreksi. Perubahan bulan lain ditolak sistem.';
 }
 function protectRawRekapOds(DOMElement $sheet): void
 {
@@ -103,7 +100,6 @@ function rawTemplateInstructions(): array {
         'Penambahan/pengurangan baris: Lakukan pada baris data produk, sebelum baris subtotal/total. Jangan menghapus atau mengubah judul kolom, nama sheet, dan baris subtotal/total agar data tetap terbaca dengan benar.',
         'Sheet TARGET: Hanya dapat diedit pada template periode Januari.',
         'Sheet REKAP: Terisi otomatis dan dikunci agar rumusnya tetap terjaga.',
-        'Realisasi bulan sebelumnya: Dikunci. Untuk melakukan koreksi, hubungi pihak CSPPM agar periode tersebut dibuka, lalu unduh dan unggah kembali template untuk periode yang ingin diperbaiki.',
     ];
 }
 function addRawTemplateInstructions(\PhpOffice\PhpSpreadsheet\Spreadsheet $book): void {
