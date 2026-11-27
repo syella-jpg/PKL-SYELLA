@@ -12,7 +12,7 @@
   for(const s of sheets){
    const name=s.name.trim().toUpperCase();if(['PETUNJUK','_TEMPLATE'].includes(name))continue;
    const prior=months.indexOf(name)>=0&&months.indexOf(name)<month-1;
-   const expected=/^(REKAP|KESIMPULAN)$/.test(name)||prior||section==='IB'||
+   const expected=/^(REKAP|KESIMPULAN|NEAR ED|TOP 10 NEAR ED)$/.test(name)||prior||section==='IB'||
     (month>1&&(name.startsWith('TARGET')||targetSections.includes(section)||s.monthly||monthlySections.includes(section)));
    if(expected&&!s.protected)bad.push(s.name);
   }

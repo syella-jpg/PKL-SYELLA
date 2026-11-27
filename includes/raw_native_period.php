@@ -136,6 +136,7 @@ function protectRawNativePeriod(string $bytes,string $period): string {
         if($hasMonthly&&$selected>0)protectRawRekapOds($table);
         elseif($hasMonthly){$table->removeAttributeNS(UPB_T,'protected');$table->removeAttributeNS(UPB_T,'protection-key');}
     }
+    foreach(upbBjTables($doc) as $table)if($table->getAttributeNS(UPB_T,'protected')==='true')protectRawRekapOds($table);
     addRawNativeInstructions($doc,$auto);
     $path=tempnam(sys_get_temp_dir(),'raw-lock-');$zip=new ZipArchive();try{file_put_contents($path,$bytes);if($zip->open($path)!==true)throw new RuntimeException('Template tidak dapat dikunci.');try{$zip->addFromString('content.xml',$doc->saveXML());}finally{$zip->close();}return file_get_contents($path);}finally{unlink($path);}
 }

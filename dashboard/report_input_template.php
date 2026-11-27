@@ -22,6 +22,10 @@ if (in_array($origin, ['null', 'http://127.0.0.1:8000', 'http://localhost:8000']
 }
 
 try {
+    // Load the shared editing password once for all generated sheets in this download.
+    require_once __DIR__.'/../includes/database.php';
+    $passwordDb=openReportConnection();
+    try{$GLOBALS['rawTemplateSheetPassword']=readTemplatePassword($passwordDb);}finally{$passwordDb->close();}
     $section = is_string($_GET['section'] ?? null) ? $_GET['section'] : '';
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : '';
     if($section==='BOD MNJ'){
@@ -188,7 +192,7 @@ try {
     addRawTemplateInstructions($book);
     $stream = fopen('php://temp', 'w+b');
     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book);
-    if (in_array($section,['MNJ','TARGET REVENUE','TARGET UNIT SELL OUT','ETHICAL','UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In'],true)) {
+    if (in_array($section,['NEAR ED','MNJ','TARGET REVENUE','TARGET UNIT SELL OUT','ETHICAL','UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In'],true)) {
         // Excel/Calc recalculates the visible summaries on open and on edits.
         $writer->setPreCalculateFormulas(false)->setForceFullCalc(true);
     }

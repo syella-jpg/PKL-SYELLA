@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/template_password.php';
 /** Editing rules use the selected report period, never the current date. */
 function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string $period, string $section = ''): void
 {
@@ -8,11 +9,11 @@ function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string 
     $targetOnly = in_array($section, ['TARGET REVENUE','TARGET UNIT SELL OUT','REVENUE VERSI EDP MNJ Target'], true);
     foreach ($book->getAllSheets() as $sheet) {
         $name = strtoupper(trim($sheet->getTitle()));
-        $summary = in_array($name, ['REKAP','KESIMPULAN'], true);
+        $summary = in_array($name, ['REKAP','KESIMPULAN','NEAR ED','TOP 10 NEAR ED'], true);
         $target = ($targetOnly || str_starts_with($name, 'TARGET') || ($section==='BOD KX Sell In' && $name==='ROD')) && $name !== '_TEMPLATE';
         if ($summary || $target) {
             $sheet->getStyle($sheet->calculateWorksheetDimension())->getProtection()->setLocked('protected');
-            $sheet->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet($summary || !$january);
+            $sheet->getProtection()->setPassword(rawTemplatePassword())->setSheet($summary || !$january);
         }
     }
     if (in_array($section, ['UNIT & Revenue','REVENUE VERSI EDP MNJ','BOD KX Sell In','MNJ','MTM'], true)) {
@@ -29,7 +30,7 @@ function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string 
             $sheet->getStyle($sheet->calculateWorksheetDimension())->getProtection()->setLocked('unprotected');
             foreach($months as $column=>$month)if($month<$selectedMonth-1)$sheet->getStyle($column.'1:'.$column.$sheet->getHighestRow())->getProtection()->setLocked('protected');
             if(!$january)foreach($sheet->getCellCollection()->getCoordinates() as $address){$cell=$sheet->getCell($address);if(!$cell->isFormula()&&is_string($cell->getValue())&&preg_match('/^(?:TARGET(?: |$)|T\.\s*(?:AWAL|ROLLING))/i',trim($cell->getValue()))){$r=$cell->getRow();$sheet->getStyle('A'.$r.':'.$sheet->getHighestColumn().$r)->getProtection()->setLocked('protected');}}
-            $sheet->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet(!$january);
+            $sheet->getProtection()->setPassword(rawTemplatePassword())->setSheet(!$january);
         }
     }
     if ($section === 'IB') {
@@ -53,7 +54,7 @@ function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string 
                 if($kind==='')continue;
                 foreach($months as $col=>$m){$editable=$kind==='TARGET'?$january:$m>=$selectedMonth-1;$sheet->getStyle([$col,$row])->getProtection()->setLocked($editable?'unprotected':'protected');}
             }
-            $sheet->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet(true);
+            $sheet->getProtection()->setPassword(rawTemplatePassword())->setSheet(true);
         }
     }
     if ($section === 'BIAYA' && ($actual = $book->getSheetByName('REALISASI'))) {
@@ -66,7 +67,7 @@ function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string 
             }
         }
         $actual->setCellValue('A4', rawActualLockNote());
-        $actual->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet(!$january);
+        $actual->getProtection()->setPassword(rawTemplatePassword())->setSheet(!$january);
     }
     if ($section === 'ETHICAL' && !$january && ($sheet = $book->getSheetByName('PRODUK NAS'))) {
         $sheet->getStyle($sheet->calculateWorksheetDimension())->getProtection()->setLocked('unprotected');
@@ -80,7 +81,7 @@ function protectRawTemplate(\PhpOffice\PhpSpreadsheet\Spreadsheet $book, string 
                 $sheet->getStyle($letter.'1:'.$letter.$sheet->getHighestRow())->getProtection()->setLocked('protected');
             }
         }
-        $sheet->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet(true);
+        $sheet->getProtection()->setPassword(rawTemplatePassword())->setSheet(true);
         $sheet->setCellValue('A4', rawActualLockNote());
         $sheet->getProtection()->setInsertRows(false)->setDeleteRows(false);
     }
@@ -91,7 +92,7 @@ function rawActualLockNote(): string {
 function protectRawRekapOds(DOMElement $sheet): void
 {
     $sheet->setAttributeNS(UPB_T, 'table:protected', 'true');
-    $sheet->setAttributeNS(UPB_T, 'table:protection-key', base64_encode(sha1(random_bytes(32), true)));
+    $sheet->setAttributeNS(UPB_T, 'table:protection-key', base64_encode(sha1(rawTemplatePassword(), true)));
     $sheet->setAttributeNS(UPB_T, 'table:protection-key-digest-algorithm', 'http://www.w3.org/2000/09/xmldsig#sha1');
 }
 
@@ -115,7 +116,7 @@ function addRawTemplateInstructions(\PhpOffice\PhpSpreadsheet\Spreadsheet $book)
     $sheet->getStyle('A1:A5')->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFC00000'))->setSize(12);
     $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
     $sheet->getStyle('A1:A5')->getAlignment()->setWrapText(true)->setVertical('center');
-    $sheet->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet(true);
+    $sheet->getProtection()->setPassword(rawTemplatePassword())->setSheet(true);
     $book->setActiveSheetIndex(0);
 }
 function addRawNativeInstructions(DOMDocument $doc,DOMElement $auto): void {

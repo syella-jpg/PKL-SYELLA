@@ -8,6 +8,10 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
  await c.window.fetch('../api/report.php?endpoint=bod_mnj_api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({period:'2026-06',base64:'DUMMY'})});
  const payload=JSON.parse(sent[0].options.body);assert.equal(payload.upload_token,login.uploadToken);assert.equal(payload.period,'2026-06');assert.equal(payload.upload_filename,'dummy.ods');
  const form=new Form();await c.window.fetch('../dashboard/daftar_input_api.php',{method:'POST',body:form});assert.equal(form.values.upload_token,login.uploadToken);
+ for(const url of ['../api/report.php?endpoint=near_ed_input_api','../dashboard/near_ed_input_api.php']){
+  const nearForm=new Form();nearForm.set('period','2026-10');await c.window.fetch(url,{method:'POST',body:nearForm});
+  assert.equal(nearForm.values.upload_token,login.uploadToken);assert.equal(nearForm.values.period,'2026-10');assert.equal(nearForm.values.upload_filename,'dummy.ods');
+ }
  const x=new Xhr();x.open('POST','upload.php');const f=new Form();x.send(f);assert.equal(x.body.values.upload_token,login.uploadToken);
  await c.window.fetch('../api/report.php?endpoint=upload_file_detection_api',{method:'POST',body:'untouched'});assert.equal(sent.at(-1).options.body,'untouched');
  login=null;await assert.rejects(c.window.fetch('../api/report.php?endpoint=mnj_api',{method:'POST',body:'{}'}),/login ulang/);

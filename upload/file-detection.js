@@ -13,6 +13,7 @@
     }
     const text = labels.join('\n');
     const file = normalize(filename);
+    if(book.Sheets._TEMPLATE?.A1?.v==='KONIMEX_NEAR_ED_V1'){const period=String(book.Sheets._TEMPLATE?.A4?.v||'').match(/^(20\d{2})-(0[1-9]|1[0-2])$/);return {choices:[{section:'NEAR ED',label:'NEAR ED'}],year:period?Number(period[1]):null,month:period?Number(period[2]):null};}
     const distrMonths=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
     const distrShort=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
     if(labels.includes('SERVICE LEVEL')&&labels.some(v=>/^EKSTERNAL\s*\(MNJ TO OUTLET\)/.test(v))&&labels.some(v=>/^INTERNAL\s*\(KX TO MNJ\)/.test(v))){
@@ -123,8 +124,9 @@
     if (['KONIMEX_UNIT_SELL_OUT_V1','KONIMEX_UNIT_SELL_OUT_V2','KONIMEX_UNIT_SELL_OUT_V3','KONIMEX_UNIT_SELL_OUT_V4','KONIMEX_UNIT_SELL_OUT_V5','KONIMEX_UNIT_SELL_OUT_V6'].includes(book.Sheets._TEMPLATE?.A1?.v)) add('TARGET UNIT SELL OUT');
     if (['KONIMEX_BIAYA_V1','KONIMEX_BIAYA_V2'].includes(book.Sheets._TEMPLATE?.A1?.v)) add('BIAYA');
     if (names.includes('PRODUK NAS') && /TOTAL EXISTING/.test(text) && /\bHNA\b/.test(text)) add('ETHICAL');
-    if (!(book.Sheets._TEMPLATE?.A1?.v === 'KONIMEX_INPUT_V1' && book.Sheets._TEMPLATE?.A2?.v === 'IB') && names.some(n => ['HRU','GM IB'].includes(n)) && /SALES REVENUE.*\(UNIT\)/.test(text)) add('TARGET UNIT SELL OUT', 'Target unit IB');
-    if (names.some(n => /YFR\s*-\s*IBFM|^YRU$|^IB FARMA$|^IB FOOD$|^IAP$/.test(n))) add('IB', 'Laporan IB / ekspor');
+    const ibReport = names.some(n => /YFR\s*-\s*IBFM|^YRU$|^IB FARMA$|^IB FOOD$|^IAP$/.test(n));
+    if (!ibReport && names.some(n => ['HRU','GM IB'].includes(n)) && /SALES REVENUE.*\(UNIT\)/.test(text)) add('TARGET UNIT SELL OUT');
+    if (ibReport) add('IB');
     if (!ethicalSource && names.includes('GMEB') && /EXISTING PRODUCT\s*\(UNIT\)/.test(text)) add('TARGET UNIT SELL OUT', 'Target unit Ethical');
     if (names.some(n => /^PRODUK\s+(NAS|PID|PE_1|PE_2)$/.test(n))) add('ETHICAL', 'Data produk Ethical');
     if (names.some(n => /TARGET.*GB\s*[1-6]/.test(n)) && /\bUNIT\b/.test(text) && /KATEGORI\s*[A-D]/.test(text)) add('TARGET UNIT SELL OUT', 'Target unit GB');

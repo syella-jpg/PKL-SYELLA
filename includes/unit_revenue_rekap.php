@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/template_password.php';
 /** Formula ranges include the blank-category subtotal boundary so inserted rows extend them. */
 function refreshUnitRevenueRekap(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,string $period): void
 {
@@ -44,5 +45,5 @@ function refreshUnitRevenueRekap(\PhpOffice\PhpSpreadsheet\Spreadsheet $book,str
     $rekap->getColumnDimension('A')->setWidth(25);$rekap->getColumnDimension('B')->setWidth(15);foreach(range('C','P') as $col)$rekap->getColumnDimension($col)->setWidth(18);
     $rekap->getStyle('C4:P'.$r)->getNumberFormat()->setFormatCode('#,##0.00;[Red](#,##0.00);0');$rekap->getStyle('A4:P'.$r)->getBorders()->getAllBorders()->setBorderStyle('thin')->getColor()->setARGB('FFE1E5EB');
     $rekap->freezePane('C6');$rekap->setShowGridlines(false);$rekap->getPageSetup()->setOrientation('landscape')->setFitToWidth(1)->setFitToHeight(0);
-    $rekap->getProtection()->setPassword(bin2hex(random_bytes(16)))->setSheet(true);
+    $rekap->getProtection()->setPassword(rawTemplatePassword())->setSheet(true);
 }

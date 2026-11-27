@@ -176,8 +176,8 @@
         <option value="UPB DISTR"></option>
         <option value="DATA PARETO UPB"></option>
         <option value="complaint - Accident"></option>
-        <option value="NEAR ED TW 3"></option>
-        <option value="TOP 10 NEAR ED TW 3"></option>
+        <option value="NEAR ED"></option>
+        <option value="TOP 10 NEAR ED"></option>
         <option value="Revenue Konimex Selling Out"></option>
       </datalist>
       <div id="bagianOptions" role="listbox" aria-label="Pilihan bagian laporan"></div>
@@ -259,8 +259,8 @@
 (()=>{let u;try{u=JSON.parse(sessionStorage.getItem('konimex_login_user')||'null');}catch{}if(u?.username!=='admin 2')return;const a=document.createElement('a');a.textContent='Kelola File';a.href="kelola-file.html";a.className="back-menu";document.querySelector(".upload-nav")?.append(a);})();
 </script>
 <script src="upload-notice.js?v=20261124"></script>
-<script src="upload-access.js?v=20261124"></script>
-<script src="file-detection.js?v=ib-sheet-names-20261123"></script>
+<script src="upload-access.js?v=near-ed-auth-20261127"></script>
+<script src="file-detection.js?v=near-ed-20261127"></script>
 <script src="template-protection.js?v=20261127-arraybuffer-fix"></script>
 <script src="precheck-client.js?v=20261127"></script>
 <script src="workbook-detection-reader.js?v=ods-preview-20261116"></script>
@@ -362,7 +362,7 @@
 
   function updateTemplateDownload() {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    const visible = ["BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
+    const visible = ["NEAR ED", "BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section);
     const validPeriod = /^20\d{2}-(0[1-9]|1[0-2])$/.test(period);
     $("downloadTemplate").textContent = ["BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB BJ kx", "UPB non BJ"].includes(section) ? "Unduh Template ODS" : "Unduh Template Excel";
     $("templateHelp").hidden = !visible;
@@ -374,7 +374,9 @@
       return;
     }
     $("templateTitle").textContent = "Template " + section + " · " + period;
-    $("templateDescription").textContent = section === "BOD MNJ"
+    $("templateDescription").textContent = section === "NEAR ED"
+      ? "Sheet input terpisah GB 1–GB 6 dan ETHICAL, masing-masing menyediakan 200 baris produk. Isi Unit dan Rupiah tiap rentang stok sesuai sumber. Sheet NEAR ED dan TOP 10 NEAR ED terisi otomatis; TOP 10 mengambil nama produk dengan Rupiah terbesar untuk masing-masing kelompok dan rentang stok. Baris produk dapat ditambah/dihapus sebelum TOTAL."
+      : section === "BOD MNJ"
       ? "Template ODS mengikuti file BOD MNJ terbaru: struktur, format, dan rumus dipertahankan. Tahun dan label S/D bulan mengikuti periode unduhan."
       : section === "SERVICE LEVEL"
       ? "Template ODS mengikuti tabel SERVICE LEVEL eksternal dan internal pada file sumber. Template raw data hanya berisi dua tabel: Eksternal dan Internal untuk tahun periode pilihan. Upload menyimpan tabel beserta format dan rumusnya ke database. Data terakhir pada tahun yang sama tersedia kembali saat mengunduh."
@@ -416,7 +418,7 @@
   window.addEventListener("pageshow", updateIbRateField);
   $("downloadTemplate").addEventListener("click", async () => {
     const section = sectionSelect.value.trim(), period = periodSelect.value;
-    if (!["BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
+    if (!["NEAR ED", "BOD MNJ", "SERVICE LEVEL", "DAFTAR", "LAUNCH", "BOD JML SDM", "BOD BI.Opr & BOD BI.SDM", "UPB DISTR", "DATA PARETO UPB", "UPB non BJ", "UPB BJ kx", "MNJ", "TARGET REVENUE", "IB", "MTM", "BIAYA", "UNIT & Revenue", "REVENUE VERSI EDP MNJ", "TARGET UNIT SELL OUT", "ETHICAL", "BOD KX Sell In"].includes(section) || !period) return;
     const button = $("downloadTemplate");
     button.disabled = true;
     const downloadController = new AbortController();
@@ -1082,6 +1084,13 @@
         const response=await fetch(endpoint,{method:"POST",body}),result=await response.json().catch(()=>null);
         if(!response.ok||!result?.success)throw new Error(result?.message||"Upload SERVICE LEVEL gagal.");
         barFill.style.width="100%";setMsg("SERVICE LEVEL tersimpan untuk "+result.period+". Sheet tersedia pada template dan unduhan laporan.","ok");clearFile();return;
+      }
+      if (sectionSelect.value === "NEAR ED") {
+        const body=new FormData();body.append("file",chosen);body.append("period",periodSelect.value);
+        const endpoint=LOCAL_FILE_MODE?"http://127.0.0.1:8000/api/report.php?endpoint=near_ed_input_api":"../api/report.php?endpoint=near_ed_input_api";
+        const response=await fetch(endpoint,{method:"POST",body}),result=await response.json().catch(()=>null);
+        if(!response.ok||!result?.success)throw new Error(result?.message||"Upload NEAR ED gagal.");
+        barFill.style.width="100%";setMsg("NEAR ED tersimpan untuk "+result.period+". Sheet NEAR ED dan TOP 10 NEAR ED tersedia pada unduhan laporan korporat.","ok");clearFile();return;
       }
       if (sectionSelect.value === "LAUNCH") {
         const body=new FormData();body.append("file",chosen);body.append("period",periodSelect.value);

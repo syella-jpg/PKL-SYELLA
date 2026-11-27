@@ -29,7 +29,10 @@
   logout.textContent = 'Keluar';
   logout.href = '../login/login.html';
   logout.addEventListener('click', () => { sessionStorage.removeItem('konimex_login_user'); });
-  menu.append(profile, clearStorage, logout);
+  const settings = document.createElement('button');
+  settings.type = 'button';settings.textContent = 'Pengaturan';
+  if(user.username==='admin 2')menu.append(profile, settings, clearStorage, logout);
+  else menu.append(profile, clearStorage, logout);
   const style = document.createElement('style');
   style.textContent = `
     .dots .menu > button {display:block;width:100%;border:0;background:transparent;text-align:left;padding:10px 14px;font:inherit;color:inherit;cursor:pointer;}
@@ -56,4 +59,36 @@
     trigger.setAttribute('aria-expanded', 'false');
     dialog.showModal();
   });
+  if(user.username==='admin 2'){
+    const settingsDialog=document.createElement('dialog');
+    settingsDialog.className='profile-dialog';settingsDialog.setAttribute('aria-label','Pengaturan password sheet');
+    settingsDialog.innerHTML=`<h2>Pengaturan</h2>
+      <p style="font-size:14px;line-height:1.5">Password proteksi sheet awal: <b>testing</b>. Perubahan berlaku untuk unduhan template berikutnya. File lama tetap memakai password sebelumnya.</p>
+      <form><label style="display:block;margin-top:16px">Password sheet baru<input name="password" type="password" autocomplete="new-password" maxlength="128" required style="display:block;box-sizing:border-box;width:100%;padding:10px;margin-top:6px;border:1px solid #cbd5e1;border-radius:8px"></label>
+      <label style="display:block;margin-top:16px">Konfirmasi password<input name="confirmation" type="password" autocomplete="new-password" maxlength="128" required style="display:block;box-sizing:border-box;width:100%;padding:10px;margin-top:6px;border:1px solid #cbd5e1;border-radius:8px"></label>
+      <p role="status" aria-live="polite" style="font-size:14px;line-height:1.5"></p>
+      <div style="display:flex;justify-content:flex-end;gap:10px"><button type="button" data-close style="margin:12px 0 0;background:#64748b">Tutup</button><button type="submit" style="margin:12px 0 0">Simpan</button></div></form>`;
+    document.body.append(settingsDialog);
+    const form=settingsDialog.querySelector('form'),status=settingsDialog.querySelector('[role="status"]'),save=form.querySelector('[type="submit"]');
+    settings.addEventListener('click',()=>{
+      menu.classList.remove('open');if(menu.id==='options')menu.hidden=true;trigger.setAttribute('aria-expanded','false');
+      form.reset();status.textContent='';settingsDialog.showModal();
+    });
+    settingsDialog.querySelector('[data-close]').addEventListener('click',()=>settingsDialog.close());
+    settingsDialog.addEventListener('close',()=>form.reset());
+    form.addEventListener('submit',async event=>{
+      event.preventDefault();if(save.disabled)return;
+      const password=form.elements.password.value,confirmation=form.elements.confirmation.value;
+      if(password!==confirmation){status.style.color='#b91c1c';status.textContent='Konfirmasi password tidak sama.';return;}
+      save.disabled=true;status.style.color='#475569';status.textContent='Menyimpan pengaturan…';
+      try{
+        const base=location.protocol==='file:'?'http://127.0.0.1:8000/api/report.php':'../api/report.php';
+        const headers={'Content-Type':'application/json'};if(user.uploadToken)headers.Authorization='Bearer '+user.uploadToken;
+        const response=await fetch(base+'?endpoint=template_settings_api',{method:'POST',headers,body:JSON.stringify({password,confirmation})});
+        const result=await response.json();if(!response.ok||!result.success)throw new Error(result.message||'Pengaturan gagal disimpan.');
+        form.reset();status.style.color='#047857';status.textContent=result.message;
+      }catch(error){status.style.color='#b91c1c';status.textContent=error.message||'Pengaturan belum dapat disimpan.';}
+      finally{save.disabled=false;}
+    });
+  }
 })();

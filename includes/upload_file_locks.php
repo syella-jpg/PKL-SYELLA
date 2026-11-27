@@ -1,9 +1,10 @@
 <?php
 // Metadata only. Never reads workbook contents.
 function uploadFileCatalog(): array {
-    return ['IB','ETHICAL','MTM','MNJ','UNIT & Revenue','TARGET UNIT SELL OUT','REVENUE VERSI EDP MNJ Target','BIAYA','TARGET REVENUE','DAFTAR','LAUNCH','SERVICE LEVEL','BOD KX Sell In','BOD MNJ','BOD JML SDM','BOD BI.Opr & BOD BI.SDM','RATIO UPB','UPB BJ kx','UPB non BJ','UPB DISTR','DATA PARETO UPB','complaint - Accident','NEAR ED TW 3','TOP 10 NEAR ED TW 3','Revenue Konimex Selling Out'];
+    return ['IB','ETHICAL','MTM','MNJ','UNIT & Revenue','TARGET UNIT SELL OUT','REVENUE VERSI EDP MNJ Target','BIAYA','TARGET REVENUE','DAFTAR','LAUNCH','SERVICE LEVEL','BOD KX Sell In','BOD MNJ','BOD JML SDM','BOD BI.Opr & BOD BI.SDM','RATIO UPB','UPB BJ kx','UPB non BJ','UPB DISTR','DATA PARETO UPB','complaint - Accident','NEAR ED','TOP 10 NEAR ED','Revenue Konimex Selling Out'];
 }
 function uploadCanonicalSection(string $section): string {
+    if(preg_match('/^(NEAR ED|TOP 10 NEAR ED) TW [1-4]$/D',$section,$m))return $m[1];
     return $section==='REVENUE VERSI EDP MNJ'?'UNIT & Revenue':$section;
 }
 function uploadLockSchema($db): void {
@@ -27,7 +28,7 @@ function uploadValidateScope(string $section,string $period): void {
     if(!in_array($section,uploadFileCatalog(),true)||!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$period))throw new InvalidArgumentException('Bagian file atau periode tidak valid.');
 }
 function uploadEndpointScope(string $endpoint,array $data): ?array {
-    $map=['daftar_input_api'=>'DAFTAR','launch_input_api'=>'LAUNCH','service_level_input_api'=>'SERVICE LEVEL','bod_jml_sdm_input_api'=>'BOD JML SDM','bod_bi_input_api'=>'BOD BI.Opr & BOD BI.SDM','bod_kx_sell_in_api'=>'BOD KX Sell In','bod_mnj_api'=>'BOD MNJ','biaya_api'=>'BIAYA','mnj_api'=>'MNJ','mtm_appendix_api'=>'MTM','upb_non_bj_input_api'=>'UPB non BJ','upb_bj_input_api'=>'UPB BJ kx','unit_sell_out_targets_api'=>'TARGET UNIT SELL OUT','revenue_so_targets_api'=>'TARGET REVENUE','revenue_edp_mnj_target_api'=>'REVENUE VERSI EDP MNJ Target'];
+    $map=['near_ed_input_api'=>'NEAR ED','daftar_input_api'=>'DAFTAR','launch_input_api'=>'LAUNCH','service_level_input_api'=>'SERVICE LEVEL','bod_jml_sdm_input_api'=>'BOD JML SDM','bod_bi_input_api'=>'BOD BI.Opr & BOD BI.SDM','bod_kx_sell_in_api'=>'BOD KX Sell In','bod_mnj_api'=>'BOD MNJ','biaya_api'=>'BIAYA','mnj_api'=>'MNJ','mtm_appendix_api'=>'MTM','upb_non_bj_input_api'=>'UPB non BJ','upb_bj_input_api'=>'UPB BJ kx','unit_sell_out_targets_api'=>'TARGET UNIT SELL OUT','revenue_so_targets_api'=>'TARGET REVENUE','revenue_edp_mnj_target_api'=>'REVENUE VERSI EDP MNJ Target'];
     $section=$endpoint==='upload'?uploadCanonicalSection((string)($data['divisi']??'')):($endpoint==='upb_distr_input_api'?(string)($data['section']??''):($map[$endpoint]??null));
     if($section===null)return null;
     $period=$data['period']??'';
@@ -56,7 +57,7 @@ function uploadLegacyMetadata($db,string $section,string $period): ?array {
         $q=uploadLockQuery($db,'SELECT filename,uploaded_at,uploaded_by FROM report_upload_files WHERE section=? AND report_period BETWEEN ? AND ? AND has_upload=1 ORDER BY uploaded_at DESC,revision DESC,report_period DESC LIMIT 1','sss',[$section,$year.'-01',$year.'-12']);
         $saved=$q->get_result()->fetch_assoc();$q->close();if($saved)return $saved;
     }
-    $tables=['IB'=>['revenue_ibfm'],'ETHICAL'=>['template ethical','ethical HNA dan UNIT','ETHICAL'],'TARGET UNIT SELL OUT'=>['target unit sell out'],'TARGET REVENUE'=>['target_revenue'],'REVENUE VERSI EDP MNJ Target'=>['revenue_edp_mnj_target'],'MTM'=>['mtm_monthly_values'],'MNJ'=>['mnj_input_files'],'UNIT & Revenue'=>['UNIT','revenue_edp_mnj'],'BIAYA'=>['biaya_uploads'],'DAFTAR'=>['daftar'],'LAUNCH'=>['launch_input'],'SERVICE LEVEL'=>['service_level_input'],'BOD KX Sell In'=>['bod_kx_sell_in_monthly'],'BOD MNJ'=>['BOD MNJ','bod_mnj_files'],'BOD JML SDM'=>['bod_jml_sdm_input'],'BOD BI.Opr & BOD BI.SDM'=>['bod bi opr sdm'],'UPB BJ kx'=>['upb bj kx','upb_bj_input_files'],'UPB non BJ'=>['upb non bj'],'UPB DISTR'=>['upb distr'],'DATA PARETO UPB'=>['data pareto upb']];
+    $tables=['IB'=>['revenue_ibfm'],'ETHICAL'=>['template ethical','ethical HNA dan UNIT','ETHICAL'],'TARGET UNIT SELL OUT'=>['target unit sell out'],'TARGET REVENUE'=>['target_revenue'],'REVENUE VERSI EDP MNJ Target'=>['revenue_edp_mnj_target'],'MTM'=>['mtm_monthly_values'],'MNJ'=>['mnj_input_files'],'UNIT & Revenue'=>['UNIT','revenue_edp_mnj'],'BIAYA'=>['biaya_uploads'],'DAFTAR'=>['daftar'],'NEAR ED'=>['near ED'],'LAUNCH'=>['launch_input'],'SERVICE LEVEL'=>['service_level_input'],'BOD KX Sell In'=>['bod_kx_sell_in_monthly'],'BOD MNJ'=>['BOD MNJ','bod_mnj_files'],'BOD JML SDM'=>['bod_jml_sdm_input'],'BOD BI.Opr & BOD BI.SDM'=>['bod bi opr sdm'],'UPB BJ kx'=>['upb bj kx','upb_bj_input_files'],'UPB non BJ'=>['upb non bj'],'UPB DISTR'=>['upb distr'],'DATA PARETO UPB'=>['data pareto upb']];
     foreach($tables[$section]??[] as $table){
         $q=uploadLockQuery($db,'SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?','s',[$table]);$columnRows=$q->get_result()->fetch_all(MYSQLI_ASSOC);$columns=[];foreach($columnRows as $columnRow){$value=array_values($columnRow)[0]??'';$columns[]=strtolower((string)$value);}$q->close();
         $predicate=uploadMetadataPredicate($section,$table,$columns,$period);if(!$predicate)continue;
@@ -93,7 +94,7 @@ function uploadEffectivePeriodSql(string $section,string $period): array {
 }
 function uploadEffectiveMetadata($db,string $section,string $period): ?array {
     // Checklist coverage includes later cumulative uploads in the same year; never open stored workbooks.
-    $tables=['IB'=>['revenue_ibfm'],'MTM'=>['mtm_monthly_values'],'MNJ'=>['mnj_input_files'],'UNIT & Revenue'=>['UNIT','revenue_edp_mnj'],'BIAYA'=>['biaya_uploads'],'DAFTAR'=>['daftar'],'LAUNCH'=>['launch_input'],'SERVICE LEVEL'=>['service_level_input'],'BOD MNJ'=>['BOD MNJ','bod_mnj_files'],'BOD JML SDM'=>['bod_jml_sdm_input'],'BOD BI.Opr & BOD BI.SDM'=>['bod bi opr sdm'],'BOD KX Sell In'=>['bod_kx_sell_in_monthly'],'UPB BJ kx'=>['upb bj kx','upb_bj_input_files'],'UPB non BJ'=>['upb non bj'],'UPB DISTR'=>['upb distr']];
+    $tables=['IB'=>['revenue_ibfm'],'MTM'=>['mtm_monthly_values'],'MNJ'=>['mnj_input_files'],'UNIT & Revenue'=>['UNIT','revenue_edp_mnj'],'BIAYA'=>['biaya_uploads'],'DAFTAR'=>['daftar'],'NEAR ED'=>['near ED'],'LAUNCH'=>['launch_input'],'SERVICE LEVEL'=>['service_level_input'],'BOD MNJ'=>['BOD MNJ','bod_mnj_files'],'BOD JML SDM'=>['bod_jml_sdm_input'],'BOD BI.Opr & BOD BI.SDM'=>['bod bi opr sdm'],'BOD KX Sell In'=>['bod_kx_sell_in_monthly'],'UPB BJ kx'=>['upb bj kx','upb_bj_input_files'],'UPB non BJ'=>['upb non bj'],'UPB DISTR'=>['upb distr']];
     if(!isset($tables[$section]))return null;
     [$where,$order,$types,$parameters]=uploadEffectivePeriodSql($section,$period);
     foreach($tables[$section] as $table){

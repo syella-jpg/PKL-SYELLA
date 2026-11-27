@@ -12,7 +12,7 @@ assert.deepEqual(result.choices.map(c => c.section), ['TARGET UNIT SELL OUT']);
 assert.equal(result.year, 2026);
 assert.equal(result.month, null);
 result = detect(book({ HRU: ['SALES REVENUE (UNIT)'], 'YFR - IBFM': [] }), 'KPI IB ALL AGUSTUS 2026.ods');
-assert.deepEqual(result.choices.map(c => c.section), ['TARGET UNIT SELL OUT', 'IB']);
+assert.deepEqual(result.choices.map(c => c.section), ['IB']);
 assert.equal(result.month, 8);
 result = detect(book({ GMEB: ['Existing Product (Unit)'], 'PRODUK NAS': [] }), 'KPI ETH 09-2026.ods');
 assert.equal(result.choices.length, 2);
@@ -87,3 +87,5 @@ assert.deepEqual(result.choices.map(c=>c.section),['BOD KX Sell In']);assert.equ
 result = detect(book({'GB 1': ['REKAP REVENUE PER PRODUCT TAHUN 2026'], _TEMPLATE: ['KONIMEX_TARGET_REVENUE_V1','TARGET REVENUE',2026,'2026-09']}), 'renamed.xlsx');
 assert.deepEqual(result.choices.map(c => c.section), ['TARGET REVENUE']);
 assert.equal(result.year,2026); assert.equal(result.month,9);
+
+result=detect(book({'GM IB':['SALES REVENUE (UNIT)']}),'target-2026.ods');assert.deepEqual(result.choices.map(c=>c.section),['TARGET UNIT SELL OUT']);

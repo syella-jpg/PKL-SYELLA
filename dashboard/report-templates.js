@@ -142,7 +142,7 @@
   global.writeMtmOds=function(workbook){
     const X=global.XLSX;
     let buffer=writeReportOdsBeforeUpb?writeReportOdsBeforeUpb(workbook):X.write(workbook,{type:"array",bookType:"ods",cellStyles:true});
-    if(!workbook.serviceLevelNativeOds&&!workbook.daftarNativeOds&&!workbook.launchNativeOds&&!workbook.bodJmlSdmNativeOds&&!workbook.bodBiSdmNativeOds&&!workbook.bodBiOprNativeOds&&!workbook.onTimeFormulationRange&&!workbook.Sheets["UPB BJ kx"]&&!workbook.upbNonBjNativeOds&&!workbook.upbDistrNativeOds&&!workbook.dataParetoUpbNativeOds)return buffer;
+    if(!workbook.nearEdNativeOds&&!workbook.serviceLevelNativeOds&&!workbook.daftarNativeOds&&!workbook.launchNativeOds&&!workbook.bodJmlSdmNativeOds&&!workbook.bodBiSdmNativeOds&&!workbook.bodBiOprNativeOds&&!workbook.onTimeFormulationRange&&!workbook.Sheets["UPB BJ kx"]&&!workbook.upbNonBjNativeOds&&!workbook.upbDistrNativeOds&&!workbook.dataParetoUpbNativeOds)return buffer;
     const zip=X.CFB.read(new Uint8Array(buffer),{type:"array"});
     preserveNativeUpbOds(workbook,zip,workbook.upbBjNativeOds||UPB_BJ_KX_BASE64,"UPB BJ kx","UPBBJKX_");
     if(workbook.upbNonBjNativeOds)preserveNativeUpbOds(workbook,zip,workbook.upbNonBjNativeOds,"UPB non BJ","UPBNONBJ_");
@@ -154,6 +154,10 @@
     if(workbook.launchNativeOds)preserveNativeUpbOds(workbook,zip,workbook.launchNativeOds,"LAUNCH","LAUNCH_");
     if(workbook.serviceLevelNativeOds)preserveNativeUpbOds(workbook,zip,workbook.serviceLevelNativeOds,"SERVICE LEVEL","SERVICELEVEL_");
     if(workbook.bodJmlSdmNativeOds)preserveNativeUpbOds(workbook,zip,workbook.bodJmlSdmNativeOds,"BOD JML SDM","BODJMLSDM_");
+    if(workbook.nearEdNativeOds){
+      preserveNativeUpbOds(workbook,zip,workbook.nearEdNativeOds,'NEAR ED','NEARED_');
+      preserveNativeUpbOds(workbook,zip,workbook.nearEdNativeOds,'TOP 10 NEAR ED','TOPNEARED_');
+    }
     preserveOnTimeFormulationStyles(workbook,zip);
     return Uint8Array.from(X.CFB.write(zip,{type:"array",fileType:"zip",compression:true})).buffer;
   };
@@ -246,6 +250,20 @@
     const sheet=source.Sheets['SERVICE LEVEL']||source.Sheets[source.SheetNames[0]];
     if(!sheet)throw new Error('Sheet SERVICE LEVEL tidak ditemukan.');
     workbook.Sheets['SERVICE LEVEL']=sheet;workbook.SheetNames=workbook.SheetNames.filter(name=>name!=='SERVICE LEVEL');workbook.SheetNames.splice(Math.max(0,workbook.SheetNames.indexOf('LAPORAN')+1),0,'SERVICE LEVEL');workbook.serviceLevelNativeOds=native;
+    await global.replaceNearEdReportSheets(workbook,period);
+  };
+  global.replaceNearEdReportSheets=async function(workbook,period){
+    const base64=await loadUpbReportData('near_ed_input_api.php',period);
+    const source=global.XLSX.read(base64,{type:'base64',cellStyles:true,cellNF:true});
+    workbook.nearEdNativeOds=base64;
+    for(const name of ['NEAR ED','TOP 10 NEAR ED']){
+      if(!source.Sheets[name])throw new Error('Sheet '+name+' tidak ditemukan.');
+      workbook.Sheets[name]=source.Sheets[name];
+      if(!workbook.SheetNames.includes(name))workbook.SheetNames.push(name);
+    }
+    for(const old of workbook.SheetNames.slice())if(/^(?:TOP 10 )?NEAR ED TW [1-4]$/.test(old)){
+      delete workbook.Sheets[old];workbook.SheetNames=workbook.SheetNames.filter(name=>name!==old);
+    }
   };
   global.replaceLaunchTemplateSheet=async function(workbook,period,nativeBase64){
     if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period))throw new Error("Periode LAUNCH tidak valid.");

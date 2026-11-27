@@ -188,7 +188,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="unit-sell-out-targets.js?v=ib-sell-in-follows-out-20261104"></script>
 <script src="unit-target-layout.js?v=20261102"></script>
-<script src="report-templates.js?v=edp-ytd-total-formulas-20261120"></script>
+<script src="report-templates.js?v=near-ed-tables-20261127"></script>
 <script src="service-level-chart.js?v=20261124"></script>
 <script src="shared-report-download.js?v=unit-chart-ready-20261124"></script>
 <script src="analysis-store.js?v=period-20261124"></script>
@@ -946,7 +946,7 @@
         }
       }
     });
-    const workbookSheetNames = ["LAPORAN", "SERVICE LEVEL", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED TW 3", "TOP 10 NEAR ED TW 3"];
+    const workbookSheetNames = ["LAPORAN", "SERVICE LEVEL", "IB", "ETHICAL", "MNJ", "MTM", "UNIT", "REVENUE EDP MNJ", "BIAYA", "TARGET REVENUE", "DAFTAR", "LAUNCH", "BOD KX Sell In", "BOD MNJ", "BOD JML SDM", "BOD BI.SDM", "BOD BI.Opr", "RATIO UPB", "UP BJ kx", "UPB non BJ", "UPB DISTR", "PARETO UPB DISTR AGT 26", "complaint - Accident", "NEAR ED", "TOP 10 NEAR ED"];
     const laporan = {};
     Object.entries(worksheet).forEach(([key, value]) => {
       laporan[key] = key.startsWith("!") ? value : { ...value };

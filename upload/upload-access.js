@@ -1,6 +1,6 @@
 /* Attach the server-issued upload session to every supported write request. */
 (() => {
- const endpoints=new Set(['upload','daftar_input_api','launch_input_api','service_level_input_api','bod_jml_sdm_input_api','bod_bi_input_api','bod_kx_sell_in_api','bod_mnj_api','biaya_api','mnj_api','mtm_appendix_api','upb_non_bj_input_api','upb_bj_input_api','unit_sell_out_targets_api','revenue_so_targets_api','revenue_edp_mnj_target_api','upb_distr_input_api']);
+ const endpoints=new Set(['upload','daftar_input_api','launch_input_api','near_ed_input_api','service_level_input_api','bod_jml_sdm_input_api','bod_bi_input_api','bod_kx_sell_in_api','bod_mnj_api','biaya_api','mnj_api','mtm_appendix_api','upb_non_bj_input_api','upb_bj_input_api','unit_sell_out_targets_api','revenue_so_targets_api','revenue_edp_mnj_target_api','upb_distr_input_api']);
  const session=()=>{try{return JSON.parse(sessionStorage.getItem('konimex_login_user')||'null');}catch{return null;}};
  const protectedUrl=value=>{const u=new URL(typeof value==='string'?value:value.url,location.href),name=u.searchParams.get('endpoint')||u.pathname.split('/').pop().replace(/\.php$/,'');return endpoints.has(name);};
  function attach(body){
