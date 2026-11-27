@@ -175,6 +175,7 @@ function saveBiayaProducts($conn, string $period, array $rows): void
         require_once __DIR__.'/raw_actual_period.php';
         $read=$conn->prepare('SELECT * FROM biaya WHERE report_year=?'.(reportIsPharma()?' AND gb IN (1,4)':'').' FOR UPDATE');
         $read->bind_param('i',$year);$read->execute();$previous=$read->get_result()->fetch_all(MYSQLI_ASSOC);$read->close();
+        assertRawTargetPeriod($period,biayaTargetPeriodValues($previous,true),biayaTargetPeriodValues($rows));
         assertRawActualPeriod($period,biayaActualPeriodValues($previous,true),biayaActualPeriodValues($rows));
         $q=$conn->prepare('DELETE FROM biaya WHERE report_year=?'.(reportIsPharma()?' AND gb IN (1,4)':''));
         $q->bind_param('i',$year); $q->execute(); $q->close();

@@ -96,6 +96,9 @@ function saveEthicalSource(mysqli $conn,string $period,array $data): void {
     require_once __DIR__.'/raw_actual_period.php';
     $read=$conn->prepare('SELECT payload FROM `template ethical` WHERE report_year=? FOR UPDATE');
     $year=(int)$data['year'];$read->bind_param('i',$year);$read->execute();$saved=$read->get_result()->fetch_assoc();$read->close();
+    $previous=$saved?json_decode($saved['payload'],true,512,JSON_THROW_ON_ERROR):[];
+    $targetIncoming=$data['inputs'];if(!isset($previous['_products']))unset($targetIncoming['_products']);
+    assertRawTargetPeriod($period,ethicalTargetPeriodValues($previous),ethicalTargetPeriodValues($targetIncoming));
     if($saved){
         $previous=json_decode($saved['payload'],true,512,JSON_THROW_ON_ERROR);$incoming=$data['inputs'];
         if(!isset($previous['_products']))unset($incoming['_products']);

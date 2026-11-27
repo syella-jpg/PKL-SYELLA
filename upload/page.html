@@ -121,6 +121,8 @@
     .actions { flex-wrap: wrap; }
     .drop { padding: 20px 14px; }
   }
+  #protectionWarning { position:fixed; inset:0; margin:auto; max-height:calc(100dvh - 40px); overflow:auto; }
+  #protectionWarning::backdrop { background:rgba(15,23,42,.45); }
 </style>
 <script src="../dashboard/portal-access.js?v=pharma-20261125"></script>
 </head>
@@ -206,6 +208,8 @@
     </div>
 
     <p class="hint">Realisasi bulan sebelumnya dikunci. Untuk koreksi, hubungi pihak CSPPM untuk membuka periode tersebut, lalu unduh dan upload template periode yang dikoreksi.</p>
+    <div id="precheckStatus" role="status" aria-live="polite" style="margin:12px 0;font-size:12px;line-height:1.5" hidden></div>
+    <button type="button" id="precheckRetry" hidden style="margin-bottom:12px;padding:8px 12px;border-radius:8px;border:1px solid #c4b5fd;background:white;cursor:pointer">Periksa ulang</button>
     <span class="label" id="fileLabel">File Dokumen</span>
     <div class="drop" id="drop" role="button" tabindex="0" aria-labelledby="fileLabel">
       <input type="file" id="file" accept=".xlsx,.ods" hidden>
@@ -244,6 +248,12 @@
     </div>
   </form>
 </main>
+<dialog id="protectionWarning" aria-labelledby="protectionWarningTitle" aria-describedby="protectionWarningText" style="width:min(520px,calc(100% - 40px));box-sizing:border-box;padding:24px;border:1px solid #fecaca;border-radius:16px;background:#fff;color:#b91c1c;line-height:1.6;box-shadow:0 20px 60px #0003">
+  <strong id="protectionWarningTitle">WARNING! PROTEKSI TEMPLATE TIDAK SESUAI</strong>
+  <p id="protectionWarningText" style="margin:12px 0"></p>
+  <div style="display:flex;justify-content:flex-end;margin-top:20px"><button type="button" id="protectionWarningOk" style="padding:10px 30px;background:#dc2626;color:white;border:0;border-radius:9px;font-weight:700;cursor:pointer" autofocus>OK</button></div>
+</dialog>
+
 
 <script>
 (()=>{let u;try{u=JSON.parse(sessionStorage.getItem('konimex_login_user')||'null');}catch{}if(u?.username!=='admin 2')return;const a=document.createElement('a');a.textContent='Kelola File';a.href="kelola-file.html";a.className="back-menu";document.querySelector(".upload-nav")?.append(a);})();
@@ -251,6 +261,8 @@
 <script src="upload-notice.js?v=20261124"></script>
 <script src="upload-access.js?v=20261124"></script>
 <script src="file-detection.js?v=ib-sheet-names-20261123"></script>
+<script src="template-protection.js?v=20261127-arraybuffer-fix"></script>
+<script src="precheck-client.js?v=20261127"></script>
 <script src="workbook-detection-reader.js?v=ods-preview-20261116"></script>
 <script src="bod-upload-type.js?v=20261109"></script>
 <script src="../dashboard/report-api-cache.js?v=read-only-detection-20261116"></script>
@@ -318,6 +330,7 @@
   sectionSelect.addEventListener("change", updateIbRateField);
   function chooseSection(name) {
     sectionSelect.value = name;
+    sectionSelect.dispatchEvent(new Event("change",{bubbles:true}));
     updateIbRateField();
     closeSectionOptions();
     $("bagianWrap").classList.remove("err");
@@ -748,6 +761,65 @@
     return "";
   }
 
+  let protectionRevision=0;
+  const protectionReads=new WeakMap(), protectionShown=new WeakMap();
+  $("protectionWarningOk").addEventListener("click",()=>$("protectionWarning").close());
+  function showProtectionWarning(file,key) {
+    let shown=protectionShown.get(file);
+    if(!shown){shown=new Set();protectionShown.set(file,shown);}
+    if(shown.has(key))return;
+    shown.add(key);
+    if(!$("protectionWarning").open)$("protectionWarning").showModal();
+  }
+  const precheckGate=window.UploadPrecheck.create({
+    async request(file,section,period,signal){
+      const data=new FormData();data.append("file",file);data.append("section",section);data.append("period",period);
+      const base=LOCAL_FILE_MODE?"http://127.0.0.1:8000/api/report.php":"../api/report.php";
+      const response=await fetch(base+"?endpoint=upload_precheck_api",{method:"POST",body:data,signal});
+      return await response.json();
+    },
+    onState(state,message){
+      $("precheckStatus").textContent=message;$("precheckStatus").hidden=!message;
+      $("precheckStatus").style.color=["rejected","error"].includes(state)?"#b91c1c":"#475569";
+      $("precheckRetry").hidden=!["rejected","error"].includes(state);
+      btn.disabled=busy||detecting||["checking","rejected","error"].includes(state);
+    },
+    onRejected(message){
+      $("protectionWarningTitle").textContent="UPLOAD DITOLAK!";
+      $("protectionWarningText").textContent=message.replace(/^UPLOAD DITOLAK!\s*/,"");
+      if(!$("protectionWarning").open)$("protectionWarning").showModal();
+    }
+  });
+  function scheduleUploadPrecheck(force=false){
+    if(detecting)return;
+    precheckGate.schedule(chosen,sectionSelect.value.trim(),periodSelect.value,force);
+  }
+  $("precheckRetry").addEventListener("click",()=>scheduleUploadPrecheck(true));
+  sectionSelect.addEventListener("change",()=>scheduleUploadPrecheck());
+  sectionSelect.addEventListener("input",()=>scheduleUploadPrecheck());
+  periodSelect.addEventListener("change",()=>scheduleUploadPrecheck());
+  async function updateProtectionWarning() {
+    const revision=++protectionRevision, file=chosen;
+    const panel=$("protectionWarning");if(panel.open)panel.close();
+    if(!file||!sectionSelect.value||!periodSelect.value)return;
+    try {
+      if(!protectionReads.has(file))protectionReads.set(file,file.arrayBuffer().then(bytes=>window.TemplateProtection.read(bytes,window.XLSX)));
+      const sheets=await protectionReads.get(file);
+      if(revision!==protectionRevision||chosen!==file||precheckGate.getState()==="rejected")return;
+      const issues=window.TemplateProtection.issues(sheets,sectionSelect.value,periodSelect.value);
+      if(!issues.length)return;
+      $("protectionWarningTitle").textContent="WARNING! PROTEKSI TEMPLATE TIDAK SESUAI";
+      $("protectionWarningText").textContent="Sistem hanya menerima perubahan pada bagian yang diizinkan untuk periode ini. Perubahan pada target atau realisasi periode yang masih terkunci tidak akan diterima. REKAP dihitung ulang oleh sistem. Untuk koreksi data terkunci, hubungi pihak CSPPM.";
+      showProtectionWarning(file,sectionSelect.value+"|"+periodSelect.value+"|"+issues.join(","));
+    } catch(error) {
+      if(revision!==protectionRevision||chosen!==file)return;
+      $("protectionWarningTitle").textContent="PERHATIAN! PROTEKSI BELUM DAPAT DIPERIKSA";
+      $("protectionWarningText").textContent="Gunakan template terbaru. Data unggahan tetap diperiksa oleh server sesuai hak akses dan periode.";
+      showProtectionWarning(file,"unreadable");
+    }
+  }
+  sectionSelect.addEventListener("change",updateProtectionWarning);
+  periodSelect.addEventListener("change",updateProtectionWarning);
   async function recognizeFile(file) {
     const id = ++detectionId;
     detecting = true;
@@ -786,6 +858,8 @@
           button.style.cssText = "border:1px solid #cfcaf5;border-radius:10px;padding:10px 14px;background:#fff;cursor:pointer";
           button.addEventListener("click", () => {
             chooseSection(choice.section);
+            updateProtectionWarning();
+            scheduleUploadPrecheck();
             $("detectionStatus").textContent = "Tujuan dipilih: " + choice.section + "." + periodHint;
             Array.from($("detectionChoices").children).forEach(b => {
               const active = b === button;
@@ -800,7 +874,7 @@
       if (id === detectionId) $("detectionStatus").textContent = "File belum dapat dikenali. Pilih bagian dan periode secara manual.";
     } finally {
       if (id === detectionId) updateTemplateDownload();
-      if (id === detectionId) { detecting = false; btn.disabled = busy; }
+      if (id === detectionId) { detecting = false; btn.disabled = busy; updateProtectionWarning(); scheduleUploadPrecheck(); }
     }
   }
 
@@ -808,6 +882,7 @@
     if (!f || busy) return;
     const err = validate(f);
     if (err) { clearFile(); drop.classList.add("err"); setMsg(err, "error"); return; }
+    precheckGate.reset();
     chosen = f;
     $("fname").textContent = f.name;
     $("fsize").textContent = fmtSize(f.size);
@@ -817,7 +892,7 @@
     recognizeFile(f);
   }
   function clearFile() {
-    ++detectionId; detecting = false; btn.disabled = busy;
+    ++detectionId; ++protectionRevision; precheckGate.reset(); $("protectionWarning").close(); detecting = false; btn.disabled = busy;
     $("detectionStatus").textContent = "";
     $("detectionChoices").replaceChildren();
     chosen = null;
@@ -849,7 +924,7 @@
 
   function setBusy(on) {
     busy = on;
-    btn.disabled = on;
+    btn.disabled = on || precheckGate.blocked();
     btnText.textContent = on ? "Mengunggah..." : "Upload File";
     bar.classList.toggle("on", on);
     if (!on) barFill.style.width = "0";
@@ -955,7 +1030,7 @@
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (busy || detecting) return;
+    if (busy || detecting || precheckGate.blocked()) return;
     setMsg("");
     $("bagianWrap").classList.remove("err");
     drop.classList.remove("err");
@@ -1238,6 +1313,11 @@
       $("ibRate").value = "";
       updateIbRateField();
     } catch (err) {
+      if(String(err.message||"").includes("UPLOAD DITOLAK!")){
+        $("protectionWarningTitle").textContent="UPLOAD DITOLAK!";
+        $("protectionWarningText").textContent=String(err.message).replace(/^.*?UPLOAD DITOLAK!\s*/,"");
+        if(!$("protectionWarning").open)$("protectionWarning").showModal();
+      }
       const networkError = err instanceof TypeError && /fetch|network|load failed/i.test(err.message);
       setMsg(networkError
         ? "Server upload tidak dapat dihubungi. Untuk localhost, jalankan bash scripts/start-local.sh dari folder proyek, lalu buka http://127.0.0.1:8000/menu/page.html. Jika server sudah aktif, periksa log terminal PHP."

@@ -82,9 +82,11 @@ function saveBodKxCombinedInput(mysqli $conn,string $period,array $incoming): ar
     $conn->begin_transaction();
     try{
         $saved=lockBodKxInputState($conn,$period);
+        $targetSaved=$saved;
         if(!empty($incoming['_rod_import']))$saved['rod']=[];
         $merged=mergeBodKxInputState($saved,$incoming);
         require_once __DIR__.'/raw_actual_period.php';
+        assertRawTargetPeriod($period,bodKxTargetPeriodValues($targetSaved),bodKxTargetPeriodValues($merged['state']));
         assertRawActualPeriod($period,bodKxActualPeriodValues($saved),bodKxActualPeriodValues($merged['state']));
         $deletedRodGroups=!empty($incoming['_rod_template'])
             ?array_values(array_unique(array_diff(array_column($saved['rod'],'product'),array_column($merged['state']['rod'],'product'))))

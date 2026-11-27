@@ -18,11 +18,11 @@ function rawPeriodDocument(string $bytes): DOMDocument {
             }return upbBjXml($xml);}finally{$zip->close();}}finally{unlink($path);}
 }
 /** Monthly sheet contents are immutable; wide-sheet values are keyed by labels. */
-function rawNativeMonthValues(DOMDocument $doc,string $period): array {
+function rawNativeMonthValues(DOMDocument $doc,string $period,bool $targets=false): array {
     $out=[];$year=substr($period,0,4);
     foreach(upbBjTables($doc) as $name=>$table){
-        if(in_array(strtoupper($name),['REKAP','KESIMPULAN'],true)||str_starts_with(strtoupper($name),'TARGET'))continue;
-        $sheetMonth=rawPeriodMonth($name);$cells=upbBjCells($table);$active=[];$section='';$duplicates=[];$blockYear=$year;
+        if(in_array(strtoupper($name),['REKAP','KESIMPULAN','PETUNJUK'],true)||(!$targets&&str_starts_with(strtoupper($name),'TARGET')))continue;
+        $sheetMonth=rawPeriodMonth($name);if($targets&&$sheetMonth!==null)continue;$cells=upbBjCells($table);$active=[];$section='';$duplicates=[];$blockYear=$year;
         foreach($cells as $r=>$row){
             foreach($row as $cell){$label=strtoupper(trim($cell->textContent));if(preg_match('/^(?:TH\.?|TAHUN)\s*(20\d{2})$/',$label,$match))$blockYear=$match[1];}
             if($sheetMonth===null&&$blockYear!==$year)continue;
@@ -37,12 +37,14 @@ function rawNativeMonthValues(DOMDocument $doc,string $period): array {
                 continue;
             }
             if(!$active)continue;
-            if(preg_match('/\b(?:TARGET|BUDGET|ANGGARAN|ROD)\b/i',implode('|',$labels)))continue;
+            $targetRow=str_starts_with(strtoupper($name),'TARGET')||preg_match('/\b(?:TARGET|BUDGET|ANGGARAN|ROD)\b/i',implode('|',$labels));
+            if((bool)$targetRow!==$targets)continue;
             $first=min(array_keys($active));$identity=implode('|',array_filter($labels,static fn($c)=>$c<$first,ARRAY_FILTER_USE_KEY));
             if($identity===''){if($labels)$section=implode('|',$labels);continue;}
             if(preg_match('/20\d{2}/',$identity,$match)&&$match[0]!==$year)continue;
             $key=$section.'|'.$identity;$occurrence=$duplicates[$key]??0;$duplicates[$key]=$occurrence+1;
-            foreach($active as $c=>$m){$cell=$row[$c]??null;if(!$cell||$cell->hasAttributeNS(UPB_T,'formula'))continue;
+            foreach($active as $c=>$m){$cell=$row[$c]??null;if(!$cell)continue;
+                if($cell->hasAttributeNS(UPB_T,'formula')){$out[$name][$m][$key.'|'.$occurrence]='formula:'.$cell->getAttributeNS(UPB_T,'formula');continue;}
                 $v=$cell->getAttributeNS(UPB_O,'value');if($v!=='')$out[$name][$m][$key.'|'.$occurrence]=(float)$v;
             }
         }
@@ -50,14 +52,23 @@ function rawNativeMonthValues(DOMDocument $doc,string $period): array {
     return $out;
 }
 function assertRawNativePeriod(string $period,string $before,string $after): void {
-    $old=rawNativeMonthValues(rawPeriodDocument($before),$period);$new=rawNativeMonthValues(rawPeriodDocument($after),$period);$selected=(int)substr($period,5,2)-1;
-    foreach($old as $sheet=>$months)foreach($months as $month=>$values){
-        if($month>=$selected)continue;
-        $incoming=$new[$sheet][$month]??[];ksort($values);ksort($incoming);
-        if($values==$incoming)continue;
+    $doc=rawPeriodDocument($before);$old=rawNativeMonthValues($doc,$period);$oldTargets=rawNativeMonthValues($doc,$period,true);$oldColumns=rawNativeTargetColumns($doc);unset($doc);
+    $doc=rawPeriodDocument($after);$new=rawNativeMonthValues($doc,$period);$newTargets=rawNativeMonthValues($doc,$period,true);$newColumns=rawNativeTargetColumns($doc);unset($doc);
+    $selected=(int)substr($period,5,2)-1;
+    foreach(array_unique(array_merge(array_keys($old),array_keys($new))) as $sheet)foreach(range(0,$selected-1) as $month){
+        if($selected===0)break;
+        $values=$old[$sheet][$month]??[];$incoming=$new[$sheet][$month]??[];
+        // Numeric zero and blank are equivalent, but newly inserted past values are checked too.
+        $normalize=static function(array $v):array {foreach($v as $k=>$n)if(is_numeric($n)&&abs((float)$n)<=0.000001)unset($v[$k]);ksort($v);return $v;};
+        if($normalize($values)==$normalize($incoming))continue;
         $locked=substr($period,0,4).'-'.str_pad((string)($month+1),2,'0',STR_PAD_LEFT);
-        throw new InvalidArgumentException('Realisasi periode '.$locked.' tidak boleh diubah melalui upload '.$period.'. Hubungi admin 2 untuk membuka periode '.$locked.' di Kelola File, lalu gunakan template periode tersebut.');
+        throw new InvalidArgumentException('UPLOAD DITOLAK! Terdapat perubahan pada realisasi periode '.$locked.' yang masih terkunci. Hubungi pihak CSPPM untuk membuka periode tersebut, lalu gunakan template periode yang dikoreksi.');
     }
+    require_once __DIR__.'/raw_actual_period.php';
+    $targetMap=static function(array $sheets):array {$out=[];foreach($sheets as $name=>$months)foreach($months as $m=>$values)foreach($values as $key=>$v)$out[$name.':'.$key][$m]=$v;return $out;};
+    assertRawTargetPeriod($period,$targetMap($oldTargets),$targetMap($newTargets));
+    assertRawTargetPeriod($period,$oldColumns,$newColumns);
+
 }
 function guardStoredNativePeriod($db,string $table,string $period,string $bytes): void {
     $allowed=['upb bj kx','upb distr','upb non bj','bod bi opr sdm','bod_jml_sdm_input','service_level_input','BOD MNJ','mnj_input_files','mtm_appendix_uploads'];
@@ -127,4 +138,22 @@ function protectRawNativePeriod(string $bytes,string $period): string {
     }
     addRawNativeInstructions($doc,$auto);
     $path=tempnam(sys_get_temp_dir(),'raw-lock-');$zip=new ZipArchive();try{file_put_contents($path,$bytes);if($zip->open($path)!==true)throw new RuntimeException('Template tidak dapat dikunci.');try{$zip->addFromString('content.xml',$doc->saveXML());}finally{$zip->close();}return file_get_contents($path);}finally{unlink($path);}
+}
+
+/** Scalar annual PLAN/TARGET columns (e.g. SDM), independent of monthly layout. */
+function rawNativeTargetColumns(DOMDocument $doc): array {
+    $out=[];
+    foreach(upbBjTables($doc) as $name=>$table){
+        if(in_array(strtoupper($name),['PETUNJUK','REKAP','KESIMPULAN'],true)||rawPeriodMonth($name)!==null)continue;
+        $columns=[];$duplicates=[];
+        foreach(upbBjCells($table) as $row){
+            $headers=[];
+            foreach($row as $c=>$cell){$label=strtoupper(trim(preg_replace('/\s+/u',' ',$cell->textContent)));if(preg_match('/^(?:TARGET|PLAN|ANGGARAN)(?:\s|$)/',$label))$headers[$c]=$label;}
+            if(count($headers)>=1){$columns=$headers;continue;}
+            if(!$columns)continue;
+            $labels=[];foreach($row as $c=>$cell)if(!isset($columns[$c])&&!$cell->hasAttributeNS(UPB_O,'value')&&!$cell->hasAttributeNS(UPB_T,'formula')){ $v=trim($cell->textContent);if($v!=='')$labels[]=$v; }
+            if(!$labels)continue;$identity=implode('|',$labels);$n=$duplicates[$identity]??0;$duplicates[$identity]=$n+1;
+            foreach($columns as $c=>$label){$cell=$row[$c]??null;if(!$cell||$cell->hasAttributeNS(UPB_T,'formula')||!$cell->hasAttributeNS(UPB_O,'value'))continue;$out[$name.':'.$identity.':'.$n.':'.$label][0]=(float)$cell->getAttributeNS(UPB_O,'value');}
+        }
+    }return $out;
 }

@@ -62,6 +62,7 @@ try{
  if($method==='POST'&&$combined!==null){
   echo json_encode(saveBodKxCombinedInput($conn,$period,$combined));
  }elseif($method==='POST'&&$isTarget){
+  if(substr($period,5,2)!=='01')throw new InvalidArgumentException('UPLOAD DITOLAK! Target ROD terkunci di luar periode Januari. Hubungi pihak CSPPM untuk melakukan koreksi.');
   $conn->begin_transaction();invalidateBodKxInputState($conn,$period,true);$q=$conn->prepare('DELETE FROM `BOD KX SELL IN target` WHERE report_year=?');$q->bind_param('i',$year);$q->execute();$q->close();
   $q=$conn->prepare('INSERT INTO `BOD KX SELL IN target` (report_year,month,product,rupiah,units) VALUES (?,?,?,?,?)');
   foreach($records as $record){$q->bind_param('iisss',$year,$record['month'],$record['product'],$record['rupiah'],$record['units']);$q->execute();}$q->close();$conn->commit();

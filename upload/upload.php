@@ -344,6 +344,11 @@ try {
         $first=substr($period,0,4).'-01';$read=$conn->prepare("SELECT metric_code,month_number,amount FROM mtm_monthly_values WHERE report_period=(SELECT MAX(report_period) FROM mtm_monthly_values WHERE report_period BETWEEN ? AND ? AND value_type='ACTUAL') AND value_type='ACTUAL'");
         $read->bind_param('ss',$first,$period);$read->execute();$old=[];foreach($read->get_result()->fetch_all(MYSQLI_ASSOC) as $r)$old[$r['metric_code']][(int)$r['month_number']-1]=$r['amount'];$read->close();
         $new=[];foreach($mtmData as $metric=>$types)foreach($types['ACTUAL']??[] as $m=>$v)$new[$metric][(int)$m-1]=$v;
+        $targetRead=$conn->prepare("SELECT metric_code,value_type,month_number,amount FROM mtm_monthly_values WHERE report_period=(SELECT MAX(report_period) FROM mtm_monthly_values WHERE report_period BETWEEN ? AND ?) AND value_type IN ('TARGET','ROLLING')");
+        $targetRead->bind_param('ss',$first,$period);$targetRead->execute();$oldTargets=[];
+        foreach($targetRead->get_result()->fetch_all(MYSQLI_ASSOC) as $r)$oldTargets[$r['metric_code'].':'.$r['value_type']][(int)$r['month_number']-1]=$r['amount'];$targetRead->close();$newTargets=[];
+        foreach($mtmData as $metric=>$types)foreach(['TARGET','ROLLING'] as $type)foreach($types[$type]??[] as $m=>$v)$newTargets[$metric.':'.$type][(int)$m-1]=$v;
+        assertRawTargetPeriod($period,$oldTargets,$newTargets);
         assertRawActualPeriod($period,$old,$new);
 
         $conn->begin_transaction();
@@ -417,6 +422,11 @@ try {
         foreach($read->get_result()->fetch_all(MYSQLI_ASSOC) as $r){$key=$r['metric_code'].':'.$r['business_unit'];$m=(int)$r['month_number']-1;if(!array_key_exists($m,$old[$key]??[]))$old[$key][$m]=$r['amount'];}$read->close();$new=$old;
         foreach([['revenue_exist_cum','IB_FM',$monthlyFm],['revenue_exist_cum','IB_FD',$monthlyFd],['revenue_new_cum','IB_FM',$monthlyNewFm],['revenue_new_cum','IB_FD',$monthlyNewFd],['mcm_cum','GROUP',$monthlyMcm]] as [$metric,$unit,$source])foreach($source['cumulative']['actual']??[] as $m=>$v)if($v!==null)$new[$metric.':'.$unit][(int)$m-1]=$v;
         foreach($ibSeries as [$metric,$unit,$data])$new[$metric.'_cum:'.$unit][$ibSelectedMonth-1]=$data['cumulative']['actual'][$ibSelectedMonth];
+        $targetRead=$conn->prepare("SELECT report_period,month_number,metric_code,business_unit,amount FROM ib_monthly_values WHERE report_period BETWEEN ? AND ? AND value_type='TARGET' AND metric_code IN ('revenue_exist_cum','revenue_new_cum','mcm_cum') ORDER BY report_period DESC");
+        $targetRead->bind_param('ss',$first,$period);$targetRead->execute();$oldTargets=[];
+        foreach($targetRead->get_result()->fetch_all(MYSQLI_ASSOC) as $r){$key=$r['metric_code'].':'.$r['business_unit'];$m=(int)$r['month_number']-1;if(!array_key_exists($m,$oldTargets[$key]??[]))$oldTargets[$key][$m]=$r['amount'];}$targetRead->close();$newTargets=$oldTargets;
+        foreach([['revenue_exist_cum','IB_FM',$monthlyFm],['revenue_exist_cum','IB_FD',$monthlyFd],['revenue_new_cum','IB_FM',$monthlyNewFm],['revenue_new_cum','IB_FD',$monthlyNewFd],['mcm_cum','GROUP',$monthlyMcm]] as [$metric,$unit,$source])foreach($source['cumulative']['target']??[] as $m=>$v)if($v!==null)$newTargets[$metric.':'.$unit][(int)$m-1]=$v;
+        assertRawTargetPeriod($period,$oldTargets,$newTargets);
         assertRawActualPeriod($period,$old,$new);
         $conn->begin_transaction();
         // Upload sheet IAP saja tidak boleh menghapus nilai IB FM yang sudah
@@ -934,6 +944,11 @@ try {
             $spreadsheet->disconnectWorksheets();
             $spreadsheet = normalizeUnitRevenueInputTemplate($unitRevenueTemplateRecords);
         }elseif(reportIsPharma())throw new InvalidArgumentException('Akun pharma harus memakai template UNIT & Revenue khusus GB 1 dan GB 4.');
+        elseif(substr($period,5,2)!=='01'){
+            require_once __DIR__.'/../includes/unit_revenue_template_history.php';
+            $baseline=loadUnitRevenueTemplateHistory($conn,$period);
+            if(!empty($baseline['records']))throw new InvalidArgumentException('UPLOAD DITOLAK! Struktur file ini tidak mendukung pemeriksaan data periode terkunci. Gunakan template UNIT & Revenue terbaru. Hubungi pihak CSPPM untuk melakukan koreksi.');
+        }
     }
     $sheet = $spreadsheet->getActiveSheet();
 
@@ -1304,7 +1319,7 @@ try {
         && in_array((int)$e->getCode(), [1205, 1213, 3572], true);
     if ($unitRevenueBusy) {
         http_response_code(409);
-    } elseif (($divisi ?? '') === 'ETHICAL' && $e instanceof InvalidArgumentException) {
+    } elseif ($e instanceof InvalidArgumentException) {
         http_response_code(400);
     } elseif (http_response_code() < 400) {
         http_response_code(500);

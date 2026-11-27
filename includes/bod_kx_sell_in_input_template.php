@@ -30,8 +30,8 @@ function buildBodKxInputTemplate(string $period,array $history=[]): Spreadsheet 
     [$year,$month]=bodKxInputPeriod($period);$months=bodKxInputMonths();
     if(($history['year']??null)!==$year)$history=[];
     if($month===1){
-        if(!empty($history['monthly_imports'][1])||!empty($history['rod_imported'])){if(empty($history['rod_imported']))$history['rod']=[];if(empty($history['monthly_imports'][1]))$history['sales']=[];foreach($history['sales'] as &$record)foreach(['units','rupiah'] as $field)foreach(range(1,11) as $m)$record[$field][$m]=null;unset($record);}
-        else $history=[];
+        // Same-year annual targets must remain available for authorized January corrections.
+        if(isset($history['sales']))foreach($history['sales'] as &$record)foreach(['units','rupiah'] as $field)foreach(range(1,11) as $m)$record[$field][$m]=null;unset($record);
     }
     $fresh=empty($history['sales'])&&empty($history['rod']);
     $book=new Spreadsheet();$book->removeSheetByIndex(0);$book->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);

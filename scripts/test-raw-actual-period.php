@@ -3,7 +3,7 @@ require __DIR__.'/../includes/raw_actual_period.php';
 function verifyPeriod($ok,$message){if(!$ok)throw new RuntimeException($message);}
 $before=['gb1:1'=>[1,2,3,4,5,null,7,null,null,null,null,null]];
 $after=$before;$after['gb1:1'][5]=60;assertRawActualPeriod('2026-06',$before,$after);
-foreach([4,6] as $changed){$bad=$after;$bad['gb1:1'][$changed]=999;try{assertRawActualPeriod('2026-06',$before,$bad);throw new RuntimeException('Accepted foreign month');}catch(InvalidArgumentException $e){verifyPeriod(str_contains($e->getMessage(),'admin 2'),'Actionable message');}}
+foreach([4,6] as $changed){$bad=$after;$bad['gb1:1'][$changed]=999;try{assertRawActualPeriod('2026-06',$before,$bad);throw new RuntimeException('Accepted foreign month');}catch(InvalidArgumentException $e){verifyPeriod(str_contains($e->getMessage(),'CSPPM'),'Actionable message');}}
 try{assertRawActualPeriod('2026-06',$before,[]);throw new RuntimeException('Accepted row deletion');}catch(InvalidArgumentException $e){}
 $may=$before;$may['gb1:1'][4]=50;assertRawActualPeriod('2026-05',$before,$may);
 assertRawActualPeriod('2026-06',[],['new'=>[1,2,3,4,5,6]]);

@@ -26,6 +26,7 @@ class IbUnitStoreResult extends mysqli_result {
 }
 $conn=new IbUnitStoreConnection();$conn->inputs['2025|ib']=['payload'=>'preserve'];$conn->targets['2025|ib|1']='preserve';$conn->targets['2026|gb1|1']='preserve';
 $parts=[];foreach(['A'=>100,'B'=>20,'actual_A'=>90,'actual_B'=>10] as $key=>$factor)foreach(range(1,12) as $month)$parts[$key][]=$month*$factor;
+$conn->inputs['2026|ib']=['payload'=>json_encode(array_intersect_key($parts,array_flip(['A','B']))),'source_period'=>'2026-01'];
 $save=function($data)use($conn){$conn->begin_transaction();try{saveIbUnitInputs($conn,2026,'2026-09',$data);$conn->commit();}catch(Throwable $e){$conn->rollback();throw $e;}};$save($parts);
 ibStoreCheck(count($conn->targets)===14&&$conn->targets['2026|ib|1']==='120.000000'&&$conn->targets['2026|ib|12']==='120.000000','Canonical monthly target persisted');
 $loaded=loadIbUnitHistory($conn,2026);ibStoreCheck($loaded['actual_A'][0]===90&&$loaded['A'][11]===1200,'Target/actual cumulative cells persisted for both templates');

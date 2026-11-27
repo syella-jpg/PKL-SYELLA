@@ -15,7 +15,7 @@ class ScopeQuery {
  function close(){}
 }
 class ScopeDb{public $rows=[['gb'=>1,'value'=>1],['gb'=>2,'value'=>999],['gb'=>4,'value'=>4],['gb'=>6,'value'=>666]],$queries=[],$snapshot;function query($sql){return true;}function prepare($sql){return new ScopeQuery($this,$sql);}function begin_transaction(){}function commit(){}function rollback(){}}
-$db=new ScopeDb();saveBiayaProducts($db,'2026-10',[['type'=>'target','gb'=>1,'category'=>'EXIS','number'=>1,'name'=>'Dummy','values'=>array_fill(0,12,10)]]);
+$db=new ScopeDb();saveBiayaProducts($db,'2026-01',[['type'=>'target','gb'=>1,'category'=>'EXIS','number'=>1,'name'=>'Dummy','values'=>array_fill(0,12,10)]]);
 if($db->rows!==[['gb'=>2,'value'=>999],['gb'=>6,'value'=>666],['gb'=>1,'value'=>10]])throw new RuntimeException('Other GB changed');
 $db->snapshot=gzencode(json_encode([['gb'=>'1','name'=>'old'],['gb'=>'2','name'=>'retained'],['__kind'=>'ethical_revenue','rev'=>[123]]]));
 saveUnitRevenueTemplateSnapshot($db,'2026-10',[['gb'=>'4','name'=>'new']]);$saved=json_decode(gzdecode($db->snapshot),true);

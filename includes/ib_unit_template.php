@@ -44,6 +44,7 @@ function saveIbUnitInputs(mysqli $conn,int $year,string $period,array $incoming)
     $previous=loadIbUnitHistory($conn,$year,true)??[];$parts=mergeIbUnitParts($incoming,$previous);
     foreach(['actual_A','actual_B'] as $key){$m=(int)substr($period,5,2)-1;if(array_key_exists($m,$incoming[$key]??[]))$parts[$key][$m]=$incoming[$key][$m];}
     require_once __DIR__.'/raw_actual_period.php';
+    assertRawTargetPeriod($period,array_intersect_key($previous,array_flip(['A','B'])),array_intersect_key($parts,array_flip(['A','B'])));
     $old=[];$new=[];foreach(['actual_A','actual_B'] as $key){if(isset($previous[$key]))$old[$key]=$previous[$key];$new[$key]=$parts[$key];}
     assertRawActualPeriod($period,$old,$new);
     saveUnitSellOutInputs($conn,$year,$period,['ib'],['ib'=>$parts]);

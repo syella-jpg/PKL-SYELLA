@@ -5,7 +5,7 @@ header('Cache-Control: no-store');
 
 // Only these application endpoints may be executed by this function.
 $endpoints = [
-    'upload_files_api',
+    'upload_files_api', 'upload_precheck_api',
     'service_level_input_api',
     'tm_bod_director_notes_api',
      'daftar_input_api', 'launch_input_api', 'bod_jml_sdm_input_api', 'bod_bi_report_api', 'bod_bi_input_api', 'upload_file_detection_api', 'upb_distr_input_api', 'data_pareto_upb_api', 'upb_distr_report_api', 'upb_non_bj_report_api', 'upb_non_bj_input_api', 'upb_bj_report_api', 'upb_bj_input_api', 'mnj_api', 'report_input_template', 'mtm_appendix_api', 'unit_sell_out_targets_api', 'bod_kx_sell_in_api', 'tm_bod_content_api', 'tm_bod_design_api', 'tm_bod_templates_api', 'tm_bod_analysis_api', 'analysis_locks_api', 'analysis_api', 'biaya_api', 'bod_mnj_api', 'unit_api', 'ethical_api', 'mtm_api', 'revenue_so_api',

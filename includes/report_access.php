@@ -52,10 +52,11 @@ function enforceReportAccess(string $endpoint): void {
   $GLOBALS['reportAccessUser']=$user;if($user!=='pharma')return;
   if($endpoint==='upload_files_api'&&($data['action']??'')==='logout')return;
   if($endpoint==='bod_mnj_api'&&($_SERVER['REQUEST_METHOD']??'GET')==='GET')return;
-  $allowed=['upload','report_input_template','upload_file_detection_api','unit_api','revenue_so_api','revenue_edp_mnj_api','revenue_so_targets_api','revenue_edp_mnj_target_api','unit_sell_out_targets_api','biaya_api','bod_kx_sell_in_api','analysis_api','analysis_locks_api'];
+  $allowed=['upload','upload_precheck_api','report_input_template','upload_file_detection_api','unit_api','revenue_so_api','revenue_edp_mnj_api','revenue_so_targets_api','revenue_edp_mnj_target_api','unit_sell_out_targets_api','biaya_api','bod_kx_sell_in_api','analysis_api','analysis_locks_api'];
   if(!in_array($endpoint,$allowed,true))throw new RuntimeException('Akun pharma tidak mempunyai akses ke bagian ini.',403);
   if(in_array($endpoint,['analysis_api','analysis_locks_api'],true)&&($_SERVER['REQUEST_METHOD']??'GET')==='POST'&&!reportPharmaTab((string)($data['report']??''),(string)($data['tab']??'')))throw new RuntimeException('Analisis akun pharma hanya untuk tab Pharma/Farmasi.',403);
   if($endpoint==='report_input_template'&&($_SERVER['REQUEST_METHOD']??'GET')!=='GET')throw new RuntimeException('Template hanya dapat diunduh melalui GET.',403);
+  if($endpoint==='upload_precheck_api'&&!in_array($data['section']??'',reportPharmaUploads(),true))throw new RuntimeException('Pemeriksaan ini bukan bagian Pharma.',403);
   if($endpoint==='report_input_template'&&!in_array($data['section']??'',reportPharmaUploads(),true))throw new RuntimeException('Template ini bukan bagian Pharma.',403);
   if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'&&in_array($endpoint,['upload','bod_kx_sell_in_api'],true)&&($data['download']??false))throw new RuntimeException('Unduhan lengkap tidak tersedia untuk pharma.',403);
   if($endpoint!=='report_input_template')ob_start(static function($body)use($endpoint){$payload=json_decode($body,true);return is_array($payload)?json_encode(reportPharmaFilter($endpoint,$payload),JSON_UNESCAPED_UNICODE):$body;});
